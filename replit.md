@@ -4,6 +4,36 @@
 
 pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
 
+Also includes a Telegram coupon selling bot (`telegram-bot/`) built with Python and python-telegram-bot v21.
+
+## Telegram Bot
+
+Located in `telegram-bot/` directory. Run via the "Telegram Bot" workflow.
+
+### Files
+- `bot.py` — Main bot logic (async, python-telegram-bot 21.x)
+- `coupons.json` — Coupon codes storage (auto-managed)
+- `users.json` — Registered user storage
+- `orders.json` — Order history and status
+- `requirements.txt` — Python dependencies
+
+### Features
+- User storefront: ₹100 and ₹150 Myntra coupons
+- Payment screenshot submission flow
+- Admin approval/rejection panel
+- Automatic coupon delivery on approval
+- Admin dashboard: stats, stock, pending orders, broadcast
+- Low stock alerts (<5 coupons remaining)
+
+### Admin Commands
+- `/admin` — Open admin dashboard
+- `/addcoupon coupon_100 CODE1 CODE2` — Add coupon codes for ₹100 product
+- `/addcoupon coupon_150 CODE1 CODE2` — Add coupon codes for ₹150 product
+
+### Environment Variables
+- `TELEGRAM_BOT_TOKEN` — Bot token from BotFather (secret)
+- `TELEGRAM_ADMIN_ID` — Admin Telegram user ID
+
 ## Stack
 
 - **Monorepo tool**: pnpm workspaces
