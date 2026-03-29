@@ -32,9 +32,9 @@ logging.getLogger("werkzeug").setLevel(logging.ERROR)   # silence Flask access l
 BOT_TOKEN  = os.environ.get("TELEGRAM_BOT_TOKEN")
 ADMIN_ID   = int(os.environ.get("TELEGRAM_ADMIN_ID", "0"))
 
-UPI_ID         = "yourname@upi"       # ← change to your UPI ID
-SUPPORT_HANDLE = "@yourusername"      # ← change to your Telegram username
-QR_IMAGE_PATH  = "qr_code.jpg"       # ← place your QR code image here (optional)
+UPI_ID         = "k36672632@okicici"         # UPI ID
+SUPPORT_HANDLE = "@MyntraCouponsupport_bot"  # Support Telegram handle
+QR_IMAGE_PATH  = "qr_code.jpg"              # QR code image (already loaded)
 
 COUPONS_FILE       = "coupons.json"
 USERS_FILE         = "users.json"
@@ -47,8 +47,8 @@ FAST_PAYMENT_THRESHOLD = 120   # < 2 min = 🔥 fast
 LOW_STOCK_THRESHOLD    = 5
 
 PRODUCTS = {
-    "coupon_100": {"name": "₹100 Myntra Coupon", "price": 32, "emoji": "🟢"},
-    "coupon_150": {"name": "₹150 Myntra Coupon", "price": 34, "emoji": "🔵"},
+    "coupon_100": {"name": "₹100 Myntra Coupon", "price": 35, "emoji": "🟢"},
+    "coupon_150": {"name": "₹150 Myntra Coupon", "price": 30, "emoji": "🔵"},
 }
 
 QTY_EMOJIS = {
@@ -220,18 +220,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "🎉 *Welcome to Coupon Store*\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         "🔥 *Best Deals Available*\n\n"
-        "💸 ₹100 Myntra Coupon — *₹32 only*\n"
-        "💸 ₹150 Myntra Coupon — *₹34 only*\n\n"
+        "💸 ₹100 Myntra Coupon — *₹35 only*\n"
+        "💸 ₹150 Myntra Coupon — *₹30 only*\n\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         "⚡ Instant Delivery  |  ✅ Trusted  |  💬 24/7 Support"
     )
     keyboard = [
         [InlineKeyboardButton(
-            f"🟢 ₹100 Coupon – ₹32  [{s100} left]" if s100 > 0 else "🟢 ₹100 Coupon – Out of Stock",
+            f"🟢 ₹100 Coupon – ₹35  [{s100} left]" if s100 > 0 else "🟢 ₹100 Coupon – Out of Stock",
             callback_data="buy_coupon_100",
         )],
         [InlineKeyboardButton(
-            f"🔵 ₹150 Coupon – ₹34  [{s150} left]" if s150 > 0 else "🔵 ₹150 Coupon – Out of Stock",
+            f"🔵 ₹150 Coupon – ₹30  [{s150} left]" if s150 > 0 else "🔵 ₹150 Coupon – Out of Stock",
             callback_data="buy_coupon_150",
         )],
         [InlineKeyboardButton("📞 Support", callback_data="support")],
@@ -250,9 +250,9 @@ async def support(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "💬 *Customer Support*\n"
         "━━━━━━━━━━━━━━━━━━━━\n\n"
         "Having any issue? Contact us 👇\n\n"
-        f"📩 Telegram: {SUPPORT_HANDLE}\n\n"
-        "⏱ We usually reply within a few minutes.\n\n"
-        "_For order issues, please share your Order ID._"
+        f"📩 Telegram: `{SUPPORT_HANDLE}`\n\n"
+        "We usually reply within a few minutes.\n\n"
+        "For order issues, please share your Order ID."
     )
     keyboard = [
         [InlineKeyboardButton("📩 Contact Support", url=f"https://t.me/{SUPPORT_HANDLE.lstrip('@')}")],
@@ -270,18 +270,18 @@ async def back_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         "🎉 *Welcome to Coupon Store*\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         "🔥 *Best Deals Available*\n\n"
-        "💸 ₹100 Myntra Coupon — *₹32 only*\n"
-        "💸 ₹150 Myntra Coupon — *₹34 only*\n\n"
+        "💸 ₹100 Myntra Coupon — *₹35 only*\n"
+        "💸 ₹150 Myntra Coupon — *₹30 only*\n\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         "⚡ Instant Delivery  |  ✅ Trusted  |  💬 24/7 Support"
     )
     keyboard = [
         [InlineKeyboardButton(
-            f"🟢 ₹100 Coupon – ₹32  [{s100} left]" if s100 > 0 else "🟢 ₹100 Coupon – Out of Stock",
+            f"🟢 ₹100 Coupon – ₹35  [{s100} left]" if s100 > 0 else "🟢 ₹100 Coupon – Out of Stock",
             callback_data="buy_coupon_100",
         )],
         [InlineKeyboardButton(
-            f"🔵 ₹150 Coupon – ₹34  [{s150} left]" if s150 > 0 else "🔵 ₹150 Coupon – Out of Stock",
+            f"🔵 ₹150 Coupon – ₹30  [{s150} left]" if s150 > 0 else "🔵 ₹150 Coupon – Out of Stock",
             callback_data="buy_coupon_150",
         )],
         [InlineKeyboardButton("📞 Support", callback_data="support")],
@@ -802,7 +802,7 @@ async def _do_reject(context, order_id: str):
                 "• Screenshot unclear\n"
                 "• Wrong amount paid\n"
                 "• Payment not completed\n\n"
-                f"💡 Retry with /start or contact {SUPPORT_HANDLE}"
+                f"💡 Retry with /start or contact `{SUPPORT_HANDLE}`"
             ),
             parse_mode=ParseMode.MARKDOWN,
         )

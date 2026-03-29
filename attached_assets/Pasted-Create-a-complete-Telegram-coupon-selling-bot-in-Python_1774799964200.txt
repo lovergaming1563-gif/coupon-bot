@@ -1,0 +1,146 @@
+Create a complete Telegram coupon selling bot in Python using python-telegram-bot (v20+ async).
+
+========================
+1. START MENU
+========================
+When user sends /start, show:
+
+🟢 ₹100 Myntra Coupon – ₹35 (show stock)
+🔵 ₹150 Myntra Coupon – ₹30 (show stock)
+📞 Support
+
+========================
+2. COUPON SYSTEM
+========================
+- Use coupons.json
+- Store multiple coupon codes for each type
+- Remove used coupon after approval
+- If empty → show "Out of stock"
+
+========================
+3. QUANTITY SYSTEM
+========================
+After selecting coupon, show buttons:
+
+1️⃣ 2️⃣ 3️⃣ 4️⃣ 5️⃣  
+6️⃣ 7️⃣ 8️⃣ 9️⃣ 🔟  
+✏️ Custom Quantity
+
+- Custom pe:
+   → ask user input
+   → validate number > 0
+
+- Calculate:
+   total = price × quantity
+
+========================
+4. PAYMENT SYSTEM
+========================
+After quantity selection:
+
+"💳 Payment Details
+━━━━━━━━━━━━━━
+🧾 Product: ₹100 Coupon
+📦 Quantity: X
+💰 Total: ₹X
+
+📲 UPI ID: k36672632@okaxis
+
+📸 Scan QR or pay manually
+Then send screenshot here"
+
+- Send QR code image also
+
+========================
+5. SCREENSHOT SYSTEM
+========================
+User sends image:
+
+"⏳ Screenshot received. Waiting for approval"
+
+Forward to admin with:
+- Name
+- Username
+- User ID
+- Product
+- Quantity
+- Amount
+
+========================
+6. ADMIN APPROVE
+========================
+Command:
+/approve <user_id>
+
+Bot:
+- Fetch order
+- Send multiple coupons based on quantity
+- Remove coupons from JSON
+
+========================
+7. SUPPORT SYSTEM
+========================
+When user clicks 📞 Support:
+
+"💬 Support Team
+━━━━━━━━━━━━━━
+Contact here:
+
+👉 @@MyntraCouponsupport_bot
+
+========================
+8. BROADCAST
+========================
+/broadcast <message>
+
+========================
+9. USER STORAGE
+========================
+Store all users in users.json
+
+========================
+10. STOCK DISPLAY
+========================
+Use len() to show stock
+
+========================
+11. SAMPLE COUPONS (IMPORTANT ADD)
+========================
+- Add initial 50 sample coupons for each type inside coupons.json
+
+Example format:
+
+{
+  "100": ["CODE100_1", "CODE100_2", ..., "CODE100_50"],
+  "150": ["CODE150_1", "CODE150_2", ..., "CODE150_50"]
+}
+
+========================
+12. FILES
+========================
+- users.json
+- coupons.json
+- pending_orders.json
+
+========================
+13. 24/7 SYSTEM
+========================
+- Flask server
+- "/" route → "Bot is running"
+- Port 3000
+- keep_alive()
+
+========================
+14. SETUP INSTRUCTIONS
+========================
+Mention where to add:
+
+- BOT_TOKEN
+- ADMIN_ID
+- UPI ID
+- QR image file
+- Support username
+
+========================
+GOAL:
+Fully working Telegram coupon bot with quantity system, UPI payment, support system, and preloaded coupons.

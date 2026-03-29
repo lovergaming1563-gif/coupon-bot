@@ -1,0 +1,143 @@
+Create a complete Telegram coupon selling bot in Python using python-telegram-bot (v20+ async).
+
+========================
+1. START MENU
+========================
+When user sends /start, show:
+
+🟢 ₹100 Myntra Coupon – ₹35 (show stock)
+🔵 ₹150 Myntra Coupon – ₹30 (show stock)
+📞 Support
+
+========================
+2. COUPON SYSTEM
+========================
+- Use coupons.json
+- Store multiple coupon codes
+- Remove used coupon after approval
+- If empty → show "Out of stock"
+
+========================
+3. QUANTITY SYSTEM (FIXED)
+========================
+After selecting coupon, show buttons:
+
+1️⃣ 2️⃣ 3️⃣ 4️⃣ 5️⃣  
+6️⃣ 7️⃣ 8️⃣ 9️⃣ 🔟  
+✏️ Custom Quantity
+
+- Custom pe:
+   → ask user input
+   → validate number > 0
+
+- Calculate:
+   total = price × quantity
+
+========================
+4. PAYMENT SYSTEM
+========================
+After quantity selection:
+
+Send message:
+
+"💳 Payment Details
+━━━━━━━━━━━━━━
+🧾 Product: ₹100 Coupon
+📦 Quantity: X
+💰 Total: ₹X
+
+📲 UPI ID: yourupi@upi
+
+📸 Scan QR or pay manually
+Then send screenshot here"
+
+- Send QR code image also
+
+========================
+5. SCREENSHOT SYSTEM
+========================
+User sends image:
+
+Reply:
+"⏳ Screenshot received. Waiting for approval"
+
+Forward to admin with:
+- Name
+- Username
+- User ID
+- Product
+- Quantity
+- Amount
+
+========================
+6. ADMIN APPROVE
+========================
+Command:
+/approve <user_id>
+
+Bot:
+- Fetch order
+- Send multiple coupons based on quantity
+- Remove coupons from JSON
+
+========================
+7. SUPPORT SYSTEM
+========================
+When user clicks 📞 Support:
+
+Send:
+"💬 Support Team
+━━━━━━━━━━━━━━
+Contact here:
+
+👉 @your_support_username"
+
+========================
+8. BROADCAST
+========================
+/broadcast <message>
+
+Send to all users
+
+========================
+9. USER STORAGE
+========================
+Store user IDs in users.json
+
+========================
+10. STOCK DISPLAY
+========================
+Use len() to show remaining stock
+
+========================
+11. FILES
+========================
+- users.json
+- coupons.json
+- pending_orders.json
+
+========================
+12. 24/7 SYSTEM
+========================
+- Add Flask server
+- Route "/" → "Bot is running"
+- Host: 0.0.0.0
+- Port: 3000
+- Use threading
+- keep_alive() function
+
+========================
+13. SETUP INSTRUCTIONS
+========================
+Clearly mention where to:
+
+- Add BOT_TOKEN
+- Add ADMIN_ID
+- Add UPI ID
+- Add QR image file
+- Add support username
+- Add coupon codes
+
+========================
+GOAL:
+Fully working Telegram bot with correct pricing, quantity system (1–10 + custom), UPI payment + QR, and support system.
