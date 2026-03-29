@@ -1,0 +1,144 @@
+Create a complete advanced Telegram coupon selling bot using Python and python-telegram-bot (v20+ async).
+
+FOCUS:
+- Attractive UI messages
+- Strong admin panel with stats
+- Clean and professional flow
+
+========================
+1. START MENU (/start)
+========================
+Send stylish message:
+
+"🎉 Welcome to Coupon Store!
+🔥 Best Deals – Instant Delivery
+
+💸 ₹100 Myntra Coupon – ₹35
+💸 ₹150 Myntra Coupon – ₹30
+
+⚡ Fast Delivery | ✅ Trusted | 🤖 Automatic System"
+
+Buttons:
+🟢 Buy ₹100 Coupon (show stock left)
+🔵 Buy ₹150 Coupon (show stock left)
+
+========================
+2. USER FLOW
+========================
+When user clicks product:
+
+Send stylish message:
+"🧾 Order Details
+━━━━━━━━━━━━━━
+🎟 Product: ₹100 Coupon
+💰 Price: ₹35
+
+📸 Please complete payment and send screenshot here.
+
+⚠️ After verification, your coupon will be delivered instantly!"
+
+========================
+3. SCREENSHOT SYSTEM
+========================
+- User sends payment screenshot
+- Bot replies:
+"⏳ Payment under review...
+Please wait for admin approval."
+
+- Forward screenshot to admin with buttons:
+   ✅ Approve
+   ❌ Reject
+
+========================
+4. APPROVAL FLOW
+========================
+If approved:
+Send user:
+"✅ Payment Confirmed!
+🎉 Here is your coupon code:
+
+`COUPON_CODE`
+
+🙏 Thank you for your purchase!"
+
+If rejected:
+"❌ Payment not verified.
+Please send correct screenshot."
+
+========================
+5. ATTRACTIVE UI
+========================
+- Use emojis, separators, stylish text
+- Messages should look premium (not basic text)
+- Use Markdown formatting
+
+========================
+6. COUPON SYSTEM
+========================
+- Store coupons in JSON
+- Auto assign next coupon
+- Remove used coupon
+- Update stock
+
+========================
+7. ADMIN PANEL (/admin)
+========================
+Send dashboard:
+
+"📊 ADMIN DASHBOARD
+━━━━━━━━━━━━━━
+
+📦 Total Coupons Sold: X
+💰 Total Earnings: ₹X
+👥 Total Users: X
+⏳ Pending Orders: X
+
+⚠️ Low Stock Alert (if any)"
+
+Buttons:
+📦 Stock
+⏳ Pending Orders
+📊 Stats
+➕ Add Coupon
+📢 Broadcast
+
+========================
+8. PENDING ORDERS VIEW
+========================
+- Show all pending users in list:
+   user_id + product
+- Admin can click and approve/reject
+
+========================
+9. STATS SYSTEM
+========================
+Track:
+- Total orders completed
+- Total revenue
+- Total users
+
+========================
+10. BROADCAST
+========================
+- Send message to all users
+
+========================
+11. EXTRA FEATURES
+========================
+- Low stock alert (<5 coupons)
+- Error handling
+- Logging
+- Async code
+
+========================
+12. FILE STRUCTURE
+========================
+- bot.py
+- coupons.json
+- users.json
+- orders.json
+- requirements.txt
+
+========================
+GOAL:
+Create a professional Telegram selling bot with attractive UI, admin control panel, stats, and automated coupon delivery after approval.
