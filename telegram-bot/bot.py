@@ -314,17 +314,17 @@ async def buy_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     # Build 1–10 grid in two rows of 5, then Custom Quantity
     row1 = [
-        InlineKeyboardButton(QTY_EMOJIS[q], callback_data=f"qty_{product_key}_{q}")
+        InlineKeyboardButton(QTY_EMOJIS[q], callback_data=f"qty_{q}")
         for q in range(1, 6) if q <= stock
     ]
     row2 = [
-        InlineKeyboardButton(QTY_EMOJIS[q], callback_data=f"qty_{product_key}_{q}")
+        InlineKeyboardButton(QTY_EMOJIS[q], callback_data=f"qty_{q}")
         for q in range(6, 11) if q <= stock
     ]
     keyboard = []
     if row1: keyboard.append(row1)
     if row2: keyboard.append(row2)
-    keyboard.append([InlineKeyboardButton("✏️ Custom Quantity", callback_data=f"custom_qty_{product_key}")])
+    keyboard.append([InlineKeyboardButton("✏️ Custom Quantity", callback_data="qty_custom")])
     keyboard.append([InlineKeyboardButton("◀️ Back", callback_data="back_to_start")])
 
     await query.edit_message_text(
@@ -344,13 +344,13 @@ async def buy_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 async def custom_qty_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query       = update.callback_query
     await query.answer()
-    product_key = query.data.replace("custom_qty_", "")
-    product     = PRODUCTS.get(product_key)
+    product_key = context.user_data.get("selected_product")
+    product     = PRODUCTS.get(product_key) if product_key else None
     if not product:
+        await query.edit_message_text("❌ Session expired. Please use /start.", parse_mode=ParseMode.MARKDOWN)
         return
 
     stock = get_stock(product_key)
-    context.user_data["selected_product"]   = product_key
     context.user_data["awaiting_custom_qty"] = True
 
     await query.edit_message_text(
@@ -408,16 +408,22 @@ async def _confirm_quantity(
 
     uid = update.effective_user.id
 
-    timer_job = context.job_queue.run_once(
-        order_expired, when=ORDER_TIMEOUT_SECONDS,
-        data={"user_id": uid, "product_key": product_key}, name=f"order_{uid}",
-    )
-    trap_job = context.job_queue.run_once(
-        exit_trap_nudge, when=EXIT_TRAP_SECONDS,
-        data={"user_id": uid, "product_key": product_key}, name=f"trap_{uid}",
-    )
-    context.user_data[f"order_timer_{uid}"] = timer_job
-    context.user_data[f"exit_trap_{uid}"]   = trap_job
+    if context.job_queue is not None:
+        try:
+            timer_job = context.job_queue.run_once(
+                order_expired, when=ORDER_TIMEOUT_SECONDS,
+                data={"user_id": uid, "product_key": product_key}, name=f"order_{uid}",
+            )
+            trap_job = context.job_queue.run_once(
+                exit_trap_nudge, when=EXIT_TRAP_SECONDS,
+                data={"user_id": uid, "product_key": product_key}, name=f"trap_{uid}",
+            )
+            context.user_data[f"order_timer_{uid}"] = timer_job
+            context.user_data[f"exit_trap_{uid}"]   = trap_job
+        except Exception as e:
+            logger.warning(f"Timer setup failed (non-fatal): {e}")
+    else:
+        logger.warning("JobQueue not available — timers disabled")
 
     qty_disp = QTY_EMOJIS.get(quantity, f"×{quantity}")
     summary_text = (
@@ -473,14 +479,23 @@ async def _confirm_quantity(
 
 
 async def select_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle quantity button 1–10."""
+    """Handle quantity button 1–10. callback_data is qty_<number>."""
     query = update.callback_query
     await query.answer()
 
-    data        = query.data[4:]          # strip "qty_"
-    last_under  = data.rfind("_")
-    product_key = data[:last_under]
-    quantity    = int(data[last_under + 1:])
+    product_key = context.user_data.get("selected_product")
+    if not product_key:
+        await query.edit_message_text("❌ Session expired. Please use /start.", parse_mode=ParseMode.MARKDOWN)
+        return
+
+    try:
+        quantity = int(query.data.split("_")[1])   # "qty_3" → 3
+    except (IndexError, ValueError):
+        await query.edit_message_text("❌ Invalid selection. Please use /start.", parse_mode=ParseMode.MARKDOWN)
+        return
+
+    logger.info(f"Quantity selected: {quantity} for {product_key} by user {update.effective_user.id}")
+    print(f"Quantity selected: {quantity} for {product_key}")
 
     await _confirm_quantity(update, context, product_key, quantity)
 
@@ -1169,8 +1184,8 @@ def main() -> None:
     app.add_handler(CallbackQueryHandler(support,           pattern="^support$"))
     app.add_handler(CallbackQueryHandler(back_to_start,     pattern="^back_to_start$"))
     app.add_handler(CallbackQueryHandler(buy_product,       pattern="^buy_"))
-    app.add_handler(CallbackQueryHandler(custom_qty_prompt, pattern="^custom_qty_"))
-    app.add_handler(CallbackQueryHandler(select_quantity,   pattern="^qty_"))
+    app.add_handler(CallbackQueryHandler(custom_qty_prompt, pattern="^qty_custom$"))
+    app.add_handler(CallbackQueryHandler(select_quantity,   pattern=r"^qty_\d+$"))
     app.add_handler(CallbackQueryHandler(cancel_order,      pattern="^cancel_order$"))
 
     # Approve / reject buttons
