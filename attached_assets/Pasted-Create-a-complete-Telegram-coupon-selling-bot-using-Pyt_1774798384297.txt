@@ -1,0 +1,127 @@
+Create a complete Telegram coupon selling bot using Python and python-telegram-bot (v20+ async).
+
+FOCUS:
+- Smart selling system
+- Attractive UI
+- Timer + Priority + Exit trap
+
+========================
+1. START MESSAGE
+========================
+"🎉 Welcome to Coupon Store
+🔥 Limited Deals Available
+
+💸 ₹100 Coupon – ₹35
+💸 ₹150 Coupon – ₹30
+
+⚡ Instant Delivery | ✅ Trusted"
+
+Buttons:
+🟢 Buy ₹100 (show stock)
+🔵 Buy ₹150 (show stock)
+
+========================
+2. TIMER BASED ORDER SYSTEM
+========================
+When user clicks Buy:
+
+Send message:
+"⏳ Order Created!
+
+🧾 Product: ₹100 Coupon
+💰 Price: ₹35
+
+⚠️ You have ONLY 5 minutes to complete payment.
+After that order will be cancelled automatically."
+
+- Start 5 min timer
+- If no screenshot in 5 min:
+   → cancel order
+   → send:
+   "❌ Order expired. Please create new order."
+
+========================
+3. PRIORITY SYSTEM
+========================
+- If user sends screenshot within:
+   < 2 minutes → mark as "🔥 FAST USER"
+   2–5 minutes → normal user
+
+Admin view:
+- Show:
+   🔥 Fast Payment
+   🐢 Normal Payment
+
+Fast users shown at top for approval
+
+========================
+4. SCREENSHOT FLOW
+========================
+User sends screenshot:
+"⏳ Payment under review..."
+
+Forward to admin with buttons:
+✅ Approve
+❌ Reject
+
+========================
+5. APPROVAL
+========================
+Approve:
+"✅ Payment Confirmed!
+🎉 Your Coupon Code:
+
+`CODE`
+
+🙏 Thanks!"
+
+Reject:
+"❌ Invalid payment. Try again."
+
+========================
+6. EXIT TRAP SYSTEM
+========================
+If user inactive for 3 minutes after seeing order:
+
+Send:
+"⚡ Hurry! Your order is about to expire!
+Complete payment now or lose this deal 😱"
+
+========================
+7. COUPON SYSTEM
+========================
+- JSON based
+- Auto assign
+- Reduce stock
+
+========================
+8. ADMIN PANEL (/admin)
+========================
+"📊 DASHBOARD
+
+📦 Sold: X
+💰 Earnings: ₹X
+👥 Users: X
+⏳ Pending: X"
+
+Buttons:
+⏳ Pending Orders
+📦 Stock
+📊 Stats
+
+========================
+9. PENDING ORDERS VIEW
+========================
+- Show users list:
+   user_id + product + status
+   + label (FAST / NORMAL)
+
+========================
+10. EXTRA
+========================
+- Async code
+- Error handling
+- Logging
+
+GOAL:
+Smart Telegram bot with timer-based urgency, priority system, and exit trap to increase conversions.
