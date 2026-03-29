@@ -2,6 +2,7 @@ import os
 import json
 import logging
 import threading
+import html
 from datetime import datetime, timezone
 from flask import Flask
 from telegram import (
@@ -585,40 +586,74 @@ async def handle_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         parse_mode=ParseMode.MARKDOWN,
     )
 
-    username_display = f"@{user.username}" if user.username else "No username"
+    # Escape all user-controlled strings so HTML mode never breaks
+    safe_name     = html.escape(user.first_name or "Unknown")
+    safe_username = html.escape(f"@{user.username}") if user.username else "No username"
+    safe_product  = html.escape(product["name"])
+    safe_order_id = html.escape(order_id)
+
     admin_text = (
         f"{plabel}\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"👤 Name: [{user.first_name}](tg://user?id={user.id})\n"
-        f"🔗 Username: {username_display}\n"
-        f"🆔 User ID: `{user.id}`\n"
-        f"📦 Product: *{product['name']}*\n"
-        f"🔢 Quantity: *{quantity}*\n"
-        f"💰 Total: *₹{total}*\n"
-        f"⏱ Paid in: *{me}m {se}s*\n"
+        f"👤 Name: <a href='tg://user?id={user.id}'>{safe_name}</a>\n"
+        f"🔗 Username: {safe_username}\n"
+        f"🆔 User ID: <code>{user.id}</code>\n"
+        f"📦 Product: <b>{safe_product}</b>\n"
+        f"🔢 Quantity: <b>{quantity}</b>\n"
+        f"💰 Total: <b>₹{total}</b>\n"
+        f"⏱ Paid in: <b>{me}m {se}s</b>\n"
         f"🕐 {datetime.now().strftime('%d %b %Y, %I:%M %p')}\n"
-        f"🔑 Order: `{order_id}`\n"
+        f"🔑 Order: <code>{safe_order_id}</code>\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"Use: `/approve {user.id}` to approve"
+        f"Use: <code>/approve {user.id}</code> to approve"
     )
     approve_kb = InlineKeyboardMarkup([[
         InlineKeyboardButton("✅ Approve", callback_data=f"approve_{order_id}"),
         InlineKeyboardButton("❌ Reject",  callback_data=f"reject_{order_id}"),
     ]])
 
+    print(f"Forwarding order to admin: {ADMIN_ID}  |  order: {order_id}  |  user: {user.id}")
+    logger.info(f"Forwarding screenshot to admin {ADMIN_ID} for order {order_id}")
+
     try:
         if update.message.photo:
             await context.bot.send_photo(
-                chat_id=ADMIN_ID, photo=update.message.photo[-1].file_id,
-                caption=admin_text, reply_markup=approve_kb, parse_mode=ParseMode.MARKDOWN,
+                chat_id=ADMIN_ID,
+                photo=update.message.photo[-1].file_id,
+                caption=admin_text,
+                reply_markup=approve_kb,
+                parse_mode=ParseMode.HTML,
             )
+            logger.info(f"Admin notified successfully for order {order_id}")
         elif update.message.document:
             await context.bot.send_document(
-                chat_id=ADMIN_ID, document=update.message.document.file_id,
-                caption=admin_text, reply_markup=approve_kb, parse_mode=ParseMode.MARKDOWN,
+                chat_id=ADMIN_ID,
+                document=update.message.document.file_id,
+                caption=admin_text,
+                reply_markup=approve_kb,
+                parse_mode=ParseMode.HTML,
             )
+            logger.info(f"Admin notified (document) for order {order_id}")
+        else:
+            # Fallback: send text-only notification if no image
+            await context.bot.send_message(
+                chat_id=ADMIN_ID,
+                text=admin_text,
+                reply_markup=approve_kb,
+                parse_mode=ParseMode.HTML,
+            )
+            logger.info(f"Admin notified (text-only) for order {order_id}")
     except Exception as e:
         logger.error(f"Forward to admin failed: {e}")
+        print(f"ERROR forwarding to admin: {e}")
+        # Last-resort: plain text, no parse mode
+        try:
+            await context.bot.send_message(
+                chat_id=ADMIN_ID,
+                text=f"NEW ORDER\nUser: {user.id} ({user.first_name})\nProduct: {product['name']} x{quantity}\nTotal: ₹{total}\nOrder: {order_id}\n\nUse /approve {user.id}",
+            )
+        except Exception as e2:
+            logger.error(f"Fallback admin notify also failed: {e2}")
 
 
 # ─────────────── Shared approve logic ───────────────
