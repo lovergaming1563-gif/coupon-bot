@@ -1202,10 +1202,6 @@ def main() -> None:
         if not os.path.exists(fp):
             _save(fp, default)
 
-    # Start Flask keep-alive in background thread
-    threading.Thread(target=keep_alive, daemon=True).start()
-    logger.info("🌐 Keep-alive server started on port 3000")
-
     app = Application.builder().token(BOT_TOKEN).build()
 
     # Commands
@@ -1245,4 +1241,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    # Start Flask keep-alive server in background thread (required for 24/7 hosting)
+    threading.Thread(target=keep_alive, daemon=True).start()
+    logger.info("🌐 Keep-alive server started on port 3000")
     main()
