@@ -1,0 +1,146 @@
+Create a complete Telegram coupon selling bot using Python and python-telegram-bot (v20+ async).
+
+FOCUS:
+- Attractive UI
+- Quantity selection system
+- Support system
+- Clean and professional flow
+
+========================
+1. START MENU (/start)
+========================
+Send stylish message:
+
+"🎉 Welcome to Coupon Store
+━━━━━━━━━━━━━━
+🔥 Best Deals Available
+
+💸 ₹100 Coupon – ₹35
+💸 ₹150 Coupon – ₹30
+
+⚡ Instant Delivery | ✅ Trusted | 💬 24/7 Support"
+
+Buttons:
+🟢 Buy ₹100 Coupon
+🔵 Buy ₹150 Coupon
+💬 Support
+
+========================
+2. QUANTITY SELECTION
+========================
+When user clicks any product:
+
+Send message:
+"📦 Select Quantity:"
+
+Buttons:
+1️⃣ Qty 1
+2️⃣ Qty 2
+3️⃣ Qty 3
+5️⃣ Qty 5
+
+After user selects quantity:
+
+"🧾 Order Summary
+━━━━━━━━━━━━━━
+🎟 Product: ₹100 Coupon
+📦 Quantity: X
+💰 Total Price: ₹(price × quantity)
+
+📸 Please complete payment and send screenshot.
+
+⏳ You have 5 minutes to complete payment."
+
+========================
+3. TIMER SYSTEM
+========================
+- Start 5 minute countdown after order
+- If no screenshot received:
+   → cancel order
+   → send:
+   "❌ Order expired. Please create a new order."
+
+========================
+4. SCREENSHOT FLOW
+========================
+User sends payment screenshot:
+
+Reply:
+"⏳ Payment under review...
+Please wait for confirmation."
+
+Forward screenshot to admin with buttons:
+✅ Approve
+❌ Reject
+
+========================
+5. APPROVAL SYSTEM
+========================
+If approved:
+- Send multiple coupons based on quantity
+
+Message:
+"✅ Payment Confirmed!
+🎉 Your Coupons:
+
+CODE1
+CODE2
+CODE3
+
+🙏 Thank you for your purchase!"
+
+If rejected:
+"❌ Payment not verified. Please try again."
+
+========================
+6. SUPPORT SYSTEM
+========================
+When user clicks 💬 Support:
+
+Send message:
+
+"💬 Customer Support
+━━━━━━━━━━━━━━
+Having any issue? Contact us below 👇
+
+📩 Telegram: @yourusername
+
+⏱ We usually reply within a few minutes."
+
+(Optional: Add button "Contact Support")
+
+========================
+7. COUPON SYSTEM
+========================
+- Store coupons in JSON
+- Auto assign coupons based on quantity
+- Remove used coupons
+- Update stock
+
+========================
+8. ADMIN PANEL (/admin)
+========================
+"📊 ADMIN DASHBOARD
+━━━━━━━━━━━━━━
+
+📦 Total Coupons Sold: X
+💰 Total Earnings: ₹X
+👥 Total Users: X
+⏳ Pending Orders: X"
+
+Buttons:
+⏳ Pending Orders
+📦 Stock
+📊 Stats
+➕ Add Coupon
+
+========================
+9. EXTRA
+========================
+- Async handlers
+- Error handling
+- Logging
+- Clean UI using emojis and formatting
+
+GOAL:
+Create a professional Telegram bot where users can select quantity, send payment, and receive coupons, with a built-in support system and admin control.

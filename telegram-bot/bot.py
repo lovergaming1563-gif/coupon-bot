@@ -1,7 +1,6 @@
 import os
 import json
 import logging
-import asyncio
 from datetime import datetime, timezone
 from telegram import (
     Update,
@@ -28,25 +27,27 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-ADMIN_ID = int(os.environ.get("TELEGRAM_ADMIN_ID", "0"))
+BOT_TOKEN  = os.environ.get("TELEGRAM_BOT_TOKEN")
+ADMIN_ID   = int(os.environ.get("TELEGRAM_ADMIN_ID", "0"))
 
 COUPONS_FILE = "coupons.json"
-USERS_FILE = "users.json"
-ORDERS_FILE = "orders.json"
+USERS_FILE   = "users.json"
+ORDERS_FILE  = "orders.json"
 
-ORDER_TIMEOUT_SECONDS = 300      # 5 minutes — auto-cancel if no screenshot
-EXIT_TRAP_SECONDS = 180          # 3 minutes — send urgency nudge
-FAST_PAYMENT_THRESHOLD = 120     # < 2 minutes = 🔥 FAST USER
+ORDER_TIMEOUT_SECONDS    = 300   # 5 min — auto-cancel
+EXIT_TRAP_SECONDS        = 180   # 3 min — urgency nudge
+FAST_PAYMENT_THRESHOLD   = 120   # < 2 min → 🔥 FAST
+LOW_STOCK_THRESHOLD      = 5
 
-LOW_STOCK_THRESHOLD = 5
-
-UPI_ID = "yourname@upi"
+UPI_ID         = "yourname@upi"
+SUPPORT_HANDLE = "@yourusername"
 
 PRODUCTS = {
     "coupon_100": {"name": "₹100 Myntra Coupon", "price": 35, "emoji": "🟢"},
     "coupon_150": {"name": "₹150 Myntra Coupon", "price": 30, "emoji": "🔵"},
 }
+
+QUANTITIES = [1, 2, 3, 5]
 
 
 # ─────────────── JSON helpers ───────────────
@@ -68,24 +69,11 @@ def get_coupons() -> dict:
     return load_json(COUPONS_FILE, {"coupon_100": [], "coupon_150": []})
 
 
-def save_coupons(c: dict) -> None:
-    save_json(COUPONS_FILE, c)
-
-
-def get_users() -> dict:
-    return load_json(USERS_FILE, {})
-
-
-def save_users(u: dict) -> None:
-    save_json(USERS_FILE, u)
-
-
-def get_orders() -> dict:
-    return load_json(ORDERS_FILE, {})
-
-
-def save_orders(o: dict) -> None:
-    save_json(ORDERS_FILE, o)
+def save_coupons(c: dict)  -> None: save_json(COUPONS_FILE, c)
+def get_users()   -> dict:          return load_json(USERS_FILE,  {})
+def save_users(u: dict)   -> None: save_json(USERS_FILE,  u)
+def get_orders()  -> dict:          return load_json(ORDERS_FILE, {})
+def save_orders(o: dict)  -> None: save_json(ORDERS_FILE, o)
 
 
 # ─────────────── Utilities ───────────────
@@ -96,13 +84,13 @@ def now_ts() -> float:
 
 def register_user(user) -> None:
     users = get_users()
-    uid = str(user.id)
+    uid   = str(user.id)
     if uid not in users:
         users[uid] = {
-            "id": user.id,
-            "username": user.username,
+            "id":         user.id,
+            "username":   user.username,
             "first_name": user.first_name,
-            "joined": datetime.now().isoformat(),
+            "joined":     datetime.now().isoformat(),
         }
         save_users(users)
 
@@ -112,12 +100,16 @@ def get_stock(product_key: str) -> int:
 
 
 def get_stats() -> dict:
-    orders = get_orders()
+    orders    = get_orders()
     completed = [o for o in orders.values() if o.get("status") == "approved"]
     pending   = [o for o in orders.values() if o.get("status") == "pending"]
-    revenue   = sum(PRODUCTS[o["product"]]["price"] for o in completed if o.get("product") in PRODUCTS)
+    revenue   = sum(
+        PRODUCTS[o["product"]]["price"] * o.get("quantity", 1)
+        for o in completed
+        if o.get("product") in PRODUCTS
+    )
     return {
-        "total_sold":    len(completed),
+        "total_sold":    sum(o.get("quantity", 1) for o in completed),
         "total_revenue": revenue,
         "total_users":   len(get_users()),
         "pending_count": len(pending),
@@ -134,28 +126,26 @@ def get_low_stock_alert() -> str:
 
 
 def cancel_user_timers(context: ContextTypes.DEFAULT_TYPE, user_id: int) -> None:
-    """Cancel any running order/exit-trap jobs for this user."""
     for key in (f"order_timer_{user_id}", f"exit_trap_{user_id}"):
         job = context.user_data.pop(key, None)
         if job:
             job.schedule_removal()
 
 
-# ─────────────── Timer callbacks (JobQueue) ───────────────
+# ─────────────── Timer/trap job callbacks ───────────────
 
 async def order_expired(context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Called after ORDER_TIMEOUT_SECONDS if no screenshot submitted."""
-    job = context.job
-    user_id    = job.data["user_id"]
+    job         = context.job
+    user_id     = job.data["user_id"]
     product_key = job.data["product_key"]
 
     ud = context.application.user_data.get(user_id, {})
-    # If user already submitted screenshot, do nothing
     if ud.get("pending_product") != product_key:
         return
 
     ud.pop("pending_product", None)
-    ud.pop("order_start_ts", None)
+    ud.pop("pending_quantity", None)
+    ud.pop("order_start_ts",   None)
 
     try:
         await context.bot.send_message(
@@ -163,7 +153,7 @@ async def order_expired(context: ContextTypes.DEFAULT_TYPE) -> None:
             text=(
                 "❌ *Order Expired!*\n"
                 "━━━━━━━━━━━━━━━━━━━━\n\n"
-                "⏰ Your 5-minute payment window has closed.\n"
+                "⏰ Your 5-minute window has closed.\n"
                 "Your order has been *automatically cancelled*.\n\n"
                 "💡 Use /start to create a new order."
             ),
@@ -174,8 +164,7 @@ async def order_expired(context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def exit_trap_nudge(context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Called after EXIT_TRAP_SECONDS of inactivity — urgency nudge."""
-    job = context.job
+    job         = context.job
     user_id     = job.data["user_id"]
     product_key = job.data["product_key"]
 
@@ -183,8 +172,8 @@ async def exit_trap_nudge(context: ContextTypes.DEFAULT_TYPE) -> None:
     if ud.get("pending_product") != product_key:
         return
 
-    remaining = int(ORDER_TIMEOUT_SECONDS - (now_ts() - ud.get("order_start_ts", now_ts())))
-    mins, secs = divmod(max(remaining, 0), 60)
+    remaining    = int(ORDER_TIMEOUT_SECONDS - (now_ts() - ud.get("order_start_ts", now_ts())))
+    mins, secs   = divmod(max(remaining, 0), 60)
 
     try:
         await context.bot.send_message(
@@ -209,53 +198,172 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     register_user(user)
 
     cancel_user_timers(context, user.id)
-    context.user_data.pop("pending_product", None)
-    context.user_data.pop("order_start_ts", None)
+    context.user_data.pop("pending_product",  None)
+    context.user_data.pop("pending_quantity", None)
+    context.user_data.pop("order_start_ts",   None)
 
     s100 = get_stock("coupon_100")
     s150 = get_stock("coupon_150")
 
     text = (
-        "🎉 *Welcome to Coupon Store!*\n"
-        "🔥 *Limited Deals Available*\n\n"
+        "🎉 *Welcome to Coupon Store*\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
+        "🔥 *Best Deals Available*\n\n"
         "💸 ₹100 Myntra Coupon — *₹35 only*\n"
-        "💸 ₹150 Myntra Coupon — *₹30 only*\n"
-        "━━━━━━━━━━━━━━━━━━━━\n\n"
-        "⚡ Instant Delivery  |  ✅ Trusted  |  🤖 Auto-System"
+        "💸 ₹150 Myntra Coupon — *₹30 only*\n\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "⚡ Instant Delivery  |  ✅ Trusted  |  💬 24/7 Support"
     )
     keyboard = [
         [InlineKeyboardButton(f"🟢 Buy ₹100 Coupon  [{s100} left]", callback_data="buy_coupon_100")],
         [InlineKeyboardButton(f"🔵 Buy ₹150 Coupon  [{s150} left]", callback_data="buy_coupon_150")],
+        [InlineKeyboardButton("💬 Support", callback_data="support")],
     ]
-    await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode=ParseMode.MARKDOWN,
+    )
 
 
-# ─────────────── Buy flow ───────────────
+# ─────────────── Support ───────────────
+
+async def support(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+
+    text = (
+        "💬 *Customer Support*\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+        "Having any issue? Contact us below 👇\n\n"
+        f"📩 Telegram: {SUPPORT_HANDLE}\n\n"
+        "⏱ We usually reply within a few minutes.\n\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "_For order issues, please share your Order ID._"
+    )
+    keyboard = [
+        [InlineKeyboardButton("📩 Contact Support", url=f"https://t.me/{SUPPORT_HANDLE.lstrip('@')}")],
+        [InlineKeyboardButton("◀️ Back to Store",   callback_data="back_to_start")],
+    ]
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
+
+
+async def back_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+
+    s100 = get_stock("coupon_100")
+    s150 = get_stock("coupon_150")
+
+    text = (
+        "🎉 *Welcome to Coupon Store*\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "🔥 *Best Deals Available*\n\n"
+        "💸 ₹100 Myntra Coupon — *₹35 only*\n"
+        "💸 ₹150 Myntra Coupon — *₹30 only*\n\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "⚡ Instant Delivery  |  ✅ Trusted  |  💬 24/7 Support"
+    )
+    keyboard = [
+        [InlineKeyboardButton(f"🟢 Buy ₹100 Coupon  [{s100} left]", callback_data="buy_coupon_100")],
+        [InlineKeyboardButton(f"🔵 Buy ₹150 Coupon  [{s150} left]", callback_data="buy_coupon_150")],
+        [InlineKeyboardButton("💬 Support", callback_data="support")],
+    ]
+    await query.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+# ─────────────── Step 1: Product selected → show quantity picker ───────────────
 
 async def buy_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
 
     product_key = query.data.replace("buy_", "")
+    product     = PRODUCTS.get(product_key)
+    if not product:
+        await query.edit_message_text("❌ Product not found.")
+        return
+
+    stock = get_stock(product_key)
+    if stock == 0:
+        await query.edit_message_text(
+            "😔 *Out of Stock!*\n\nThis product is currently unavailable.\nCheck back soon!",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+
+    context.user_data["selected_product"] = product_key
+
+    # Build quantity buttons (only show quantities that can be fulfilled)
+    qty_buttons = []
+    row = []
+    qty_emojis = {1: "1️⃣", 2: "2️⃣", 3: "3️⃣", 5: "5️⃣"}
+    for qty in QUANTITIES:
+        if qty <= stock:
+            row.append(InlineKeyboardButton(
+                f"{qty_emojis.get(qty, str(qty))} Qty {qty}",
+                callback_data=f"qty_{product_key}_{qty}",
+            ))
+        if len(row) == 2:
+            qty_buttons.append(row)
+            row = []
+    if row:
+        qty_buttons.append(row)
+    qty_buttons.append([InlineKeyboardButton("◀️ Back", callback_data="back_to_start")])
+
+    await query.edit_message_text(
+        f"📦 *Select Quantity*\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"{product['emoji']} *{product['name']}*\n"
+        f"💰 Price per unit: *₹{product['price']}*\n"
+        f"📊 Stock available: *{stock}*\n\n"
+        f"How many do you want?",
+        reply_markup=InlineKeyboardMarkup(qty_buttons),
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+# ─────────────── Step 2: Quantity selected → show order summary + start timers ───────────────
+
+async def select_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+
+    # callback_data format: qty_<product_key>_<qty>
+    parts = query.data.split("_", 2)   # ["qty", "coupon", "100_3"] → need smarter split
+    # actual format: qty_coupon_100_3  (product key has underscore too)
+    data_parts  = query.data[4:]        # strip leading "qty_"
+    # last segment is the number, rest is product key
+    last_under  = data_parts.rfind("_")
+    product_key = data_parts[:last_under]
+    quantity    = int(data_parts[last_under + 1:])
+
     product = PRODUCTS.get(product_key)
     if not product:
         await query.edit_message_text("❌ Product not found.")
         return
 
-    if get_stock(product_key) == 0:
+    stock = get_stock(product_key)
+    if stock < quantity:
         await query.edit_message_text(
-            "😔 *Out of Stock!*\n\nThis product is currently unavailable.\nCheck back later!",
+            f"😔 *Not enough stock!*\n\nOnly *{stock}* left.\nUse /start to choose again.",
             parse_mode=ParseMode.MARKDOWN,
         )
         return
 
-    # Cancel any old timers before starting new order
+    # Cancel any old timers
     cancel_user_timers(context, query.from_user.id)
 
     ts = now_ts()
-    context.user_data["pending_product"] = product_key
-    context.user_data["order_start_ts"]  = ts
+    context.user_data["pending_product"]  = product_key
+    context.user_data["pending_quantity"] = quantity
+    context.user_data["order_start_ts"]   = ts
+
+    total = product["price"] * quantity
 
     # Schedule 5-min auto-cancel
     timer_job = context.job_queue.run_once(
@@ -275,29 +383,40 @@ async def buy_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     )
     context.user_data[f"exit_trap_{query.from_user.id}"] = trap_job
 
+    qty_emoji = {1: "1️⃣", 2: "2️⃣", 3: "3️⃣", 5: "5️⃣"}.get(quantity, f"×{quantity}")
+
     text = (
-        f"⏳ *Order Created!*\n"
+        f"🧾 *Order Summary*\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"🧾 Product: *{product['name']}*\n"
-        f"💰 Price: *₹{product['price']}*\n"
+        f"🎟 Product: *{product['name']}*\n"
+        f"📦 Quantity: *{qty_emoji} × {quantity}*\n"
+        f"💰 Price per unit: ₹{product['price']}\n"
+        f"💵 *Total Price: ₹{total}*\n"
         f"━━━━━━━━━━━━━━━━━━━━\n\n"
         f"📲 *Payment Details:*\n"
         f"🏦 UPI ID: `{UPI_ID}`\n"
-        f"💵 Amount: *₹{product['price']}*\n\n"
-        f"⚠️ You have *ONLY 5 minutes* to complete payment.\n"
-        f"After that your order will be *cancelled automatically*.\n\n"
-        f"📸 *Send your payment screenshot to proceed.*"
+        f"💵 Pay exactly: *₹{total}*\n\n"
+        f"📸 *Complete payment and send screenshot here.*\n\n"
+        f"⏳ You have *5 minutes* to complete payment.\n"
+        f"After that your order will be cancelled automatically."
     )
     keyboard = [[InlineKeyboardButton("❌ Cancel Order", callback_data="cancel_order")]]
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
+    await query.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode=ParseMode.MARKDOWN,
+    )
 
+
+# ─────────────── Cancel order ───────────────
 
 async def cancel_order(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
     cancel_user_timers(context, query.from_user.id)
-    context.user_data.pop("pending_product", None)
-    context.user_data.pop("order_start_ts", None)
+    context.user_data.pop("pending_product",  None)
+    context.user_data.pop("pending_quantity", None)
+    context.user_data.pop("order_start_ts",   None)
     await query.edit_message_text(
         "❌ *Order Cancelled.*\n\nUse /start to browse again.",
         parse_mode=ParseMode.MARKDOWN,
@@ -308,11 +427,13 @@ async def cancel_order(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 async def handle_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
-
     if user.id == ADMIN_ID:
+        if context.user_data.get("broadcast_mode"):
+            await handle_broadcast_message(update, context)
         return
 
     product_key = context.user_data.get("pending_product")
+    quantity    = context.user_data.get("pending_quantity", 1)
     if not product_key:
         return
 
@@ -320,28 +441,32 @@ async def handle_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     if not product:
         return
 
-    if get_stock(product_key) == 0:
+    stock = get_stock(product_key)
+    if stock < quantity:
         await update.message.reply_text(
-            "😔 *Sorry!* This product just went out of stock.\nUse /start to choose another.",
+            f"😔 *Sorry!* Stock changed — only *{stock}* left.\nUse /start to choose again.",
             parse_mode=ParseMode.MARKDOWN,
         )
         cancel_user_timers(context, user.id)
-        context.user_data.pop("pending_product", None)
+        context.user_data.pop("pending_product",  None)
+        context.user_data.pop("pending_quantity", None)
         return
 
-    # Calculate elapsed time → determine priority
+    # Priority calculation
     start_ts  = context.user_data.get("order_start_ts", now_ts())
     elapsed   = now_ts() - start_ts
     is_fast   = elapsed < FAST_PAYMENT_THRESHOLD
     priority  = "fast" if is_fast else "normal"
     priority_label = "🔥 FAST PAYMENT" if is_fast else "🐢 NORMAL PAYMENT"
 
-    # Cancel timers — screenshot received in time
     cancel_user_timers(context, user.id)
-    context.user_data.pop("pending_product", None)
-    context.user_data.pop("order_start_ts", None)
+    context.user_data.pop("pending_product",  None)
+    context.user_data.pop("pending_quantity", None)
+    context.user_data.pop("order_start_ts",   None)
 
     order_id = f"{user.id}_{int(now_ts())}"
+    total    = product["price"] * quantity
+
     orders = get_orders()
     orders[order_id] = {
         "order_id":    order_id,
@@ -349,6 +474,8 @@ async def handle_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         "username":    user.username,
         "first_name":  user.first_name,
         "product":     product_key,
+        "quantity":    quantity,
+        "total":       total,
         "status":      "pending",
         "priority":    priority,
         "elapsed_sec": round(elapsed),
@@ -357,7 +484,6 @@ async def handle_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     }
     save_orders(orders)
 
-    mins_e, secs_e = divmod(int(elapsed), 60)
     await update.message.reply_text(
         "⏳ *Payment Under Review...*\n\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
@@ -368,16 +494,17 @@ async def handle_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         parse_mode=ParseMode.MARKDOWN,
     )
 
-    # Build admin caption
+    mins_e, secs_e = divmod(int(elapsed), 60)
     admin_text = (
         f"{priority_label}\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"👤 User: [{user.first_name}](tg://user?id={user.id})\n"
         f"🆔 ID: `{user.id}`\n"
         f"📦 Product: *{product['name']}*\n"
-        f"💰 Amount: ₹{product['price']}\n"
+        f"🔢 Quantity: *{quantity}*\n"
+        f"💰 Total: *₹{total}*\n"
         f"⏱ Paid in: *{mins_e}m {secs_e}s*\n"
-        f"🕐 Time: {datetime.now().strftime('%d %b %Y, %I:%M %p')}\n"
+        f"🕐 {datetime.now().strftime('%d %b %Y, %I:%M %p')}\n"
         f"🔑 Order: `{order_id}`\n"
         f"━━━━━━━━━━━━━━━━━━━━"
     )
@@ -428,25 +555,33 @@ async def approve_order(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         await query.answer("Already processed.", show_alert=True)
         return
 
-    product_key     = order["product"]
-    coupons         = get_coupons()
-    product_coupons = coupons.get(product_key, [])
+    product_key = order["product"]
+    quantity    = order.get("quantity", 1)
+    coupons     = get_coupons()
+    pool        = coupons.get(product_key, [])
 
-    if not product_coupons:
-        await query.answer("⚠️ Out of stock! Cannot approve.", show_alert=True)
+    if len(pool) < quantity:
+        await query.answer(
+            f"⚠️ Only {len(pool)} coupons left, need {quantity}. Cannot approve.",
+            show_alert=True,
+        )
         return
 
-    coupon_code                = product_coupons.pop(0)
-    coupons[product_key]       = product_coupons
+    assigned             = pool[:quantity]
+    coupons[product_key] = pool[quantity:]
     save_coupons(coupons)
 
-    order["status"]      = "approved"
-    order["coupon_code"] = coupon_code
-    order["approved_at"] = datetime.now().isoformat()
-    orders[order_id]     = order
+    order["status"]       = "approved"
+    order["coupon_codes"] = assigned
+    order["approved_at"]  = datetime.now().isoformat()
+    orders[order_id]      = order
     save_orders(orders)
 
     product = PRODUCTS[product_key]
+
+    # Format coupon list nicely
+    coupon_lines = "\n".join(f"🎟 `{c}`" for c in assigned)
+
     try:
         await context.bot.send_message(
             chat_id=order["user_id"],
@@ -454,9 +589,10 @@ async def approve_order(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 f"✅ *Payment Confirmed!*\n"
                 f"━━━━━━━━━━━━━━━━━━━━\n"
                 f"🎉 Your order has been *approved*!\n\n"
-                f"🎟 Product: *{product['name']}*\n"
-                f"🎁 *Your Coupon Code:*\n\n"
-                f"`{coupon_code}`\n\n"
+                f"📦 Product: *{product['name']}*\n"
+                f"🔢 Quantity: *{quantity}*\n\n"
+                f"🎁 *Your Coupon Code(s):*\n\n"
+                f"{coupon_lines}\n\n"
                 f"━━━━━━━━━━━━━━━━━━━━\n"
                 f"📋 *How to redeem:*\n"
                 f"1. Open Myntra App\n"
@@ -468,16 +604,17 @@ async def approve_order(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             parse_mode=ParseMode.MARKDOWN,
         )
     except Exception as e:
-        logger.error(f"Failed to send coupon to user {order['user_id']}: {e}")
+        logger.error(f"Failed to send coupons to user {order['user_id']}: {e}")
 
     priority_label = "🔥 FAST" if order.get("priority") == "fast" else "🐢 NORMAL"
+    codes_preview  = ", ".join(f"`{c}`" for c in assigned)
     await query.edit_message_caption(
         f"✅ *Order Approved!* [{priority_label}]\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"🆔 Order: `{order_id}`\n"
         f"👤 User: {order.get('first_name', 'N/A')}\n"
-        f"🎟 Coupon: `{coupon_code}`\n"
-        f"📦 Product: {product['name']}",
+        f"📦 {product['name']} × {quantity}\n"
+        f"🎟 Codes: {codes_preview}",
         parse_mode=ParseMode.MARKDOWN,
     )
 
@@ -492,8 +629,7 @@ async def approve_order(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 # ─────────────── Reject ───────────────
 
-async def _do_reject(context, order_id: str, from_caption: bool = True):
-    """Shared reject logic."""
+async def _do_reject(context, order_id: str):
     orders = get_orders()
     order  = orders.get(order_id)
     if not order or order["status"] != "pending":
@@ -508,19 +644,20 @@ async def _do_reject(context, order_id: str, from_caption: bool = True):
         await context.bot.send_message(
             chat_id=order["user_id"],
             text=(
-                "❌ *Invalid Payment!*\n"
+                "❌ *Payment Not Verified!*\n"
                 "━━━━━━━━━━━━━━━━━━━━\n\n"
-                "😔 We could not verify your payment.\n\n"
+                "😔 We could not verify your payment screenshot.\n\n"
                 "📌 *Possible reasons:*\n"
                 "• Screenshot unclear or invalid\n"
                 "• Wrong amount paid\n"
                 "• Payment not completed\n\n"
-                "💡 Send the *correct screenshot* or /start to retry."
+                "💡 Send the correct screenshot or use /start to retry.\n"
+                f"💬 Need help? Contact {SUPPORT_HANDLE}"
             ),
             parse_mode=ParseMode.MARKDOWN,
         )
     except Exception as e:
-        logger.error(f"Failed to notify user: {e}")
+        logger.error(f"Failed to notify user on reject: {e}")
 
     return order, "ok"
 
@@ -533,8 +670,8 @@ async def reject_order(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await query.answer("⛔ Not authorized.", show_alert=True)
         return
 
-    order_id = query.data.replace("reject_", "")
-    order, status = await _do_reject(context, order_id)
+    order_id       = query.data.replace("reject_", "")
+    order, status  = await _do_reject(context, order_id)
 
     if status == "not_found":
         await query.edit_message_caption("❌ Order not found or already processed.", parse_mode=ParseMode.MARKDOWN)
@@ -545,41 +682,39 @@ async def reject_order(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         f"❌ *Order Rejected*\n"
         f"🆔 Order: `{order_id}`\n"
         f"👤 User: {order.get('first_name', 'N/A')}\n"
-        f"📦 Product: {product.get('name', 'N/A')}",
+        f"📦 {product.get('name', 'N/A')} × {order.get('quantity', 1)}",
         parse_mode=ParseMode.MARKDOWN,
     )
 
 
 async def reject_text_order(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Reject from admin pending-orders list (no photo caption)."""
     query = update.callback_query
     await query.answer()
 
     if query.from_user.id != ADMIN_ID:
         return
 
-    order_id = query.data.replace("reject_text_", "")
-    _, status = await _do_reject(context, order_id)
+    order_id      = query.data.replace("reject_text_", "")
+    _, status     = await _do_reject(context, order_id)
 
     if status == "not_found":
         await query.answer("Order not found or already processed.", show_alert=True)
         return
-
-    await query.answer(f"✅ Rejected.", show_alert=True)
+    await query.answer("✅ Rejected.", show_alert=True)
 
 
 # ─────────────── Admin panel ───────────────
 
-def _admin_dashboard_text() -> str:
+def _admin_text() -> str:
     stats     = get_stats()
     low_stock = get_low_stock_alert()
     text = (
         f"📊 *ADMIN DASHBOARD*\n"
         f"━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"📦 Total Sold: *{stats['total_sold']}*\n"
-        f"💰 Earnings: *₹{stats['total_revenue']}*\n"
-        f"👥 Users: *{stats['total_users']}*\n"
-        f"⏳ Pending: *{stats['pending_count']}*\n\n"
+        f"📦 Total Coupons Sold: *{stats['total_sold']}*\n"
+        f"💰 Total Earnings: *₹{stats['total_revenue']}*\n"
+        f"👥 Total Users: *{stats['total_users']}*\n"
+        f"⏳ Pending Orders: *{stats['pending_count']}*\n\n"
         f"━━━━━━━━━━━━━━━━━━━━"
     )
     if low_stock:
@@ -587,7 +722,7 @@ def _admin_dashboard_text() -> str:
     return text
 
 
-def _admin_dashboard_keyboard():
+def _admin_keyboard():
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton("⏳ Pending Orders", callback_data="admin_pending"),
@@ -605,11 +740,7 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if update.effective_user.id != ADMIN_ID:
         await update.message.reply_text("⛔ *Access Denied.* Admin only.", parse_mode=ParseMode.MARKDOWN)
         return
-    await update.message.reply_text(
-        _admin_dashboard_text(),
-        reply_markup=_admin_dashboard_keyboard(),
-        parse_mode=ParseMode.MARKDOWN,
-    )
+    await update.message.reply_text(_admin_text(), reply_markup=_admin_keyboard(), parse_mode=ParseMode.MARKDOWN)
 
 
 async def admin_back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -618,11 +749,7 @@ async def admin_back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     if query.from_user.id != ADMIN_ID:
         return
     context.user_data.pop("broadcast_mode", None)
-    await query.edit_message_text(
-        _admin_dashboard_text(),
-        reply_markup=_admin_dashboard_keyboard(),
-        parse_mode=ParseMode.MARKDOWN,
-    )
+    await query.edit_message_text(_admin_text(), reply_markup=_admin_keyboard(), parse_mode=ParseMode.MARKDOWN)
 
 
 # ─────────────── Admin: Stock ───────────────
@@ -634,7 +761,7 @@ async def admin_stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         return
 
     coupons = get_coupons()
-    lines = ["📦 *Current Stock*\n━━━━━━━━━━━━━━━━━━━━\n"]
+    lines   = ["📦 *Current Stock*\n━━━━━━━━━━━━━━━━━━━━\n"]
     for key, p in PRODUCTS.items():
         s      = len(coupons.get(key, []))
         status = "🔴 Out of Stock" if s == 0 else ("⚠️ Low" if s < LOW_STOCK_THRESHOLD else "✅ In Stock")
@@ -655,8 +782,7 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if query.from_user.id != ADMIN_ID:
         return
 
-    stats  = get_stats()
-    orders = get_orders()
+    orders    = get_orders()
     completed = [o for o in orders.values() if o.get("status") == "approved"]
     rejected  = [o for o in orders.values() if o.get("status") == "rejected"]
     pending   = [o for o in orders.values() if o.get("status") == "pending"]
@@ -666,9 +792,10 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     for o in completed:
         pk = o.get("product", "?")
         sold_rev.setdefault(pk, [0, 0])
-        sold_rev[pk][0] += 1
-        sold_rev[pk][1] += PRODUCTS.get(pk, {}).get("price", 0)
+        sold_rev[pk][0] += o.get("quantity", 1)
+        sold_rev[pk][1] += o.get("total", 0)
 
+    stats = get_stats()
     lines = [
         "📊 *Detailed Statistics*",
         "━━━━━━━━━━━━━━━━━━━━",
@@ -693,7 +820,7 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     )
 
 
-# ─────────────── Admin: Pending orders (sorted by priority) ───────────────
+# ─────────────── Admin: Pending orders ───────────────
 
 async def admin_pending(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
@@ -712,25 +839,26 @@ async def admin_pending(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         )
         return
 
-    # Sort: fast first, then normal
+    # Sort: fast first
     sorted_orders = sorted(
         pending.items(),
         key=lambda x: (0 if x[1].get("priority") == "fast" else 1, x[1].get("timestamp", "")),
     )
 
-    lines = [f"⏳ *Pending Orders ({len(pending)})*", "━━━━━━━━━━━━━━━━━━━━"]
+    lines         = [f"⏳ *Pending Orders ({len(pending)})*", "━━━━━━━━━━━━━━━━━━━━"]
     keyboard_rows = []
 
     for oid, o in sorted_orders[:10]:
         p      = PRODUCTS.get(o["product"], {})
         name   = o.get("first_name", "Unknown")
         label  = "🔥" if o.get("priority") == "fast" else "🐢"
+        qty    = o.get("quantity", 1)
         elapsed = o.get("elapsed_sec", 0)
-        mins_e, secs_e = divmod(elapsed, 60)
-        lines.append(f"{label} *{name}* — {p.get('name', 'N/A')} ⏱ {mins_e}m{secs_e}s")
+        me, se  = divmod(elapsed, 60)
+        lines.append(f"{label} *{name}* — {p.get('name','N/A')} ×{qty} ⏱{me}m{se}s")
         keyboard_rows.append([
-            InlineKeyboardButton(f"✅ {label}{name}", callback_data=f"approve_{oid}"),
-            InlineKeyboardButton("❌ Reject",         callback_data=f"reject_text_{oid}"),
+            InlineKeyboardButton(f"✅ {label}{name} ×{qty}", callback_data=f"approve_{oid}"),
+            InlineKeyboardButton("❌ Reject",                 callback_data=f"reject_text_{oid}"),
         ])
 
     keyboard_rows.append([InlineKeyboardButton("◀️ Back", callback_data="admin_back")])
@@ -782,7 +910,7 @@ async def add_coupon_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
 
     new_codes = args[1:]
-    coupons = get_coupons()
+    coupons   = get_coupons()
     coupons.setdefault(product_key, []).extend(new_codes)
     save_coupons(coupons)
 
@@ -814,15 +942,9 @@ async def admin_broadcast_prompt(update: Update, context: ContextTypes.DEFAULT_T
 
 
 async def handle_broadcast_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.effective_user.id != ADMIN_ID:
-        return
-    if not context.user_data.get("broadcast_mode"):
-        return
-
     context.user_data.pop("broadcast_mode", None)
     users   = get_users()
     success = failed = 0
-
     for uid in users:
         try:
             await context.bot.send_message(
@@ -833,7 +955,6 @@ async def handle_broadcast_message(update: Update, context: ContextTypes.DEFAULT
             success += 1
         except Exception:
             failed += 1
-
     await update.message.reply_text(
         f"📢 *Broadcast Done!*\n\n✅ Sent: *{success}*\n❌ Failed: *{failed}*",
         parse_mode=ParseMode.MARKDOWN,
@@ -852,7 +973,7 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
     if context.user_data.get("pending_product"):
         await update.message.reply_text(
             "📸 *Please send a payment screenshot* (photo) to proceed.\n\n"
-            "Or tap ❌ Cancel on the order message, or /start to go back.",
+            "Or tap ❌ Cancel on the order, or /start to go back.",
             parse_mode=ParseMode.MARKDOWN,
         )
 
@@ -867,33 +988,31 @@ def main() -> None:
 
     app = Application.builder().token(BOT_TOKEN).build()
 
-    # Commands
-    app.add_handler(CommandHandler("start",      start))
-    app.add_handler(CommandHandler("admin",      admin_panel))
-    app.add_handler(CommandHandler("addcoupon",  add_coupon_command))
+    app.add_handler(CommandHandler("start",     start))
+    app.add_handler(CommandHandler("admin",     admin_panel))
+    app.add_handler(CommandHandler("addcoupon", add_coupon_command))
 
-    # Buy & cancel
+    app.add_handler(CallbackQueryHandler(support,       pattern="^support$"))
+    app.add_handler(CallbackQueryHandler(back_to_start, pattern="^back_to_start$"))
     app.add_handler(CallbackQueryHandler(buy_product,   pattern="^buy_"))
+    app.add_handler(CallbackQueryHandler(select_quantity, pattern="^qty_"))
     app.add_handler(CallbackQueryHandler(cancel_order,  pattern="^cancel_order$"))
 
-    # Approve / reject (from photo caption or pending list)
-    app.add_handler(CallbackQueryHandler(approve_order,    pattern="^approve_"))
-    app.add_handler(CallbackQueryHandler(reject_order,     pattern="^reject_(?!text_)"))
-    app.add_handler(CallbackQueryHandler(reject_text_order, pattern="^reject_text_"))
+    app.add_handler(CallbackQueryHandler(approve_order,      pattern="^approve_"))
+    app.add_handler(CallbackQueryHandler(reject_order,       pattern="^reject_(?!text_)"))
+    app.add_handler(CallbackQueryHandler(reject_text_order,  pattern="^reject_text_"))
 
-    # Admin panel navigation
-    app.add_handler(CallbackQueryHandler(admin_stock,           pattern="^admin_stock$"))
-    app.add_handler(CallbackQueryHandler(admin_stats,           pattern="^admin_stats$"))
-    app.add_handler(CallbackQueryHandler(admin_pending,         pattern="^admin_pending$"))
-    app.add_handler(CallbackQueryHandler(admin_add_coupon,      pattern="^admin_add_coupon$"))
+    app.add_handler(CallbackQueryHandler(admin_stock,            pattern="^admin_stock$"))
+    app.add_handler(CallbackQueryHandler(admin_stats,            pattern="^admin_stats$"))
+    app.add_handler(CallbackQueryHandler(admin_pending,          pattern="^admin_pending$"))
+    app.add_handler(CallbackQueryHandler(admin_add_coupon,       pattern="^admin_add_coupon$"))
     app.add_handler(CallbackQueryHandler(admin_broadcast_prompt, pattern="^admin_broadcast$"))
-    app.add_handler(CallbackQueryHandler(admin_back,            pattern="^admin_back"))
+    app.add_handler(CallbackQueryHandler(admin_back,             pattern="^admin_back"))
 
-    # Media & text
     app.add_handler(MessageHandler(filters.PHOTO | filters.Document.ALL, handle_screenshot))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_message))
 
-    logger.info("🤖 Bot started with timer + priority + exit-trap systems!")
+    logger.info("🤖 Bot started — quantity selection + support system active!")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
