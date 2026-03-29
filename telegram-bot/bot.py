@@ -234,7 +234,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             f"🔵 ₹150 Coupon – ₹30  [{s150} left]" if s150 > 0 else "🔵 ₹150 Coupon – Out of Stock",
             callback_data="buy_coupon_150",
         )],
-        [InlineKeyboardButton("📞 Support", callback_data="support")],
+        [InlineKeyboardButton("📞 Contact Support", url="tg://openmessage?user_id=6724474397")],
     ]
     await update.message.reply_text(
         text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN,
@@ -284,7 +284,7 @@ async def back_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             f"🔵 ₹150 Coupon – ₹30  [{s150} left]" if s150 > 0 else "🔵 ₹150 Coupon – Out of Stock",
             callback_data="buy_coupon_150",
         )],
-        [InlineKeyboardButton("📞 Support", callback_data="support")],
+        [InlineKeyboardButton("📞 Contact Support", url="tg://openmessage?user_id=6724474397")],
     ]
     await query.edit_message_text(
         text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN,
