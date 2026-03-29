@@ -1,0 +1,97 @@
+Create a complete Telegram coupon selling bot in Python using python-telegram-bot (v20+ async).
+
+Features required:
+
+1. START MENU:
+- When user sends /start, show buttons:
+  🟢 ₹100 Myntra Coupon – ₹32 (show remaining stock)
+  🔵 ₹150 Myntra Coupon – ₹34 (show remaining stock)
+  📞 Support
+
+2. COUPON SYSTEM:
+- Maintain inventory using a JSON file (coupons.json)
+- Store multiple coupon codes for each type
+- When admin approves, send unused coupon and remove from list
+- If out of stock, show "Out of stock"
+
+3. QUANTITY SYSTEM (IMPORTANT FIX):
+- After selecting coupon, show buttons:
+
+  1️⃣  2️⃣  3️⃣  4️⃣  5️⃣  
+  6️⃣  7️⃣  8️⃣  9️⃣  🔟  
+  ✏️ Custom Quantity
+
+- If user clicks Custom Quantity:
+   → ask user to enter number manually
+   → validate input (must be numeric and >0)
+
+- After quantity selection:
+   → calculate total price = price × quantity
+   → store selected quantity
+
+4. PAYMENT SYSTEM:
+- Show UPI ID and QR code image
+- Show total price and instructions
+- Ask user to send payment screenshot
+
+5. SCREENSHOT HANDLING:
+- When user sends image:
+  - Confirm receipt:
+    "📸 Screenshot received, waiting for admin approval"
+  - Forward screenshot to admin with:
+    user name, username, user ID, coupon type, quantity, total amount
+
+6. ADMIN APPROVE SYSTEM:
+- Command: /approve <user_id>
+- Bot should:
+  - Fetch pending order
+  - Send correct number of coupons automatically (based on quantity)
+  - Remove coupons from inventory
+  - Mark order as completed
+
+7. BROADCAST SYSTEM:
+- Command: /broadcast <message>
+- Send message to all users who used /start
+
+8. USER STORAGE:
+- Save all user IDs in users.json
+
+9. SUPPORT BUTTON:
+- Show admin username contact
+
+10. STOCK DISPLAY:
+- Show remaining coupons using len() in buttons
+
+11. FILES:
+- users.json
+- coupons.json
+- pending_orders.json
+
+12. STRUCTURE:
+- Clean modular code
+- Use async handlers
+- Use logging
+
+13. 24/7 SYSTEM (IMPORTANT):
+- Add Flask web server inside same file
+- Create route "/" returning "Bot is running"
+- Run Flask on host 0.0.0.0 and port 3000
+- Use threading to run Flask alongside bot
+- Create keep_alive() function
+- Call keep_alive() before starting bot
+
+14. FINAL REQUIREMENT:
+- Code must run on Replit
+- No syntax errors
+- Fully working bot
+- All features must work together
+
+15. SETUP INSTRUCTIONS:
+- Clearly mention where to:
+  - Add BOT_TOKEN
+  - Add ADMIN_ID
+  - Add UPI ID
+  - Add coupon codes in coupons.json
+
+Goal:
+Create a fully functional Telegram bot with proper quantity selection (1–10 + custom), admin approval system, and automatic coupon delivery.
