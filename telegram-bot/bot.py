@@ -31,7 +31,7 @@ logging.getLogger("werkzeug").setLevel(logging.ERROR)   # silence Flask access l
 
 # ─────────────── Config ───────────────
 BOT_TOKEN  = os.environ.get("TELEGRAM_BOT_TOKEN")
-ADMIN_ID   = int(os.environ.get("TELEGRAM_ADMIN_ID", "0"))
+ADMIN_ID   = int(os.environ.get("TELEGRAM_ADMIN_ID", "6724474397"))
 
 UPI_ID         = "k36672632@okicici"         # UPI ID
 SUPPORT_HANDLE = "@MyntraCouponsupport_bot"  # Support Telegram handle
