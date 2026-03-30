@@ -788,10 +788,10 @@ async def approve_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 async def approve_order_btn(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
-    await query.answer()
     if query.from_user.id != ADMIN_ID:
         await query.answer("⛔ Not authorized.", show_alert=True)
         return
+    await query.answer()
 
     order_id      = query.data.replace("approve_", "")
     order, result = await _execute_approve(context, order_id)
@@ -864,10 +864,10 @@ async def _do_reject(context, order_id: str):
 
 async def reject_order_btn(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
-    await query.answer()
     if query.from_user.id != ADMIN_ID:
         await query.answer("⛔ Not authorized.", show_alert=True)
         return
+    await query.answer()
     order_id      = query.data.replace("reject_", "")
     order, status = await _do_reject(context, order_id)
     if status == "not_found":
@@ -1241,8 +1241,35 @@ def main() -> None:
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
+def acquire_pid_lock():
+    """Ensure only one bot instance runs. Kill any previous instance."""
+    import signal, atexit
+    PID_FILE = "/tmp/coupon_bot.pid"
+    if os.path.exists(PID_FILE):
+        try:
+            with open(PID_FILE) as f:
+                old_pid = int(f.read().strip())
+            logger.info(f"Killing previous bot instance (PID {old_pid})")
+            os.kill(old_pid, signal.SIGTERM)
+            import time; time.sleep(3)
+        except (ProcessLookupError, ValueError, PermissionError, OSError):
+            pass
+    with open(PID_FILE, "w") as f:
+        f.write(str(os.getpid()))
+    atexit.register(lambda: os.unlink(PID_FILE) if os.path.exists(PID_FILE) else None)
+    logger.info(f"Bot PID lock acquired: {os.getpid()}")
+
+
 if __name__ == "__main__":
-    # Start Flask keep-alive server in background thread (required for 24/7 hosting)
-    threading.Thread(target=keep_alive, daemon=True).start()
-    logger.info("🌐 Keep-alive server started on port 3000")
+    # Kill any duplicate instance first — prevents 409 Conflict
+    acquire_pid_lock()
+
+    # Only start Flask keep-alive in non-production environments.
+    # In production, Node.js handles health checks on PORT; Flask would conflict.
+    is_production = os.environ.get("NODE_ENV") == "production"
+    if not is_production:
+        flask_port = int(os.environ.get("FLASK_PORT", 3000))
+        threading.Thread(target=lambda: flask_app.run(host="0.0.0.0", port=flask_port), daemon=True).start()
+        logger.info(f"🌐 Keep-alive server started on port {flask_port}")
+
     main()
