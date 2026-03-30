@@ -297,6 +297,7 @@ async def back_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 async def buy_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query       = update.callback_query
+    logger.info(f"buy_product called: data={query.data!r} user={query.from_user.id}")
     await query.answer()
     product_key = query.data.replace("buy_", "")
     product     = PRODUCTS.get(product_key)
@@ -1236,6 +1237,16 @@ def main() -> None:
     # Media & text
     app.add_handler(MessageHandler(filters.PHOTO | filters.Document.ALL, handle_screenshot))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_message))
+
+    # Global error handler — logs every exception that occurs inside any handler
+    async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+        logger.error("Unhandled exception in handler", exc_info=context.error)
+        if update and hasattr(update, "callback_query") and update.callback_query:
+            try:
+                await update.callback_query.answer("❌ An error occurred. Please try again.")
+            except Exception:
+                pass
+    app.add_error_handler(error_handler)
 
     logger.info("🤖 Bot fully started — all systems active!")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
