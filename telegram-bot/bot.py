@@ -49,7 +49,7 @@ LOW_STOCK_THRESHOLD    = 5
 
 PRODUCTS = {
     "coupon_100": {"name": "₹100 Myntra Coupon", "price": 35, "emoji": "🟢"},
-    "coupon_150": {"name": "₹150 Myntra Coupon", "price": 30, "emoji": "🔵"},
+    "coupon_150": {"name": "₹150 Myntra Coupon", "price": 35, "emoji": "🔵"},
 }
 
 QTY_EMOJIS = {
@@ -223,7 +223,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "━━━━━━━━━━━━━━━━━━━━\n"
         "🔥 *Best Deals Available*\n\n"
         "💸 ₹100 Myntra Coupon — *₹35 only*\n"
-        "💸 ₹150 Myntra Coupon — *₹30 only*\n\n"
+        "💸 ₹150 Myntra Coupon — *₹35 only*\n\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         "⚡ Instant Delivery  |  ✅ Trusted  |  💬 24/7 Support"
     )
@@ -233,7 +233,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             callback_data="buy_coupon_100",
         )],
         [InlineKeyboardButton(
-            f"🔵 ₹150 Coupon – ₹30  [{s150} left]" if s150 > 0 else "🔵 ₹150 Coupon – Out of Stock",
+            f"🔵 ₹150 Coupon – ₹35  [{s150} left]" if s150 > 0 else "🔵 ₹150 Coupon – Out of Stock",
             callback_data="buy_coupon_150",
         )],
         [InlineKeyboardButton("📞 Contact Support", url="tg://openmessage?user_id=6724474397")],
@@ -273,7 +273,7 @@ async def back_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         "━━━━━━━━━━━━━━━━━━━━\n"
         "🔥 *Best Deals Available*\n\n"
         "💸 ₹100 Myntra Coupon — *₹35 only*\n"
-        "💸 ₹150 Myntra Coupon — *₹30 only*\n\n"
+        "💸 ₹150 Myntra Coupon — *₹35 only*\n\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         "⚡ Instant Delivery  |  ✅ Trusted  |  💬 24/7 Support"
     )
@@ -283,7 +283,7 @@ async def back_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             callback_data="buy_coupon_100",
         )],
         [InlineKeyboardButton(
-            f"🔵 ₹150 Coupon – ₹30  [{s150} left]" if s150 > 0 else "🔵 ₹150 Coupon – Out of Stock",
+            f"🔵 ₹150 Coupon – ₹35  [{s150} left]" if s150 > 0 else "🔵 ₹150 Coupon – Out of Stock",
             callback_data="buy_coupon_150",
         )],
         [InlineKeyboardButton("📞 Contact Support", url="tg://openmessage?user_id=6724474397")],

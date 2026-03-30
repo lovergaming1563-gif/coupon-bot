@@ -53,7 +53,7 @@ export default function App() {
         }}>
           {[
             { icon: "🟢", label: "₹100 Coupon", price: "₹35" },
-            { icon: "🔵", label: "₹150 Coupon", price: "₹30" },
+            { icon: "🔵", label: "₹150 Coupon", price: "₹35" },
             { icon: "⚡", label: "Instant Delivery", price: "" },
             { icon: "🔒", label: "Secure Payments", price: "" },
           ].map((item, i) => (
