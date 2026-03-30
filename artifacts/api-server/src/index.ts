@@ -22,4 +22,14 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+
+  if (process.env["NODE_ENV"] === "production") {
+    const PING_INTERVAL_MS = 4 * 60 * 1000;
+    setInterval(() => {
+      fetch(`http://localhost:${port}/api/healthz`)
+        .then(() => logger.info("Keep-alive ping sent"))
+        .catch((e) => logger.warn({ err: e }, "Keep-alive ping failed"));
+    }, PING_INTERVAL_MS);
+    logger.info("Keep-alive self-ping enabled (every 4 min)");
+  }
 });
