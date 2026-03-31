@@ -49,6 +49,7 @@ Thumbs.db
 .local/
 
 # Bot runtime data — never commit these, they live in /home/runner/bot_data/ in production
+telegram-bot/coupons.json
 telegram-bot/users.json
 telegram-bot/orders.json
 telegram-bot/pending_orders.json
