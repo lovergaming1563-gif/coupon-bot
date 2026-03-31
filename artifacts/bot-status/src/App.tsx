@@ -52,8 +52,9 @@ export default function App() {
           margin: "0 auto 2rem",
         }}>
           {[
-            { icon: "🟢", label: "₹100 Coupon", price: "₹35" },
-            { icon: "🔵", label: "₹150 Coupon", price: "₹35" },
+            { icon: "🟢", label: "₹100 Myntra Coupon", price: "₹35" },
+            { icon: "🔵", label: "₹150 Myntra Coupon", price: "₹35" },
+            { icon: "🛍️", label: "₹500 Shein Coupon", price: "₹20" },
             { icon: "⚡", label: "Instant Delivery", price: "" },
             { icon: "🔒", label: "Secure Payments", price: "" },
           ].map((item, i) => (

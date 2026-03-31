@@ -50,6 +50,7 @@ LOW_STOCK_THRESHOLD    = 5
 PRODUCTS = {
     "coupon_100": {"name": "₹100 Myntra Coupon", "price": 35, "emoji": "🟢"},
     "coupon_150": {"name": "₹150 Myntra Coupon", "price": 35, "emoji": "🔵"},
+    "coupon_shein_500": {"name": "₹500 Shein Coupon", "price": 20, "emoji": "🛍️"},
 }
 
 QTY_EMOJIS = {
@@ -86,7 +87,7 @@ def _save(fp: str, data) -> None:
         json.dump(data, f, indent=2)
 
 
-def get_coupons()  -> dict: return load_json(COUPONS_FILE, {"coupon_100": [], "coupon_150": []})
+def get_coupons()  -> dict: return load_json(COUPONS_FILE, {"coupon_100": [], "coupon_150": [], "coupon_shein_500": []})
 def save_coupons(d):        _save(COUPONS_FILE, d)
 def get_users()    -> dict: return load_json(USERS_FILE,   {})
 def save_users(d):          _save(USERS_FILE,   d)
@@ -215,26 +216,32 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     cancel_user_timers(context, user.id)
     clear_user_order_state(context)
 
-    s100 = get_stock("coupon_100")
-    s150 = get_stock("coupon_150")
+    s100   = get_stock("coupon_100")
+    s150   = get_stock("coupon_150")
+    s_shein = get_stock("coupon_shein_500")
 
     text = (
         "🎉 *Welcome to Coupon Store*\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         "🔥 *Best Deals Available*\n\n"
         "💸 ₹100 Myntra Coupon — *₹35 only*\n"
-        "💸 ₹150 Myntra Coupon — *₹35 only*\n\n"
+        "💸 ₹150 Myntra Coupon — *₹35 only*\n"
+        "🛍️ ₹500 Shein Coupon — *₹20 only*\n\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         "⚡ Instant Delivery  |  ✅ Trusted  |  💬 24/7 Support"
     )
     keyboard = [
         [InlineKeyboardButton(
-            f"🟢 ₹100 Coupon – ₹35  [{s100} left]" if s100 > 0 else "🟢 ₹100 Coupon – Out of Stock",
+            f"🟢 ₹100 Myntra – ₹35  [{s100} left]" if s100 > 0 else "🟢 ₹100 Myntra – Out of Stock",
             callback_data="buy_coupon_100",
         )],
         [InlineKeyboardButton(
-            f"🔵 ₹150 Coupon – ₹35  [{s150} left]" if s150 > 0 else "🔵 ₹150 Coupon – Out of Stock",
+            f"🔵 ₹150 Myntra – ₹35  [{s150} left]" if s150 > 0 else "🔵 ₹150 Myntra – Out of Stock",
             callback_data="buy_coupon_150",
+        )],
+        [InlineKeyboardButton(
+            f"🛍️ ₹500 Shein – ₹20  [{s_shein} left]" if s_shein > 0 else "🛍️ ₹500 Shein – Out of Stock",
+            callback_data="buy_coupon_shein_500",
         )],
         [InlineKeyboardButton("📞 Contact Support", url="tg://openmessage?user_id=6724474397")],
     ]
@@ -266,25 +273,31 @@ async def support(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def back_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
-    s100 = get_stock("coupon_100")
-    s150 = get_stock("coupon_150")
+    s100    = get_stock("coupon_100")
+    s150    = get_stock("coupon_150")
+    s_shein = get_stock("coupon_shein_500")
     text = (
         "🎉 *Welcome to Coupon Store*\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         "🔥 *Best Deals Available*\n\n"
         "💸 ₹100 Myntra Coupon — *₹35 only*\n"
-        "💸 ₹150 Myntra Coupon — *₹35 only*\n\n"
+        "💸 ₹150 Myntra Coupon — *₹35 only*\n"
+        "🛍️ ₹500 Shein Coupon — *₹20 only*\n\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         "⚡ Instant Delivery  |  ✅ Trusted  |  💬 24/7 Support"
     )
     keyboard = [
         [InlineKeyboardButton(
-            f"🟢 ₹100 Coupon – ₹35  [{s100} left]" if s100 > 0 else "🟢 ₹100 Coupon – Out of Stock",
+            f"🟢 ₹100 Myntra – ₹35  [{s100} left]" if s100 > 0 else "🟢 ₹100 Myntra – Out of Stock",
             callback_data="buy_coupon_100",
         )],
         [InlineKeyboardButton(
-            f"🔵 ₹150 Coupon – ₹35  [{s150} left]" if s150 > 0 else "🔵 ₹150 Coupon – Out of Stock",
+            f"🔵 ₹150 Myntra – ₹35  [{s150} left]" if s150 > 0 else "🔵 ₹150 Myntra – Out of Stock",
             callback_data="buy_coupon_150",
+        )],
+        [InlineKeyboardButton(
+            f"🛍️ ₹500 Shein – ₹20  [{s_shein} left]" if s_shein > 0 else "🛍️ ₹500 Shein – Out of Stock",
+            callback_data="buy_coupon_shein_500",
         )],
         [InlineKeyboardButton("📞 Contact Support", url="tg://openmessage?user_id=6724474397")],
     ]
@@ -1102,7 +1115,7 @@ async def add_coupon_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     pk = args[0]
     if pk not in PRODUCTS:
         await update.message.reply_text(
-            "❌ Invalid key. Use `coupon_100` or `coupon_150`", parse_mode=ParseMode.MARKDOWN,
+            "❌ Invalid key. Use `coupon_100`, `coupon_150` or `coupon_shein_500`", parse_mode=ParseMode.MARKDOWN,
         )
         return
     new_codes = args[1:]
@@ -1196,7 +1209,7 @@ def main() -> None:
 
     # Ensure data files exist
     for fp, default in [
-        (COUPONS_FILE, {"coupon_100": [], "coupon_150": []}),
+        (COUPONS_FILE, {"coupon_100": [], "coupon_150": [], "coupon_shein_500": []}),
         (USERS_FILE,   {}),
         (ORDERS_FILE,  {}),
         (PENDING_FILE, {}),
