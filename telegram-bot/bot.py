@@ -442,6 +442,19 @@ async def _confirm_quantity(
         logger.warning("JobQueue not available — timers disabled")
 
     qty_disp = QTY_EMOJIS.get(quantity, f"×{quantity}")
+
+    shein_tnc = ""
+    if product_key == "coupon_shein_500":
+        shein_tnc = (
+            "\n━━━━━━━━━━━━━━━━━━━━\n"
+            "📜 *SHEINVERSE COUPON – TERMS & CONDITIONS*\n\n"
+            "1. Coupon sirf *SHEIN App ke Sheinverse section* me hi apply hoga.\n"
+            "2. Coupon *kisi bhi order value* (₹200 / ₹300 / ₹400 / ₹1000 etc.) par use kiya ja sakta hai.\n"
+            "3. Coupon apply karne par *flat ₹500 OFF* milega.\n"
+            "4. Coupon ki validity *sirf 31st March (raat tak)* hai – uske baad expire ho jayega.\n\n"
+            "⚠️ Use karne se pehle ensure karein ki order Sheinverse section me hi ho."
+        )
+
     summary_text = (
         f"🧾 *Order Summary*\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
@@ -456,6 +469,7 @@ async def _confirm_quantity(
         f"📸 *After payment, send your screenshot here.*\n\n"
         f"⏳ You have *5 minutes* to complete payment.\n"
         f"After that your order will be cancelled automatically."
+        f"{shein_tnc}"
     )
     cancel_btn = InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel Order", callback_data="cancel_order")]])
 
