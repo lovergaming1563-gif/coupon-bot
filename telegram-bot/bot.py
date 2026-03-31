@@ -1108,9 +1108,10 @@ async def admin_add_coupon(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return
     await query.edit_message_text(
         "➕ *Add Coupons*\n━━━━━━━━━━━━━━━━━━━━\n\n"
-        "📌 `/addcoupon coupon_100 CODE1 CODE2`\n"
-        "📌 `/addcoupon coupon_150 CODE1 CODE2`\n\n"
-        "_Separate codes with spaces._",
+        "*Myntra ₹100:*\n`/addcoupon coupon_100 CODE1 CODE2`\n\n"
+        "*Myntra ₹150:*\n`/addcoupon coupon_150 CODE1 CODE2`\n\n"
+        "*Shein ₹500:*\n`/addcoupon coupon_shein_500 CODE1 CODE2`\n\n"
+        "_Ek saath multiple codes space se alag karke add karo._",
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back", callback_data="admin_back")]]),
         parse_mode=ParseMode.MARKDOWN,
     )
@@ -1123,7 +1124,7 @@ async def add_coupon_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     args = context.args
     if len(args) < 2:
         await update.message.reply_text(
-            "❌ *Usage:* `/addcoupon coupon_100 CODE1 CODE2`", parse_mode=ParseMode.MARKDOWN,
+            "❌ *Usage:*\n`/addcoupon coupon_100 CODE1 CODE2`\n`/addcoupon coupon_150 CODE1 CODE2`\n`/addcoupon coupon_shein_500 CODE1 CODE2`", parse_mode=ParseMode.MARKDOWN,
         )
         return
     pk = args[0]

@@ -1,5 +1,26 @@
 {
   "coupon_100": [],
   "coupon_150": [],
-  "coupon_shein_500": []
+  "coupon_shein_500": [
+    "SHEIN-SAMPLE-001",
+    "SHEIN-SAMPLE-002",
+    "SHEIN-SAMPLE-003",
+    "SHEIN-SAMPLE-004",
+    "SHEIN-SAMPLE-005",
+    "SHEIN-SAMPLE-006",
+    "SHEIN-SAMPLE-007",
+    "SHEIN-SAMPLE-008",
+    "SHEIN-SAMPLE-009",
+    "SHEIN-SAMPLE-010",
+    "SHEIN-SAMPLE-011",
+    "SHEIN-SAMPLE-012",
+    "SHEIN-SAMPLE-013",
+    "SHEIN-SAMPLE-014",
+    "SHEIN-SAMPLE-015",
+    "SHEIN-SAMPLE-016",
+    "SHEIN-SAMPLE-017",
+    "SHEIN-SAMPLE-018",
+    "SHEIN-SAMPLE-019",
+    "SHEIN-SAMPLE-020"
+  ]
 }
