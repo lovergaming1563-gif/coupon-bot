@@ -37,10 +37,16 @@ UPI_ID         = "k36672632@okicici"         # UPI ID
 SUPPORT_HANDLE = "@MyntraCouponsupport_bot"  # Support Telegram handle
 QR_IMAGE_PATH  = "qr_code.jpg"              # QR code image (already loaded)
 
-COUPONS_FILE       = "coupons.json"
-USERS_FILE         = "users.json"
-ORDERS_FILE        = "orders.json"
-PENDING_FILE       = "pending_orders.json"
+# Data files stored in a persistent directory that survives deployments.
+# In production BOT_DATA_DIR is set to /home/runner/bot_data (outside the repo).
+# In dev it falls back to the telegram-bot/ folder (current directory).
+_DATA_DIR    = os.environ.get("BOT_DATA_DIR", os.path.dirname(os.path.abspath(__file__)))
+os.makedirs(_DATA_DIR, exist_ok=True)
+
+COUPONS_FILE = os.path.join(_DATA_DIR, "coupons.json")
+USERS_FILE   = os.path.join(_DATA_DIR, "users.json")
+ORDERS_FILE  = os.path.join(_DATA_DIR, "orders.json")
+PENDING_FILE = os.path.join(_DATA_DIR, "pending_orders.json")
 
 ORDER_TIMEOUT_SECONDS  = 300   # 5 min auto-cancel
 EXIT_TRAP_SECONDS      = 180   # 3 min urgency nudge
