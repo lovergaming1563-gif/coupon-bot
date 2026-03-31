@@ -933,23 +933,26 @@ async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
         return
 
-    if not context.args:
+    # Extract full message text after the command, preserving newlines
+    raw_text     = update.message.text or ""
+    parts        = raw_text.split(None, 1)
+    message_text = parts[1].strip() if len(parts) > 1 else ""
+
+    if not message_text:
         await update.message.reply_text(
             "❌ *Usage:* `/broadcast Your message here`",
             parse_mode=ParseMode.MARKDOWN,
         )
         return
 
-    message_text = " ".join(context.args)
-    users        = get_users()
+    users   = get_users()
     success = failed = 0
 
     for uid in users:
         try:
             await context.bot.send_message(
                 chat_id=int(uid),
-                text=f"📢 *Announcement*\n━━━━━━━━━━━━━━━━━━━━\n\n{message_text}",
-                parse_mode=ParseMode.MARKDOWN,
+                text=f"📢 Announcement\n━━━━━━━━━━━━━━━━━━━━\n\n{message_text}",
             )
             success += 1
         except Exception:
