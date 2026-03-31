@@ -1183,8 +1183,7 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
             try:
                 await context.bot.send_message(
                     chat_id=int(uid),
-                    text=f"📢 *Announcement*\n━━━━━━━━━━━━━━━━━━━━\n\n{update.message.text}",
-                    parse_mode=ParseMode.MARKDOWN,
+                    text=f"📢 Announcement\n━━━━━━━━━━━━━━━━━━━━\n\n{update.message.text}",
                 )
                 success += 1
             except Exception:
