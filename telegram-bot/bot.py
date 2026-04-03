@@ -59,6 +59,18 @@ PRODUCTS = {
     "coupon_bigbasket_150": {"name": "₹150 BigBasket Cashback", "price": 30, "emoji": "🛒"},
 }
 
+def get_unit_price(product_key: str, quantity: int) -> int:
+    """Returns unit price with tiered discounts for coupon_100."""
+    if product_key == "coupon_100":
+        if quantity >= 20:
+            return 30
+        elif quantity >= 10:
+            return 32
+        else:
+            return 35
+    return PRODUCTS[product_key]["price"]
+
+
 QTY_EMOJIS = {
     1: "1️⃣", 2: "2️⃣", 3: "3️⃣", 4: "4️⃣", 5: "5️⃣",
     6: "6️⃣", 7: "7️⃣", 8: "8️⃣", 9: "9️⃣", 10: "🔟",
@@ -130,7 +142,7 @@ def get_stats() -> dict:
     completed = [o for o in orders.values() if o.get("status") == "approved"]
     pending   = [o for o in orders.values() if o.get("status") == "pending"]
     revenue   = sum(
-        PRODUCTS[o["product"]]["price"] * o.get("quantity", 1)
+        o.get("total", PRODUCTS[o["product"]]["price"] * o.get("quantity", 1))
         for o in completed if o.get("product") in PRODUCTS
     )
     return {
@@ -354,6 +366,10 @@ async def buy_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"{product['emoji']} *{product['name']}*\n"
         f"💰 Price per unit: *₹{product['price']}*\n"
+        + (
+            f"🏷 *Bulk Discount:* 10+ = ₹32/each | 20+ = ₹30/each\n"
+            if product_key == "coupon_100" else ""
+        ) +
         f"📊 Stock available: *{stock}*\n\n"
         f"How many do you want?",
         reply_markup=InlineKeyboardMarkup(keyboard),
@@ -420,8 +436,9 @@ async def _confirm_quantity(
 
     cancel_user_timers(context, update.effective_user.id)
 
-    ts    = now_ts()
-    total = product["price"] * quantity
+    ts         = now_ts()
+    unit_price = get_unit_price(product_key, quantity)
+    total      = unit_price * quantity
     context.user_data["pending_product"]  = product_key
     context.user_data["pending_quantity"] = quantity
     context.user_data["order_start_ts"]   = ts
@@ -477,7 +494,7 @@ async def _confirm_quantity(
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"🎟 Product:    *{product['name']}*\n"
         f"📦 Quantity:   *{qty_disp} × {quantity}*\n"
-        f"💰 Unit Price: ₹{product['price']}\n"
+        f"💰 Unit Price: ₹{unit_price}\n"
         f"💵 *Total:     ₹{total}*\n"
         f"━━━━━━━━━━━━━━━━━━━━\n\n"
         f"📲 *Payment Details*\n"
@@ -595,8 +612,9 @@ async def handle_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     cancel_user_timers(context, user.id)
     clear_user_order_state(context)
 
-    order_id = f"{user.id}_{int(now_ts())}"
-    total    = product["price"] * quantity
+    order_id   = f"{user.id}_{int(now_ts())}"
+    unit_price = get_unit_price(product_key, quantity)
+    total      = unit_price * quantity
 
     order = {
         "order_id":    order_id,
