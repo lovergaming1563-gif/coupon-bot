@@ -55,7 +55,7 @@ LOW_STOCK_THRESHOLD    = 5
 
 PRODUCTS = {
     "coupon_100": {"name": "₹100 Myntra Coupon", "price": 35, "emoji": "🟢"},
-    "coupon_150": {"name": "₹150 Myntra Coupon", "price": 35, "emoji": "🔵"},
+    "coupon_150": {"name": "₹150 Myntra Coupon", "price": 30, "emoji": "🔵"},
     "coupon_bigbasket_150": {"name": "₹150 BigBasket Cashback", "price": 30, "emoji": "🛒"},
 }
 
@@ -231,7 +231,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "━━━━━━━━━━━━━━━━━━━━\n"
         "🔥 *Best Deals Available*\n\n"
         "💸 ₹100 Myntra Coupon — *₹35 only*\n"
-        "💸 ₹150 Myntra Coupon — *₹35 only*\n"
+        "💸 ₹150 Myntra Coupon — *₹30 only*\n"
         "🛒 ₹150 BigBasket Cashback — *₹30 only*\n\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         "⚡ Instant Delivery  |  ✅ Trusted  |  💬 24/7 Support"
@@ -242,7 +242,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             callback_data="buy_coupon_100",
         )],
         [InlineKeyboardButton(
-            f"🔵 ₹150 Myntra – ₹35  [{s150} left]" if s150 > 0 else "🔵 ₹150 Myntra – Out of Stock",
+            f"🔵 ₹150 Myntra – ₹30  [{s150} left]" if s150 > 0 else "🔵 ₹150 Myntra – Out of Stock",
             callback_data="buy_coupon_150",
         )],
         [InlineKeyboardButton(
@@ -287,7 +287,7 @@ async def back_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         "━━━━━━━━━━━━━━━━━━━━\n"
         "🔥 *Best Deals Available*\n\n"
         "💸 ₹100 Myntra Coupon — *₹35 only*\n"
-        "💸 ₹150 Myntra Coupon — *₹35 only*\n"
+        "💸 ₹150 Myntra Coupon — *₹30 only*\n"
         "🛒 ₹150 BigBasket Cashback — *₹30 only*\n\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         "⚡ Instant Delivery  |  ✅ Trusted  |  💬 24/7 Support"
@@ -298,7 +298,7 @@ async def back_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             callback_data="buy_coupon_100",
         )],
         [InlineKeyboardButton(
-            f"🔵 ₹150 Myntra – ₹35  [{s150} left]" if s150 > 0 else "🔵 ₹150 Myntra – Out of Stock",
+            f"🔵 ₹150 Myntra – ₹30  [{s150} left]" if s150 > 0 else "🔵 ₹150 Myntra – Out of Stock",
             callback_data="buy_coupon_150",
         )],
         [InlineKeyboardButton(
