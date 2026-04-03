@@ -56,7 +56,7 @@ LOW_STOCK_THRESHOLD    = 5
 PRODUCTS = {
     "coupon_100": {"name": "₹100 Myntra Coupon", "price": 35, "emoji": "🟢"},
     "coupon_150": {"name": "₹150 Myntra Coupon", "price": 35, "emoji": "🔵"},
-    "coupon_shein_500": {"name": "₹500 Shein Coupon", "price": 20, "emoji": "🛍️"},
+    "coupon_bigbasket_150": {"name": "₹150 BigBasket Cashback", "price": 30, "emoji": "🛒"},
 }
 
 QTY_EMOJIS = {
@@ -93,7 +93,7 @@ def _save(fp: str, data) -> None:
         json.dump(data, f, indent=2)
 
 
-def get_coupons()  -> dict: return load_json(COUPONS_FILE, {"coupon_100": [], "coupon_150": [], "coupon_shein_500": []})
+def get_coupons()  -> dict: return load_json(COUPONS_FILE, {"coupon_100": [], "coupon_150": [], "coupon_bigbasket_150": []})
 def save_coupons(d):        _save(COUPONS_FILE, d)
 def get_users()    -> dict: return load_json(USERS_FILE,   {})
 def save_users(d):          _save(USERS_FILE,   d)
@@ -224,7 +224,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     s100   = get_stock("coupon_100")
     s150   = get_stock("coupon_150")
-    s_shein = get_stock("coupon_shein_500")
+    s_bb = get_stock("coupon_bigbasket_150")
 
     text = (
         "🎉 *Welcome to Coupon Store*\n"
@@ -232,7 +232,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "🔥 *Best Deals Available*\n\n"
         "💸 ₹100 Myntra Coupon — *₹35 only*\n"
         "💸 ₹150 Myntra Coupon — *₹35 only*\n"
-        "🛍️ ₹500 Shein Coupon — *₹20 only*\n\n"
+        "🛒 ₹150 BigBasket Cashback — *₹30 only*\n\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         "⚡ Instant Delivery  |  ✅ Trusted  |  💬 24/7 Support"
     )
@@ -246,8 +246,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             callback_data="buy_coupon_150",
         )],
         [InlineKeyboardButton(
-            f"🛍️ ₹500 Shein – ₹20  [{s_shein} left]" if s_shein > 0 else "🛍️ ₹500 Shein – Out of Stock",
-            callback_data="buy_coupon_shein_500",
+            f"🛒 BigBasket ₹150 Cashback – ₹30  [{s_bb} left]" if s_bb > 0 else "🛒 BigBasket ₹150 Cashback – Out of Stock",
+            callback_data="buy_coupon_bigbasket_150",
         )],
         [InlineKeyboardButton("📞 Contact Support", url="tg://openmessage?user_id=6724474397")],
     ]
@@ -281,14 +281,14 @@ async def back_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     await query.answer()
     s100    = get_stock("coupon_100")
     s150    = get_stock("coupon_150")
-    s_shein = get_stock("coupon_shein_500")
+    s_bb = get_stock("coupon_bigbasket_150")
     text = (
         "🎉 *Welcome to Coupon Store*\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         "🔥 *Best Deals Available*\n\n"
         "💸 ₹100 Myntra Coupon — *₹35 only*\n"
         "💸 ₹150 Myntra Coupon — *₹35 only*\n"
-        "🛍️ ₹500 Shein Coupon — *₹20 only*\n\n"
+        "🛒 ₹150 BigBasket Cashback — *₹30 only*\n\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         "⚡ Instant Delivery  |  ✅ Trusted  |  💬 24/7 Support"
     )
@@ -302,8 +302,8 @@ async def back_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             callback_data="buy_coupon_150",
         )],
         [InlineKeyboardButton(
-            f"🛍️ ₹500 Shein – ₹20  [{s_shein} left]" if s_shein > 0 else "🛍️ ₹500 Shein – Out of Stock",
-            callback_data="buy_coupon_shein_500",
+            f"🛒 BigBasket ₹150 Cashback – ₹30  [{s_bb} left]" if s_bb > 0 else "🛒 BigBasket ₹150 Cashback – Out of Stock",
+            callback_data="buy_coupon_bigbasket_150",
         )],
         [InlineKeyboardButton("📞 Contact Support", url="tg://openmessage?user_id=6724474397")],
     ]
@@ -449,16 +449,27 @@ async def _confirm_quantity(
 
     qty_disp = QTY_EMOJIS.get(quantity, f"×{quantity}")
 
-    shein_tnc = ""
-    if product_key == "coupon_shein_500":
-        shein_tnc = (
+    extra_tnc = ""
+    if product_key == "coupon_bigbasket_150":
+        extra_tnc = (
             "\n━━━━━━━━━━━━━━━━━━━━\n"
-            "📜 *SHEINVERSE COUPON – TERMS & CONDITIONS*\n\n"
-            "1. Coupon sirf *SHEIN App ke Sheinverse section* me hi apply hoga.\n"
-            "2. Coupon *kisi bhi order value* (₹200 / ₹300 / ₹400 / ₹1000 etc.) par use kiya ja sakta hai.\n"
-            "3. Coupon apply karne par *flat ₹500 OFF* milega.\n"
-            "4. Coupon ki validity *sirf 31st March (raat tak)* hai – uske baad expire ho jayega.\n\n"
-            "⚠️ Use karne se pehle ensure karein ki order Sheinverse section me hi ho."
+            "📜 *BigBasket – ₹150 Cashback on ₹149 cart*\n\n"
+            "📋 *Terms & Conditions:*\n"
+            "• Applicable only for *new users* on BigBasket.\n"
+            "• Cashback of ₹150 credited to bbwallet within *24–48 hours* after delivery.\n"
+            "• Minimum cart value must be *₹149*.\n"
+            "• Can be used *once per customer per device*.\n"
+            "• Not applicable on Paan corner, Baby food, Electronics, Oils, Atta, Ghee, etc.\n"
+            "• Benefits removed if items are returned or refunded.\n"
+            "• Expires on *30 Apr 2026, 11:59 PM*.\n"
+            "• 🔐 Codes are unique, non-refundable & non-returnable.\n"
+            "• 💸 Payments once made cannot be reversed.\n\n"
+            "🛒 *How to Redeem:*\n"
+            "1. Go to checkout page.\n"
+            "2. Tap *Apply Voucher*.\n"
+            "3. Paste your unique voucher code.\n"
+            "4. Click Apply and complete payment.\n"
+            "5. Cashback credited after delivery."
         )
 
     summary_text = (
@@ -475,7 +486,7 @@ async def _confirm_quantity(
         f"📸 *After payment, send your screenshot here.*\n\n"
         f"⏳ You have *5 minutes* to complete payment.\n"
         f"After that your order will be cancelled automatically."
-        f"{shein_tnc}"
+        f"{extra_tnc}"
     )
     cancel_btn = InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel Order", callback_data="cancel_order")]])
 
@@ -952,7 +963,7 @@ async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         try:
             await context.bot.send_message(
                 chat_id=int(uid),
-                text=f"📢 Announcement\n━━━━━━━━━━━━━━━━━━━━\n\n{message_text}",
+                text=message_text,
             )
             success += 1
         except Exception:
@@ -1119,7 +1130,7 @@ async def admin_add_coupon(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         "➕ *Add Coupons*\n━━━━━━━━━━━━━━━━━━━━\n\n"
         "*Myntra ₹100:*\n`/addcoupon coupon_100 CODE1 CODE2`\n\n"
         "*Myntra ₹150:*\n`/addcoupon coupon_150 CODE1 CODE2`\n\n"
-        "*Shein ₹500:*\n`/addcoupon coupon_shein_500 CODE1 CODE2`\n\n"
+        "*BigBasket ₹150:*\n`/addcoupon coupon_bigbasket_150 CODE1 CODE2`\n\n"
         "_Ek saath multiple codes space se alag karke add karo._",
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back", callback_data="admin_back")]]),
         parse_mode=ParseMode.MARKDOWN,
@@ -1133,13 +1144,13 @@ async def add_coupon_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     args = context.args
     if len(args) < 2:
         await update.message.reply_text(
-            "❌ *Usage:*\n`/addcoupon coupon_100 CODE1 CODE2`\n`/addcoupon coupon_150 CODE1 CODE2`\n`/addcoupon coupon_shein_500 CODE1 CODE2`", parse_mode=ParseMode.MARKDOWN,
+            "❌ *Usage:*\n`/addcoupon coupon_100 CODE1 CODE2`\n`/addcoupon coupon_150 CODE1 CODE2`\n`/addcoupon coupon_bigbasket_150 CODE1 CODE2`", parse_mode=ParseMode.MARKDOWN,
         )
         return
     pk = args[0]
     if pk not in PRODUCTS:
         await update.message.reply_text(
-            "❌ Invalid key. Use `coupon_100`, `coupon_150` or `coupon_shein_500`", parse_mode=ParseMode.MARKDOWN,
+            "❌ Invalid key. Use `coupon_100`, `coupon_150` or `coupon_bigbasket_150`", parse_mode=ParseMode.MARKDOWN,
         )
         return
     new_codes = args[1:]
@@ -1183,7 +1194,7 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
             try:
                 await context.bot.send_message(
                     chat_id=int(uid),
-                    text=f"📢 Announcement\n━━━━━━━━━━━━━━━━━━━━\n\n{update.message.text}",
+                    text=update.message.text,
                 )
                 success += 1
             except Exception:
@@ -1232,7 +1243,7 @@ def main() -> None:
 
     # Ensure data files exist
     for fp, default in [
-        (COUPONS_FILE, {"coupon_100": [], "coupon_150": [], "coupon_shein_500": []}),
+        (COUPONS_FILE, {"coupon_100": [], "coupon_150": [], "coupon_bigbasket_150": []}),
         (USERS_FILE,   {}),
         (ORDERS_FILE,  {}),
         (PENDING_FILE, {}),

@@ -54,7 +54,7 @@ export default function App() {
           {[
             { icon: "🟢", label: "₹100 Myntra Coupon", price: "₹35" },
             { icon: "🔵", label: "₹150 Myntra Coupon", price: "₹35" },
-            { icon: "🛍️", label: "₹500 Shein Coupon", price: "₹20" },
+            { icon: "🛒", label: "₹150 BigBasket Cashback", price: "₹30" },
             { icon: "⚡", label: "Instant Delivery", price: "" },
             { icon: "🔒", label: "Secure Payments", price: "" },
           ].map((item, i) => (
