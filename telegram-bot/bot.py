@@ -38,10 +38,18 @@ SUPPORT_HANDLE = "@MyntraCouponsupport_bot"  # Support Telegram handle
 QR_IMAGE_PATH  = "qr_code.jpg"              # QR code image (already loaded)
 
 # Data files stored in a persistent directory that survives deployments.
-# In production BOT_DATA_DIR is set to /home/runner/bot_data (outside the repo).
-# In dev it falls back to the telegram-bot/ folder (current directory).
-_DATA_DIR    = os.environ.get("BOT_DATA_DIR", os.path.dirname(os.path.abspath(__file__)))
+# Always stored outside the repo so code changes never wipe user data.
+_DATA_DIR    = os.environ.get("BOT_DATA_DIR", "/home/runner/bot_data")
 os.makedirs(_DATA_DIR, exist_ok=True)
+
+# One-time migration: if data exists in old telegram-bot/ location, move it here
+_OLD_DIR = os.path.dirname(os.path.abspath(__file__))
+if _OLD_DIR != _DATA_DIR:
+    for _f in ["coupons.json", "users.json", "orders.json", "pending_orders.json"]:
+        _src = os.path.join(_OLD_DIR, _f)
+        _dst = os.path.join(_DATA_DIR, _f)
+        if os.path.exists(_src) and not os.path.exists(_dst):
+            import shutil; shutil.copy2(_src, _dst)
 
 COUPONS_FILE = os.path.join(_DATA_DIR, "coupons.json")
 USERS_FILE   = os.path.join(_DATA_DIR, "users.json")
