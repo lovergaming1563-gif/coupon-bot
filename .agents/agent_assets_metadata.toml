@@ -1,0 +1,14 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "gbJVFOcw-_9x8Tq056bDL"
+uri = "file://telegram-bot/users.json"
+type = "unspecified"
+title = "users.json — Backup"
+
+[[outputs]]
+id = "pvXDWiNAX9WSUxQFz6vCv"
+uri = "file://telegram-bot/coupons.json"
+type = "unspecified"
+title = "coupons.json — Backup"
