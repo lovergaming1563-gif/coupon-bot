@@ -184,8 +184,11 @@ def load_json(fp: str, default):
 
 
 def _save(fp: str, data) -> None:
-    with open(fp, "w") as f:
-        json.dump(data, f, indent=2)
+    """Atomic write: write to temp file first, then rename to prevent corruption."""
+    tmp = fp + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    os.replace(tmp, fp)
 
 
 def get_coupons()  -> dict: return load_json(COUPONS_FILE, {"coupon_100": [], "coupon_150": [], "coupon_bigbasket_150": []})
