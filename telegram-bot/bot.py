@@ -1513,13 +1513,12 @@ async def admin_export_users(update: Update, context: ContextTypes.DEFAULT_TYPE)
     import io
     data_bytes = json.dumps(users, indent=2, ensure_ascii=False).encode("utf-8")
     bio = io.BytesIO(data_bytes)
-    bio.name = "users.json"
+    bio.seek(0)
     await context.bot.send_document(
         chat_id=ADMIN_ID,
         document=bio,
         filename="users.json",
-        caption=f"👥 *Users export* — {len(users)} total users",
-        parse_mode=ParseMode.MARKDOWN,
+        caption=f"users.json — {len(users)} total users",
     )
 
 
