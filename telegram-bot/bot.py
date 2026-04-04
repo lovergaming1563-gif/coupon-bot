@@ -1488,16 +1488,15 @@ async def admin_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         key=lambda u: u.get("joined", ""),
         reverse=True,
     )[:20]
-    lines = [f"👥 *Recent Users ({len(users)} total)*", "━━━━━━━━━━━━━━━━━━━━"]
+    lines = [f"👥 Recent Users ({len(users)} total)", "━━━━━━━━━━━━━━━━━━━━"]
     for i, u in enumerate(sorted_users, 1):
-        uname   = f"@{u['username']}" if u.get("username") else "_(no username)_"
-        name    = u.get("first_name", "?")
-        joined  = u.get("joined", "?")[:10]  # just date part
-        lines.append(f"{i}\\. `{u['id']}` — {name} {uname} _{joined}_")
+        uname  = f"@{u['username']}" if u.get("username") else "-"
+        name   = u.get("first_name", "?")
+        joined = u.get("joined", "?")[:10]
+        lines.append(f"{i}. {u['id']} | {name} {uname} | {joined}")
     await query.edit_message_text(
         "\n".join(lines),
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back", callback_data="admin_back")]]),
-        parse_mode=ParseMode.MARKDOWN,
     )
 
 
