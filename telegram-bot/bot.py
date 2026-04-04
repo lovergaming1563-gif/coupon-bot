@@ -1386,8 +1386,9 @@ def _admin_kb():
         ],
         [
             InlineKeyboardButton("👥 Users",          callback_data="admin_users"),
-            InlineKeyboardButton("📢 Broadcast",      callback_data="admin_broadcast"),
+            InlineKeyboardButton("📤 Export Users",   callback_data="admin_export_users"),
         ],
+        [InlineKeyboardButton("📢 Broadcast",         callback_data="admin_broadcast")],
     ])
 
 
@@ -1496,6 +1497,29 @@ async def admin_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     await query.edit_message_text(
         "\n".join(lines),
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back", callback_data="admin_back")]]),
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+async def admin_export_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Send users.json as a file document to the admin."""
+    query = update.callback_query
+    await query.answer("Preparing file…", show_alert=False)
+    if query.from_user.id != ADMIN_ID:
+        return
+    users = get_users()
+    if not users:
+        await context.bot.send_message(chat_id=ADMIN_ID, text="👥 No users yet.")
+        return
+    import io
+    data_bytes = json.dumps(users, indent=2, ensure_ascii=False).encode("utf-8")
+    bio = io.BytesIO(data_bytes)
+    bio.name = "users.json"
+    await context.bot.send_document(
+        chat_id=ADMIN_ID,
+        document=bio,
+        filename="users.json",
+        caption=f"👥 *Users export* — {len(users)} total users",
         parse_mode=ParseMode.MARKDOWN,
     )
 
@@ -1699,6 +1723,7 @@ def main() -> None:
     app.add_handler(CallbackQueryHandler(admin_stock,            pattern="^admin_stock$"))
     app.add_handler(CallbackQueryHandler(admin_stats,            pattern="^admin_stats$"))
     app.add_handler(CallbackQueryHandler(admin_users,            pattern="^admin_users$"))
+    app.add_handler(CallbackQueryHandler(admin_export_users,     pattern="^admin_export_users$"))
     app.add_handler(CallbackQueryHandler(admin_pending,          pattern="^admin_pending$"))
     app.add_handler(CallbackQueryHandler(admin_add_coupon,       pattern="^admin_add_coupon$"))
     app.add_handler(CallbackQueryHandler(admin_broadcast_prompt, pattern="^admin_broadcast$"))
