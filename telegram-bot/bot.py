@@ -1384,7 +1384,10 @@ def _admin_kb():
             InlineKeyboardButton("📊 Stats",          callback_data="admin_stats"),
             InlineKeyboardButton("➕ Add Coupon",     callback_data="admin_add_coupon"),
         ],
-        [InlineKeyboardButton("📢 Broadcast", callback_data="admin_broadcast")],
+        [
+            InlineKeyboardButton("👥 Users",          callback_data="admin_users"),
+            InlineKeyboardButton("📢 Broadcast",      callback_data="admin_broadcast"),
+        ],
     ])
 
 
@@ -1457,6 +1460,39 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     for k, p in PRODUCTS.items():
         d = sold_rev.get(k, [0, 0])
         lines.append(f"  {p['emoji']} {p['name']}: *{d[0]} sold* | ₹{d[1]}")
+    await query.edit_message_text(
+        "\n".join(lines),
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back", callback_data="admin_back")]]),
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+async def admin_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Show last 20 registered users sorted by join date (newest first)."""
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id != ADMIN_ID:
+        return
+    users = get_users()
+    if not users:
+        await query.edit_message_text(
+            "👥 *No users yet.*",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back", callback_data="admin_back")]]),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+    # Sort by join date, newest first
+    sorted_users = sorted(
+        users.values(),
+        key=lambda u: u.get("joined", ""),
+        reverse=True,
+    )[:20]
+    lines = [f"👥 *Recent Users ({len(users)} total)*", "━━━━━━━━━━━━━━━━━━━━"]
+    for i, u in enumerate(sorted_users, 1):
+        uname   = f"@{u['username']}" if u.get("username") else "_(no username)_"
+        name    = u.get("first_name", "?")
+        joined  = u.get("joined", "?")[:10]  # just date part
+        lines.append(f"{i}\\. `{u['id']}` — {name} {uname} _{joined}_")
     await query.edit_message_text(
         "\n".join(lines),
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back", callback_data="admin_back")]]),
@@ -1662,6 +1698,7 @@ def main() -> None:
     # Admin panel navigation
     app.add_handler(CallbackQueryHandler(admin_stock,            pattern="^admin_stock$"))
     app.add_handler(CallbackQueryHandler(admin_stats,            pattern="^admin_stats$"))
+    app.add_handler(CallbackQueryHandler(admin_users,            pattern="^admin_users$"))
     app.add_handler(CallbackQueryHandler(admin_pending,          pattern="^admin_pending$"))
     app.add_handler(CallbackQueryHandler(admin_add_coupon,       pattern="^admin_add_coupon$"))
     app.add_handler(CallbackQueryHandler(admin_broadcast_prompt, pattern="^admin_broadcast$"))
