@@ -1,0 +1,67 @@
+Create a Telegram bot referral system with the following strict conditions:
+
+IMPORTANT:
+- Do NOT modify, remove, or change any existing bot features, commands, or logic
+- Only ADD referral system functionality
+- Keep all existing features exactly as they are
+
+1. Each user should have a unique referral link like:
+   https://t.me/YourBot?start=USER_ID
+
+2. When a new user starts the bot using a referral link:
+   - Save the referrer ID and new user ID
+   - DO NOT give any reward at this stage
+
+3. Apply these rules:
+
+   ✅ Self Referral Block:
+   - If user clicks their own referral link, do NOT count it
+
+   ✅ Unique Referral Only:
+   - A user can be counted as referral ONLY ONCE
+   - If the same user starts the bot multiple times, do NOT increase referral count again
+
+   ✅ First Start Only:
+   - Referral should be counted ONLY when user uses /start for the FIRST time
+   - If user already exists in database, ignore referral
+
+   ✅ Channel Join Mandatory (STRICT):
+   - Referral reward must ONLY be given AFTER verifying that the referred user has joined a specific Telegram channel
+   - Use Telegram API getChatMember to check membership
+
+   🚫 CRITICAL RULE:
+   - NEVER give reward on /start
+   - ONLY give reward after successful channel join verification
+
+4. Add a "Join Channel" button and a "Verify" button:
+   - When user clicks "Verify":
+       → Check channel membership using getChatMember
+
+5. Reward Logic:
+
+   IF user has joined channel:
+       - Check if reward_given == false
+       - Then:
+           → Increase referrer’s referral_count by 1
+           → Give reward
+           → Set reward_given = true
+
+   ELSE:
+       - Show message: "Please join the channel first to claim reward"
+
+6. Maintain database fields:
+   - user_id
+   - referred_by
+   - referral_count
+   - reward_given (true/false)
+
+7. Prevent abuse:
+   - Ensure reward is given only once per referred user
+   - Block duplicate or fake referrals
+
+8. Ensure the system is safe and does not break existing bot functionality
+
+(Optional):
+9. Add reward system (e.g., reward after 5 referrals)
+
+10. Use SQLite / MongoDB for persistent storage

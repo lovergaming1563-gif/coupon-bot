@@ -1,5 +1,6 @@
 import os
 import json
+import sqlite3
 import logging
 import threading
 import html
@@ -42,6 +43,74 @@ CHANNEL_USERNAME    = "@withoutanyinvestmentwork"
 CHANNEL_LINK        = "https://t.me/withoutanyinvestmentwork"
 REFERRAL_GOAL       = 5                          # referrals needed for free coupon
 REFERRAL_REWARD_KEY = "coupon_bigbasket_150"     # free coupon product key
+
+# ─────────────── SQLite Referral DB ───────────────
+REFERRAL_DB = os.path.join(
+    os.environ.get("BOT_DATA_DIR", "/home/runner/bot_data"), "referrals.db"
+)
+
+def init_referral_db():
+    con = sqlite3.connect(REFERRAL_DB)
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS referrals (
+            user_id      TEXT PRIMARY KEY,
+            referred_by  TEXT NOT NULL,
+            reward_given INTEGER NOT NULL DEFAULT 0,
+            joined_at    TEXT
+        )
+    """)
+    con.commit()
+    con.close()
+
+def db_get_referral(user_id: str):
+    """Returns (user_id, referred_by, reward_given) or None."""
+    con = sqlite3.connect(REFERRAL_DB)
+    row = con.execute(
+        "SELECT user_id, referred_by, reward_given FROM referrals WHERE user_id = ?",
+        (user_id,)
+    ).fetchone()
+    con.close()
+    return row
+
+def db_insert_referral(user_id: str, referred_by: str) -> bool:
+    """Insert referral. Returns True if new row inserted."""
+    try:
+        con = sqlite3.connect(REFERRAL_DB)
+        con.execute(
+            "INSERT INTO referrals (user_id, referred_by, reward_given, joined_at) VALUES (?,?,0,?)",
+            (user_id, referred_by, datetime.now().isoformat())
+        )
+        con.commit()
+        con.close()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+
+def db_mark_reward_given(user_id: str):
+    con = sqlite3.connect(REFERRAL_DB)
+    con.execute("UPDATE referrals SET reward_given = 1 WHERE user_id = ?", (user_id,))
+    con.commit()
+    con.close()
+
+def db_successful_referral_count(referrer_id: str) -> int:
+    """Count of verified referrals (reward_given=1) for this referrer."""
+    con = sqlite3.connect(REFERRAL_DB)
+    count = con.execute(
+        "SELECT COUNT(*) FROM referrals WHERE referred_by = ? AND reward_given = 1",
+        (referrer_id,)
+    ).fetchone()[0]
+    con.close()
+    return count
+
+def db_total_referral_count(referrer_id: str) -> int:
+    """Count of all referrals (pending + verified) for this referrer."""
+    con = sqlite3.connect(REFERRAL_DB)
+    count = con.execute(
+        "SELECT COUNT(*) FROM referrals WHERE referred_by = ?",
+        (referrer_id,)
+    ).fetchone()[0]
+    con.close()
+    return count
 
 # Data files stored in a persistent directory that survives deployments.
 # Always stored outside the repo so code changes never wipe user data.
@@ -135,19 +204,16 @@ def now_ts() -> float:
     return datetime.now(timezone.utc).timestamp()
 
 
-def register_user(user, referred_by: str = None) -> bool:
-    """Register user. Returns True if newly registered."""
+def register_user(user) -> bool:
+    """Register user in JSON store. Returns True if newly registered."""
     users = get_users()
     uid   = str(user.id)
     if uid not in users:
         users[uid] = {
-            "id":              user.id,
-            "username":        user.username,
-            "first_name":      user.first_name,
-            "joined":          datetime.now().isoformat(),
-            "referral_count":  0,
-            "referred_by":     referred_by,
-            "free_coupons_earned": 0,
+            "id":         user.id,
+            "username":   user.username,
+            "first_name": user.first_name,
+            "joined":     datetime.now().isoformat(),
         }
         save_users(users)
         return True
@@ -160,43 +226,11 @@ async def check_channel_membership(bot, user_id: int) -> bool:
         member = await bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
         return member.status not in ("left", "kicked", "banned")
     except Exception:
-        return True   # if check fails (private channel / error), let them through
+        return False  # if API fails, treat as not joined (safe default)
 
 
-async def process_referral(context, referrer_id: str, new_user_id: int) -> None:
-    """Increment referrer's count. If they hit REFERRAL_GOAL, send reward."""
-    users = get_users()
-    if referrer_id not in users:
-        return
-    referrer = users[referrer_id]
-    referrer["referral_count"] = referrer.get("referral_count", 0) + 1
-    save_users(users)
-
-    count = referrer["referral_count"]
-    name  = referrer.get("first_name", "User")
-
-    # Notify referrer of progress
-    try:
-        await context.bot.send_message(
-            chat_id=int(referrer_id),
-            text=(
-                f"🎉 *New Referral!*\n"
-                f"Someone joined using your link!\n\n"
-                f"📊 Progress: *{count}/{REFERRAL_GOAL}*\n"
-                f"{'✅' * count}{'⬜' * (REFERRAL_GOAL - count)}"
-            ),
-            parse_mode=ParseMode.MARKDOWN,
-        )
-    except Exception:
-        pass
-
-    # Milestone reached — send free coupon
-    if count % REFERRAL_GOAL == 0:
-        await send_referral_reward(context, referrer_id, name, count)
-
-
-async def send_referral_reward(context, user_id: str, name: str, count: int) -> None:
-    """Send a free coupon to the referrer as reward."""
+async def send_referral_reward(context, referrer_id: str, referrer_name: str, total_verified: int) -> None:
+    """Send a free coupon to the referrer. Called after every REFERRAL_GOAL verifications."""
     coupons = get_coupons()
     stock   = coupons.get(REFERRAL_REWARD_KEY, [])
     product = PRODUCTS[REFERRAL_REWARD_KEY]
@@ -204,47 +238,37 @@ async def send_referral_reward(context, user_id: str, name: str, count: int) -> 
     if stock:
         code = stock.pop(0)
         save_coupons(coupons)
-
-        # Update earned count
-        users = get_users()
-        if user_id in users:
-            users[user_id]["free_coupons_earned"] = users[user_id].get("free_coupons_earned", 0) + 1
-            save_users(users)
-
         try:
             await context.bot.send_message(
-                chat_id=int(user_id),
+                chat_id=int(referrer_id),
                 text=(
-                    f"🎁 *Congratulations! Free Coupon Earned!*\n"
+                    f"🎁 *Congratulations\\! Free Coupon Earned\\!*\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n\n"
-                    f"You completed *{count} referrals*! 🔥\n\n"
+                    f"You completed *{total_verified} verified referrals*\\! 🔥\n\n"
                     f"🎟 *{product['name']}*\n"
                     f"🔑 Your free coupon code:\n\n"
                     f"`{code}`\n\n"
-                    f"Keep referring to earn more! 🚀"
+                    f"Keep referring to earn more\\! 🚀"
                 ),
-                parse_mode=ParseMode.MARKDOWN,
+                parse_mode=ParseMode.MARKDOWN_V2,
             )
         except Exception as e:
             logger.error(f"Referral reward send failed: {e}")
-
-        # Notify admin
         try:
             await context.bot.send_message(
                 chat_id=ADMIN_ID,
-                text=f"🎁 Referral reward sent!\nUser: {user_id} ({name})\nCoupon: {code}\nTotal referrals: {count}",
+                text=f"🎁 Referral reward sent!\nUser: {referrer_id} ({referrer_name})\nCoupon: {code}\nVerified referrals: {total_verified}",
             )
         except Exception:
             pass
     else:
-        # Out of stock — notify user and admin
         try:
             await context.bot.send_message(
-                chat_id=int(user_id),
+                chat_id=int(referrer_id),
                 text=(
                     f"🎁 *Congratulations! Free Coupon Earned!*\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n\n"
-                    f"You completed *{count} referrals*! 🔥\n\n"
+                    f"You completed *{total_verified} verified referrals*! 🔥\n\n"
                     f"⏳ Your free *{product['name']}* is being prepared.\n"
                     f"You'll receive it shortly from admin!"
                 ),
@@ -255,7 +279,7 @@ async def send_referral_reward(context, user_id: str, name: str, count: int) -> 
         try:
             await context.bot.send_message(
                 chat_id=ADMIN_ID,
-                text=f"⚠️ Referral reward PENDING!\nUser: {user_id} ({name}) earned free {product['name']} after {count} referrals.\nStock is empty — please add coupon & send manually!",
+                text=f"⚠️ Referral reward PENDING (stock empty)!\nUser: {referrer_id} ({referrer_name}) earned free {product['name']} after {total_verified} referrals.\nPlease add coupon stock & send manually!",
             )
         except Exception:
             pass
@@ -359,38 +383,20 @@ async def exit_trap_nudge(context: ContextTypes.DEFAULT_TYPE) -> None:
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
 
-    # ── Save referral args before gate (so they survive the join redirect) ──
-    args = context.args or []
-    if args:
-        context.user_data["pending_ref_args"] = args
-
-    # ── Channel membership gate ──
-    is_member = await check_channel_membership(context.bot, user.id)
-    if not is_member:
-        await update.message.reply_text(
-            "👋 *Welcome!*\n\n"
-            "📢 To use this bot you must *join our channel* first.\n\n"
-            f"👉 {CHANNEL_LINK}\n\n"
-            "After joining, tap ✅ below.",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("📢 Join Channel", url=CHANNEL_LINK)],
-                [InlineKeyboardButton("✅ I've Joined", callback_data="check_channel_join")],
-            ]),
-            parse_mode=ParseMode.MARKDOWN,
-        )
-        return
-
     # ── Handle referral arg: /start ref_12345 ──
-    args = context.args or []
+    args        = context.args or []
     referrer_id = None
     if args and args[0].startswith("ref_"):
-        referrer_id = args[0][4:]   # strip "ref_" prefix
+        referrer_id = args[0][4:]  # strip "ref_" prefix
 
-    is_new = register_user(user, referred_by=referrer_id)
+    is_new = register_user(user)
 
-    # Process referral only for genuinely new users
+    # ── Record referral in SQLite (only for genuinely new users, no self-referral) ──
+    show_referral_prompt = False
     if is_new and referrer_id and referrer_id != str(user.id):
-        await process_referral(context, referrer_id, user.id)
+        inserted = db_insert_referral(str(user.id), referrer_id)
+        if inserted:
+            show_referral_prompt = True  # show "join channel to activate" prompt
 
     cancel_user_timers(context, user.id)
     clear_user_order_state(context)
@@ -429,6 +435,21 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN,
     )
 
+    # ── Referral prompt: show AFTER main menu (no reward yet) ──
+    if show_referral_prompt:
+        await update.message.reply_text(
+            "🎁 *You were referred by a friend!*\n\n"
+            "To activate the referral reward for your friend,\n"
+            f"please join our channel:\n\n"
+            f"👉 {CHANNEL_LINK}\n\n"
+            "After joining, tap *✅ Verify* below.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("📢 Join Channel", url=CHANNEL_LINK)],
+                [InlineKeyboardButton("✅ Verify & Activate Referral", callback_data="verify_referral")],
+            ]),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+
 
 # ─────────────── Support ───────────────
 
@@ -450,73 +471,88 @@ async def support(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
 
 
-# ─────────────── Channel join check ───────────────
+# ─────────────── Verify Referral (channel join check for referral reward) ───────────────
 
-async def channel_join_check(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def verify_referral(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """User taps 'Verify' after joining channel. Check membership, then reward referrer."""
     query = update.callback_query
     await query.answer()
     user = update.effective_user
+    uid  = str(user.id)
 
+    # Check if this user has a pending referral
+    row = db_get_referral(uid)
+    if not row:
+        await query.edit_message_text(
+            "❌ No referral found for your account.\n\nUse /start normally.",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+
+    _, referrer_id, reward_given = row
+
+    # Already verified — prevent duplicate reward
+    if reward_given == 1:
+        await query.edit_message_text(
+            "✅ *Already verified!*\n\nYour referral was already counted. Thank you!",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+
+    # Check actual channel membership via Telegram API
     is_member = await check_channel_membership(context.bot, user.id)
     if not is_member:
         await query.edit_message_text(
-            "❌ *You haven't joined yet!*\n\n"
-            f"Please join our channel first:\n👉 {CHANNEL_LINK}\n\n"
-            "Then tap ✅ again.",
+            "❌ *You haven't joined the channel yet!*\n\n"
+            f"Please join first:\n👉 {CHANNEL_LINK}\n\n"
+            "After joining, tap ✅ Verify again.",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("📢 Join Channel", url=CHANNEL_LINK)],
-                [InlineKeyboardButton("✅ I've Joined", callback_data="check_channel_join")],
+                [InlineKeyboardButton("✅ Verify Again", callback_data="verify_referral")],
             ]),
             parse_mode=ParseMode.MARKDOWN,
         )
         return
 
-    # Joined — process any pending referral and show main menu
-    args = context.user_data.get("pending_ref_args", [])
-    referrer_id = None
-    if args and args[0].startswith("ref_"):
-        referrer_id = args[0][4:]
-    context.user_data.pop("pending_ref_args", None)
+    # ✅ Channel joined + reward not given → process reward
+    db_mark_reward_given(uid)
 
-    is_new = register_user(user, referred_by=referrer_id)
-    if is_new and referrer_id and referrer_id != str(user.id):
-        await process_referral(context, referrer_id, user.id)
+    # Count how many verified referrals the referrer now has
+    total_verified = db_successful_referral_count(referrer_id)
+    users          = get_users()
+    referrer       = users.get(referrer_id, {})
+    referrer_name  = referrer.get("first_name", "User")
+    progress       = total_verified % REFERRAL_GOAL
+    remaining      = REFERRAL_GOAL - progress if progress > 0 else 0
 
-    cancel_user_timers(context, user.id)
-    clear_user_order_state(context)
-
-    s100 = get_stock("coupon_100")
-    s150 = get_stock("coupon_150")
-    s_bb = get_stock("coupon_bigbasket_150")
-    keyboard = [
-        [InlineKeyboardButton(
-            f"🟢 ₹100 Myntra – ₹35  [{s100} left]" if s100 > 0 else "🟢 ₹100 Myntra – Out of Stock",
-            callback_data="buy_coupon_100",
-        )],
-        [InlineKeyboardButton(
-            f"🔵 ₹150 Myntra – ₹30  [{s150} left]" if s150 > 0 else "🔵 ₹150 Myntra – Out of Stock",
-            callback_data="buy_coupon_150",
-        )],
-        [InlineKeyboardButton(
-            f"🛒 BigBasket ₹150 Cashback – ₹30  [{s_bb} left]" if s_bb > 0 else "🛒 BigBasket ₹150 Cashback – Out of Stock",
-            callback_data="buy_coupon_bigbasket_150",
-        )],
-        [InlineKeyboardButton("🔗 Refer & Earn Free Coupon", callback_data="referral_menu")],
-        [InlineKeyboardButton("📞 Contact Support", url="tg://openmessage?user_id=6724474397")],
-    ]
+    # Confirm to the referred user
     await query.edit_message_text(
-        "✅ *Channel joined! Welcome!*\n\n"
-        "🎉 *Welcome to Coupon Store*\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        "🔥 *Best Deals Available*\n\n"
-        "💸 ₹100 Myntra Coupon — *₹35 only*\n"
-        "💸 ₹150 Myntra Coupon — *₹30 only*\n"
-        "🛒 ₹150 BigBasket Cashback — *₹30 only*\n\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        "⚡ Instant Delivery  |  ✅ Trusted  |  💬 24/7 Support",
-        reply_markup=InlineKeyboardMarkup(keyboard),
+        "✅ *Verified! Referral activated!*\n\n"
+        "Thank you for joining the channel! 🎉\n"
+        "Your friend has been rewarded for referring you.",
         parse_mode=ParseMode.MARKDOWN,
     )
+
+    # Notify referrer of progress
+    try:
+        progress_bar = "✅" * progress + "⬜" * (REFERRAL_GOAL - progress)
+        await context.bot.send_message(
+            chat_id=int(referrer_id),
+            text=(
+                f"🎉 *Referral Verified!*\n\n"
+                f"Your friend joined and verified the channel!\n\n"
+                f"📊 Progress: *{progress}/{REFERRAL_GOAL}*\n"
+                f"{progress_bar}\n\n"
+                f"{'🏆 *Reward unlocked!*' if progress == 0 else f'⬜ *{REFERRAL_GOAL - progress} more to earn free coupon!*'}"
+            ),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+    except Exception:
+        pass
+
+    # If milestone reached → send reward
+    if total_verified > 0 and total_verified % REFERRAL_GOAL == 0:
+        await send_referral_reward(context, referrer_id, referrer_name, total_verified)
 
 
 # ─────────────── Referral menu ───────────────
@@ -525,29 +561,26 @@ async def referral_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     query = update.callback_query
     await query.answer()
     user = update.effective_user
+    uid  = str(user.id)
 
-    users      = get_users()
-    user_data  = users.get(str(user.id), {})
-    ref_count  = user_data.get("referral_count", 0)
-    earned     = user_data.get("free_coupons_earned", 0)
-    progress   = ref_count % REFERRAL_GOAL
-    remaining  = REFERRAL_GOAL - progress
-
-    progress_bar = "✅" * progress + "⬜" * remaining
-    bot_username = (await context.bot.get_me()).username
-    ref_link     = f"https://t.me/{bot_username}?start=ref_{user.id}"
+    total_verified = db_successful_referral_count(uid)
+    total_pending  = db_total_referral_count(uid)
+    progress       = total_verified % REFERRAL_GOAL
+    bot_username   = (await context.bot.get_me()).username
+    ref_link       = f"https://t.me/{bot_username}?start=ref_{uid}"
+    progress_bar   = "✅" * progress + "⬜" * (REFERRAL_GOAL - progress)
 
     text = (
         "🔗 *Refer & Earn Free Coupon*\n"
         "━━━━━━━━━━━━━━━━━━━━\n\n"
         f"🎁 Reward: *Free ₹150 BigBasket Cashback Coupon*\n"
-        f"🎯 Goal: Refer *{REFERRAL_GOAL} friends* to earn 1 free coupon\n\n"
-        f"📊 Your Progress: *{progress}/{REFERRAL_GOAL}*\n"
+        f"🎯 Goal: *{REFERRAL_GOAL} verified referrals* = 1 free coupon\n\n"
+        f"📊 Verified: *{progress}/{REFERRAL_GOAL}*\n"
         f"{progress_bar}\n\n"
-        f"🏆 Total Free Coupons Earned: *{earned}*\n\n"
+        f"📥 Total referred: *{total_pending}*  |  ✅ Verified: *{total_verified}*\n\n"
         f"📤 *Your Referral Link:*\n"
         f"`{ref_link}`\n\n"
-        f"_Share this link with friends. When they join the bot for the first time using your link, it counts as a referral!_"
+        f"_Share this link. Your friend must join the channel & tap Verify to count._"
     )
     await query.edit_message_text(
         text,
@@ -560,29 +593,26 @@ async def referral_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 async def referral_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /referral command — show referral stats as a message."""
-    user      = update.effective_user
-    users     = get_users()
-    user_data = users.get(str(user.id), {})
-    ref_count = user_data.get("referral_count", 0)
-    earned    = user_data.get("free_coupons_earned", 0)
-    progress  = ref_count % REFERRAL_GOAL
-    remaining = REFERRAL_GOAL - progress
-
-    progress_bar = "✅" * progress + "⬜" * remaining
-    bot_username = (await context.bot.get_me()).username
-    ref_link     = f"https://t.me/{bot_username}?start=ref_{user.id}"
+    user           = update.effective_user
+    uid            = str(user.id)
+    total_verified = db_successful_referral_count(uid)
+    total_pending  = db_total_referral_count(uid)
+    progress       = total_verified % REFERRAL_GOAL
+    bot_username   = (await context.bot.get_me()).username
+    ref_link       = f"https://t.me/{bot_username}?start=ref_{uid}"
+    progress_bar   = "✅" * progress + "⬜" * (REFERRAL_GOAL - progress)
 
     await update.message.reply_text(
         "🔗 *Refer & Earn Free Coupon*\n"
         "━━━━━━━━━━━━━━━━━━━━\n\n"
         f"🎁 Reward: *Free ₹150 BigBasket Cashback Coupon*\n"
-        f"🎯 Goal: Refer *{REFERRAL_GOAL} friends* to earn 1 free coupon\n\n"
-        f"📊 Your Progress: *{progress}/{REFERRAL_GOAL}*\n"
+        f"🎯 Goal: *{REFERRAL_GOAL} verified referrals* = 1 free coupon\n\n"
+        f"📊 Verified: *{progress}/{REFERRAL_GOAL}*\n"
         f"{progress_bar}\n\n"
-        f"🏆 Total Free Coupons Earned: *{earned}*\n\n"
+        f"📥 Total referred: *{total_pending}*  |  ✅ Verified: *{total_verified}*\n\n"
         f"📤 *Your Referral Link:*\n"
         f"`{ref_link}`\n\n"
-        f"_Share this link. When friends join for the first time using your link, it counts!_",
+        f"_Share this link. Your friend must join the channel & tap Verify to count._",
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("◀️ Back to Store", callback_data="back_to_start")],
         ]),
@@ -1562,6 +1592,9 @@ def main() -> None:
     if not ADMIN_ID:
         raise ValueError("TELEGRAM_ADMIN_ID environment variable not set!")
 
+    # Initialise SQLite referral database
+    init_referral_db()
+
     # Ensure data files exist
     for fp, default in [
         (COUPONS_FILE, {"coupon_100": [], "coupon_150": [], "coupon_bigbasket_150": []}),
@@ -1583,10 +1616,10 @@ def main() -> None:
     app.add_handler(CommandHandler("broadcast",  broadcast_command))
 
     # Inline buttons — buy & quantity
-    app.add_handler(CallbackQueryHandler(support,             pattern="^support$"))
-    app.add_handler(CallbackQueryHandler(back_to_start,       pattern="^back_to_start$"))
-    app.add_handler(CallbackQueryHandler(channel_join_check,  pattern="^check_channel_join$"))
-    app.add_handler(CallbackQueryHandler(referral_menu,       pattern="^referral_menu$"))
+    app.add_handler(CallbackQueryHandler(support,          pattern="^support$"))
+    app.add_handler(CallbackQueryHandler(back_to_start,    pattern="^back_to_start$"))
+    app.add_handler(CallbackQueryHandler(verify_referral,  pattern="^verify_referral$"))
+    app.add_handler(CallbackQueryHandler(referral_menu,    pattern="^referral_menu$"))
     app.add_handler(CallbackQueryHandler(buy_product,         pattern="^buy_"))
     app.add_handler(CallbackQueryHandler(custom_qty_prompt, pattern="^qty_custom$"))
     app.add_handler(CallbackQueryHandler(select_quantity,   pattern=r"^qty_\d+$"))
