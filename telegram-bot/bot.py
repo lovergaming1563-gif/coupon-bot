@@ -224,9 +224,11 @@ async def check_channel_membership(bot, user_id: int) -> bool:
     """Returns True if user has joined the required channel."""
     try:
         member = await bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
+        logger.info(f"check_channel_membership: user={user_id} status={member.status}")
         return member.status not in ("left", "kicked", "banned")
-    except Exception:
-        return False  # if API fails, treat as not joined (safe default)
+    except Exception as e:
+        logger.error(f"check_channel_membership ERROR: user={user_id} error={e}")
+        return None  # None = could not check (bot not admin / API error)
 
 
 async def send_referral_reward(context, referrer_id: str, referrer_name: str, total_verified: int) -> None:
@@ -501,7 +503,31 @@ async def verify_referral(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     # Check actual channel membership via Telegram API
     is_member = await check_channel_membership(context.bot, user.id)
-    if not is_member:
+
+    # None = API error (bot not admin in channel or other Telegram error)
+    if is_member is None:
+        await query.edit_message_text(
+            "⚠️ *Verification temporarily unavailable*\n\n"
+            "Bot cannot verify channel membership right now.\n\n"
+            "Please contact admin to manually verify:\n"
+            f"👉 @MyntraCouponsupport\\_bot\n\n"
+            "_Reason: Bot needs to be admin of the channel._",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔁 Try Again", callback_data="verify_referral")],
+            ]),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        # Alert admin about the issue
+        try:
+            await context.bot.send_message(
+                chat_id=ADMIN_ID,
+                text=f"⚠️ Referral verify failed for user {user.id} ({user.first_name})\nBot is NOT admin of {CHANNEL_USERNAME} — please add bot as admin!",
+            )
+        except Exception:
+            pass
+        return
+
+    if is_member is False:
         await query.edit_message_text(
             "❌ *You haven't joined the channel yet!*\n\n"
             f"Please join first:\n👉 {CHANNEL_LINK}\n\n"
