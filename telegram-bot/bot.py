@@ -37,6 +37,12 @@ UPI_ID         = "k36672632@okicici"         # UPI ID
 SUPPORT_HANDLE = "@MyntraCouponsupport_bot"  # Support Telegram handle
 QR_IMAGE_PATH  = "qr_code.jpg"              # QR code image (already loaded)
 
+# ─────────────── Referral & Channel Config ───────────────
+CHANNEL_USERNAME    = "@withoutanyinvestmentwork"
+CHANNEL_LINK        = "https://t.me/withoutanyinvestmentwork"
+REFERRAL_GOAL       = 5                          # referrals needed for free coupon
+REFERRAL_REWARD_KEY = "coupon_bigbasket_150"     # free coupon product key
+
 # Data files stored in a persistent directory that survives deployments.
 # Always stored outside the repo so code changes never wipe user data.
 _DATA_DIR    = os.environ.get("BOT_DATA_DIR", "/home/runner/bot_data")
@@ -129,16 +135,130 @@ def now_ts() -> float:
     return datetime.now(timezone.utc).timestamp()
 
 
-def register_user(user) -> None:
+def register_user(user, referred_by: str = None) -> bool:
+    """Register user. Returns True if newly registered."""
     users = get_users()
     uid   = str(user.id)
     if uid not in users:
         users[uid] = {
-            "id": user.id, "username": user.username,
-            "first_name": user.first_name,
-            "joined": datetime.now().isoformat(),
+            "id":              user.id,
+            "username":        user.username,
+            "first_name":      user.first_name,
+            "joined":          datetime.now().isoformat(),
+            "referral_count":  0,
+            "referred_by":     referred_by,
+            "free_coupons_earned": 0,
         }
         save_users(users)
+        return True
+    return False
+
+
+async def check_channel_membership(bot, user_id: int) -> bool:
+    """Returns True if user has joined the required channel."""
+    try:
+        member = await bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
+        return member.status not in ("left", "kicked", "banned")
+    except Exception:
+        return True   # if check fails (private channel / error), let them through
+
+
+async def process_referral(context, referrer_id: str, new_user_id: int) -> None:
+    """Increment referrer's count. If they hit REFERRAL_GOAL, send reward."""
+    users = get_users()
+    if referrer_id not in users:
+        return
+    referrer = users[referrer_id]
+    referrer["referral_count"] = referrer.get("referral_count", 0) + 1
+    save_users(users)
+
+    count = referrer["referral_count"]
+    name  = referrer.get("first_name", "User")
+
+    # Notify referrer of progress
+    try:
+        await context.bot.send_message(
+            chat_id=int(referrer_id),
+            text=(
+                f"🎉 *New Referral!*\n"
+                f"Someone joined using your link!\n\n"
+                f"📊 Progress: *{count}/{REFERRAL_GOAL}*\n"
+                f"{'✅' * count}{'⬜' * (REFERRAL_GOAL - count)}"
+            ),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+    except Exception:
+        pass
+
+    # Milestone reached — send free coupon
+    if count % REFERRAL_GOAL == 0:
+        await send_referral_reward(context, referrer_id, name, count)
+
+
+async def send_referral_reward(context, user_id: str, name: str, count: int) -> None:
+    """Send a free coupon to the referrer as reward."""
+    coupons = get_coupons()
+    stock   = coupons.get(REFERRAL_REWARD_KEY, [])
+    product = PRODUCTS[REFERRAL_REWARD_KEY]
+
+    if stock:
+        code = stock.pop(0)
+        save_coupons(coupons)
+
+        # Update earned count
+        users = get_users()
+        if user_id in users:
+            users[user_id]["free_coupons_earned"] = users[user_id].get("free_coupons_earned", 0) + 1
+            save_users(users)
+
+        try:
+            await context.bot.send_message(
+                chat_id=int(user_id),
+                text=(
+                    f"🎁 *Congratulations! Free Coupon Earned!*\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n\n"
+                    f"You completed *{count} referrals*! 🔥\n\n"
+                    f"🎟 *{product['name']}*\n"
+                    f"🔑 Your free coupon code:\n\n"
+                    f"`{code}`\n\n"
+                    f"Keep referring to earn more! 🚀"
+                ),
+                parse_mode=ParseMode.MARKDOWN,
+            )
+        except Exception as e:
+            logger.error(f"Referral reward send failed: {e}")
+
+        # Notify admin
+        try:
+            await context.bot.send_message(
+                chat_id=ADMIN_ID,
+                text=f"🎁 Referral reward sent!\nUser: {user_id} ({name})\nCoupon: {code}\nTotal referrals: {count}",
+            )
+        except Exception:
+            pass
+    else:
+        # Out of stock — notify user and admin
+        try:
+            await context.bot.send_message(
+                chat_id=int(user_id),
+                text=(
+                    f"🎁 *Congratulations! Free Coupon Earned!*\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n\n"
+                    f"You completed *{count} referrals*! 🔥\n\n"
+                    f"⏳ Your free *{product['name']}* is being prepared.\n"
+                    f"You'll receive it shortly from admin!"
+                ),
+                parse_mode=ParseMode.MARKDOWN,
+            )
+        except Exception:
+            pass
+        try:
+            await context.bot.send_message(
+                chat_id=ADMIN_ID,
+                text=f"⚠️ Referral reward PENDING!\nUser: {user_id} ({name}) earned free {product['name']} after {count} referrals.\nStock is empty — please add coupon & send manually!",
+            )
+        except Exception:
+            pass
 
 
 def get_stock(pk: str) -> int:
@@ -238,12 +358,45 @@ async def exit_trap_nudge(context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
-    register_user(user)
+
+    # ── Save referral args before gate (so they survive the join redirect) ──
+    args = context.args or []
+    if args:
+        context.user_data["pending_ref_args"] = args
+
+    # ── Channel membership gate ──
+    is_member = await check_channel_membership(context.bot, user.id)
+    if not is_member:
+        await update.message.reply_text(
+            "👋 *Welcome!*\n\n"
+            "📢 To use this bot you must *join our channel* first.\n\n"
+            f"👉 {CHANNEL_LINK}\n\n"
+            "After joining, tap ✅ below.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("📢 Join Channel", url=CHANNEL_LINK)],
+                [InlineKeyboardButton("✅ I've Joined", callback_data="check_channel_join")],
+            ]),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+
+    # ── Handle referral arg: /start ref_12345 ──
+    args = context.args or []
+    referrer_id = None
+    if args and args[0].startswith("ref_"):
+        referrer_id = args[0][4:]   # strip "ref_" prefix
+
+    is_new = register_user(user, referred_by=referrer_id)
+
+    # Process referral only for genuinely new users
+    if is_new and referrer_id and referrer_id != str(user.id):
+        await process_referral(context, referrer_id, user.id)
+
     cancel_user_timers(context, user.id)
     clear_user_order_state(context)
 
-    s100   = get_stock("coupon_100")
-    s150   = get_stock("coupon_150")
+    s100 = get_stock("coupon_100")
+    s150 = get_stock("coupon_150")
     s_bb = get_stock("coupon_bigbasket_150")
 
     text = (
@@ -269,6 +422,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             f"🛒 BigBasket ₹150 Cashback – ₹30  [{s_bb} left]" if s_bb > 0 else "🛒 BigBasket ₹150 Cashback – Out of Stock",
             callback_data="buy_coupon_bigbasket_150",
         )],
+        [InlineKeyboardButton("🔗 Refer & Earn Free Coupon", callback_data="referral_menu")],
         [InlineKeyboardButton("📞 Contact Support", url="tg://openmessage?user_id=6724474397")],
     ]
     await update.message.reply_text(
@@ -294,6 +448,146 @@ async def support(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         [InlineKeyboardButton("◀️ Back", callback_data="back_to_start")],
     ]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
+
+
+# ─────────────── Channel join check ───────────────
+
+async def channel_join_check(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    user = update.effective_user
+
+    is_member = await check_channel_membership(context.bot, user.id)
+    if not is_member:
+        await query.edit_message_text(
+            "❌ *You haven't joined yet!*\n\n"
+            f"Please join our channel first:\n👉 {CHANNEL_LINK}\n\n"
+            "Then tap ✅ again.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("📢 Join Channel", url=CHANNEL_LINK)],
+                [InlineKeyboardButton("✅ I've Joined", callback_data="check_channel_join")],
+            ]),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+
+    # Joined — process any pending referral and show main menu
+    args = context.user_data.get("pending_ref_args", [])
+    referrer_id = None
+    if args and args[0].startswith("ref_"):
+        referrer_id = args[0][4:]
+    context.user_data.pop("pending_ref_args", None)
+
+    is_new = register_user(user, referred_by=referrer_id)
+    if is_new and referrer_id and referrer_id != str(user.id):
+        await process_referral(context, referrer_id, user.id)
+
+    cancel_user_timers(context, user.id)
+    clear_user_order_state(context)
+
+    s100 = get_stock("coupon_100")
+    s150 = get_stock("coupon_150")
+    s_bb = get_stock("coupon_bigbasket_150")
+    keyboard = [
+        [InlineKeyboardButton(
+            f"🟢 ₹100 Myntra – ₹35  [{s100} left]" if s100 > 0 else "🟢 ₹100 Myntra – Out of Stock",
+            callback_data="buy_coupon_100",
+        )],
+        [InlineKeyboardButton(
+            f"🔵 ₹150 Myntra – ₹30  [{s150} left]" if s150 > 0 else "🔵 ₹150 Myntra – Out of Stock",
+            callback_data="buy_coupon_150",
+        )],
+        [InlineKeyboardButton(
+            f"🛒 BigBasket ₹150 Cashback – ₹30  [{s_bb} left]" if s_bb > 0 else "🛒 BigBasket ₹150 Cashback – Out of Stock",
+            callback_data="buy_coupon_bigbasket_150",
+        )],
+        [InlineKeyboardButton("🔗 Refer & Earn Free Coupon", callback_data="referral_menu")],
+        [InlineKeyboardButton("📞 Contact Support", url="tg://openmessage?user_id=6724474397")],
+    ]
+    await query.edit_message_text(
+        "✅ *Channel joined! Welcome!*\n\n"
+        "🎉 *Welcome to Coupon Store*\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "🔥 *Best Deals Available*\n\n"
+        "💸 ₹100 Myntra Coupon — *₹35 only*\n"
+        "💸 ₹150 Myntra Coupon — *₹30 only*\n"
+        "🛒 ₹150 BigBasket Cashback — *₹30 only*\n\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "⚡ Instant Delivery  |  ✅ Trusted  |  💬 24/7 Support",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+# ─────────────── Referral menu ───────────────
+
+async def referral_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    user = update.effective_user
+
+    users      = get_users()
+    user_data  = users.get(str(user.id), {})
+    ref_count  = user_data.get("referral_count", 0)
+    earned     = user_data.get("free_coupons_earned", 0)
+    progress   = ref_count % REFERRAL_GOAL
+    remaining  = REFERRAL_GOAL - progress
+
+    progress_bar = "✅" * progress + "⬜" * remaining
+    bot_username = (await context.bot.get_me()).username
+    ref_link     = f"https://t.me/{bot_username}?start=ref_{user.id}"
+
+    text = (
+        "🔗 *Refer & Earn Free Coupon*\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"🎁 Reward: *Free ₹150 BigBasket Cashback Coupon*\n"
+        f"🎯 Goal: Refer *{REFERRAL_GOAL} friends* to earn 1 free coupon\n\n"
+        f"📊 Your Progress: *{progress}/{REFERRAL_GOAL}*\n"
+        f"{progress_bar}\n\n"
+        f"🏆 Total Free Coupons Earned: *{earned}*\n\n"
+        f"📤 *Your Referral Link:*\n"
+        f"`{ref_link}`\n\n"
+        f"_Share this link with friends. When they join the bot for the first time using your link, it counts as a referral!_"
+    )
+    await query.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("◀️ Back", callback_data="back_to_start")],
+        ]),
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+async def referral_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /referral command — show referral stats as a message."""
+    user      = update.effective_user
+    users     = get_users()
+    user_data = users.get(str(user.id), {})
+    ref_count = user_data.get("referral_count", 0)
+    earned    = user_data.get("free_coupons_earned", 0)
+    progress  = ref_count % REFERRAL_GOAL
+    remaining = REFERRAL_GOAL - progress
+
+    progress_bar = "✅" * progress + "⬜" * remaining
+    bot_username = (await context.bot.get_me()).username
+    ref_link     = f"https://t.me/{bot_username}?start=ref_{user.id}"
+
+    await update.message.reply_text(
+        "🔗 *Refer & Earn Free Coupon*\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"🎁 Reward: *Free ₹150 BigBasket Cashback Coupon*\n"
+        f"🎯 Goal: Refer *{REFERRAL_GOAL} friends* to earn 1 free coupon\n\n"
+        f"📊 Your Progress: *{progress}/{REFERRAL_GOAL}*\n"
+        f"{progress_bar}\n\n"
+        f"🏆 Total Free Coupons Earned: *{earned}*\n\n"
+        f"📤 *Your Referral Link:*\n"
+        f"`{ref_link}`\n\n"
+        f"_Share this link. When friends join for the first time using your link, it counts!_",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("◀️ Back to Store", callback_data="back_to_start")],
+        ]),
+        parse_mode=ParseMode.MARKDOWN,
+    )
 
 
 async def back_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -325,6 +619,7 @@ async def back_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             f"🛒 BigBasket ₹150 Cashback – ₹30  [{s_bb} left]" if s_bb > 0 else "🛒 BigBasket ₹150 Cashback – Out of Stock",
             callback_data="buy_coupon_bigbasket_150",
         )],
+        [InlineKeyboardButton("🔗 Refer & Earn Free Coupon", callback_data="referral_menu")],
         [InlineKeyboardButton("📞 Contact Support", url="tg://openmessage?user_id=6724474397")],
     ]
     await query.edit_message_text(
@@ -1281,15 +1576,18 @@ def main() -> None:
 
     # Commands
     app.add_handler(CommandHandler("start",      start))
+    app.add_handler(CommandHandler("referral",   referral_command))
     app.add_handler(CommandHandler("admin",      admin_panel))
     app.add_handler(CommandHandler("addcoupon",  add_coupon_command))
     app.add_handler(CommandHandler("approve",    approve_command))
     app.add_handler(CommandHandler("broadcast",  broadcast_command))
 
     # Inline buttons — buy & quantity
-    app.add_handler(CallbackQueryHandler(support,           pattern="^support$"))
-    app.add_handler(CallbackQueryHandler(back_to_start,     pattern="^back_to_start$"))
-    app.add_handler(CallbackQueryHandler(buy_product,       pattern="^buy_"))
+    app.add_handler(CallbackQueryHandler(support,             pattern="^support$"))
+    app.add_handler(CallbackQueryHandler(back_to_start,       pattern="^back_to_start$"))
+    app.add_handler(CallbackQueryHandler(channel_join_check,  pattern="^check_channel_join$"))
+    app.add_handler(CallbackQueryHandler(referral_menu,       pattern="^referral_menu$"))
+    app.add_handler(CallbackQueryHandler(buy_product,         pattern="^buy_"))
     app.add_handler(CallbackQueryHandler(custom_qty_prompt, pattern="^qty_custom$"))
     app.add_handler(CallbackQueryHandler(select_quantity,   pattern=r"^qty_\d+$"))
     app.add_handler(CallbackQueryHandler(cancel_order,      pattern="^cancel_order$"))
