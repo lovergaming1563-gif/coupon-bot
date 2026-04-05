@@ -228,56 +228,67 @@ def _write_data_file(fp: str, data: dict) -> None:
 
 
 def restore_data_from_repldb() -> None:
-    """On startup: restore any missing/empty JSON files.
-    Priority: 1) Replit DB  2) seed file (initial_users.json)  3) start fresh
+    """On startup:
+    - users.json: ALWAYS merge seed file + Replit DB + local (no user ever lost)
+    - other files: restore from Replit DB if local is empty
     """
-    mapping = {
-        USERS_FILE:   "users",
-        COUPONS_FILE: "coupons",
-        ORDERS_FILE:  "orders",
-        PENDING_FILE: "pending",
-    }
-    for fp, name in mapping.items():
-        # Check if local file already has data
+    # ── USERS: always merge seed + Replit DB + existing local ──
+    merged = {}
+
+    # 1. Start with seed file (the 36 known users)
+    if os.path.exists(_SEED_FILE):
+        try:
+            seed = json.load(open(_SEED_FILE, encoding="utf-8"))
+            merged.update(seed)
+            logger.info(f"Seed file: {len(seed)} users loaded")
+        except Exception as e:
+            logger.error(f"Seed load error: {e}")
+
+    # 2. Merge Replit DB backup (newer users added after seed)
+    raw = _repldb_get(_DB_KEYS["users"])
+    if raw:
+        try:
+            db_data = json.loads(raw)
+            merged.update(db_data)  # DB users override seed for same IDs
+            logger.info(f"Replit DB: {len(db_data)} users merged")
+        except Exception as e:
+            logger.error(f"Replit DB merge error: {e}")
+
+    # 3. Merge existing local file (users added since last restart)
+    try:
+        local = json.load(open(USERS_FILE))
+        before = len(merged)
+        merged.update(local)
+        logger.info(f"Local file: {len(local)} users merged (total now {len(merged)})")
+    except Exception:
+        pass  # file missing or empty — OK
+
+    # 4. Write merged result
+    if merged:
+        _write_data_file(USERS_FILE, merged)
+        # Push merged data to Replit DB for next deploy
+        raw_merged = json.dumps(merged, ensure_ascii=False)
+        threading.Thread(target=_repldb_set, args=(_DB_KEYS["users"], raw_merged), daemon=True).start()
+        logger.info(f"✅ users.json final: {len(merged)} users")
+
+    # ── OTHER FILES: restore from Replit DB if local is empty ──
+    for fp, name in [(COUPONS_FILE, "coupons"), (ORDERS_FILE, "orders"), (PENDING_FILE, "pending")]:
         try:
             existing = json.load(open(fp))
             if existing:
-                logger.info(f"Local {fp} has {len(existing)} entries — skipping restore")
                 continue
         except Exception:
-            pass  # file missing or corrupt
+            pass
 
-        # Try Replit DB first
-        db_key = _DB_KEYS[name]
-        raw    = _repldb_get(db_key)
+        raw = _repldb_get(_DB_KEYS[name])
         if raw:
             try:
                 data = json.loads(raw)
                 if data:
                     _write_data_file(fp, data)
                     logger.info(f"✅ Restored {fp} from Replit DB ({len(data)} entries)")
-                    continue
             except Exception as e:
                 logger.error(f"Replit DB restore failed for {fp}: {e}")
-
-        # Fall back to seed file (initial_users.json) for users only
-        if name == "users" and os.path.exists(_SEED_FILE):
-            try:
-                data = json.load(open(_SEED_FILE, encoding="utf-8"))
-                if data:
-                    _write_data_file(fp, data)
-                    # Also push seed to Replit DB so future restores use it
-                    threading.Thread(
-                        target=_repldb_set,
-                        args=(db_key, json.dumps(data, ensure_ascii=False)),
-                        daemon=True,
-                    ).start()
-                    logger.info(f"✅ Restored {fp} from seed file ({len(data)} entries) — also pushed to Replit DB")
-                    continue
-            except Exception as e:
-                logger.error(f"Seed file restore failed: {e}")
-
-        logger.info(f"No backup found for {fp} — starting fresh")
 
 
 def backup_data_to_repldb() -> None:
