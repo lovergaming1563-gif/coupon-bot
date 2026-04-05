@@ -213,14 +213,29 @@ def register_user(user) -> bool:
     uid   = str(user.id)
     if uid not in users:
         users[uid] = {
-            "id":         user.id,
-            "username":   user.username,
-            "first_name": user.first_name,
-            "joined":     datetime.now().isoformat(),
+            "id":               user.id,
+            "username":         user.username,
+            "first_name":       user.first_name,
+            "joined":           datetime.now().isoformat(),
+            "channel_verified": False,
         }
         save_users(users)
         return True
     return False
+
+
+def is_channel_verified(uid: str) -> bool:
+    """Check if user has completed channel join verification."""
+    users = get_users()
+    return users.get(uid, {}).get("channel_verified", False)
+
+
+def mark_channel_verified(uid: str) -> None:
+    """Mark user as channel-verified in users.json."""
+    users = get_users()
+    if uid in users:
+        users[uid]["channel_verified"] = True
+        save_users(users)
 
 
 async def check_channel_membership(bot, user_id: int) -> bool:
@@ -383,33 +398,13 @@ async def exit_trap_nudge(context: ContextTypes.DEFAULT_TYPE) -> None:
         logger.error(f"exit_trap_nudge: {e}")
 
 
-# ─────────────── /start ───────────────
+# ─────────────── Store menu helper ───────────────
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user = update.effective_user
-
-    # ── Handle referral arg: /start ref_12345 ──
-    args        = context.args or []
-    referrer_id = None
-    if args and args[0].startswith("ref_"):
-        referrer_id = args[0][4:]  # strip "ref_" prefix
-
-    is_new = register_user(user)
-
-    # ── Record referral in SQLite (only for genuinely new users, no self-referral) ──
-    show_referral_prompt = False
-    if is_new and referrer_id and referrer_id != str(user.id):
-        inserted = db_insert_referral(str(user.id), referrer_id)
-        if inserted:
-            show_referral_prompt = True  # show "join channel to activate" prompt
-
-    cancel_user_timers(context, user.id)
-    clear_user_order_state(context)
-
+def _store_menu_text_and_keyboard():
+    """Returns (text, keyboard) for the main store menu."""
     s100 = get_stock("coupon_100")
     s150 = get_stock("coupon_150")
     s_bb = get_stock("coupon_bigbasket_150")
-
     text = (
         "🎉 *Welcome to Coupon Store*\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
@@ -436,24 +431,134 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         [InlineKeyboardButton("🔗 Refer & Earn Free Coupon", callback_data="referral_menu")],
         [InlineKeyboardButton("📞 Contact Support", url="tg://openmessage?user_id=6724474397")],
     ]
+    return text, keyboard
+
+
+# ─────────────── /start ───────────────
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user = update.effective_user
+    uid  = str(user.id)
+
+    # ── Handle referral arg: /start ref_12345 ──
+    args        = context.args or []
+    referrer_id = None
+    if args and args[0].startswith("ref_"):
+        referrer_id = args[0][4:]  # strip "ref_" prefix
+
+    is_new = register_user(user)
+
+    # ── Record referral in SQLite (only for genuinely new users, no self-referral) ──
+    if is_new and referrer_id and referrer_id != uid:
+        db_insert_referral(uid, referrer_id)
+
+    cancel_user_timers(context, user.id)
+    clear_user_order_state(context)
+
+    # ── Channel Gate: unverified users must join channel first ──
+    if not is_channel_verified(uid):
+        has_referral = db_get_referral(uid) is not None
+        intro = (
+            "🎁 *You were referred by a friend!*\n\n"
+            "Join our channel to activate the referral reward\nand unlock the store:\n\n"
+            if has_referral else
+            "👋 *Welcome!*\n\n"
+            "To use this bot, please join our channel first:\n\n"
+        )
+        await update.message.reply_text(
+            intro +
+            f"👉 {CHANNEL_LINK}\n\n"
+            "After joining, tap ✅ *I've Joined* below.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("📢 Join Channel", url=CHANNEL_LINK)],
+                [InlineKeyboardButton("✅ I've Joined — Verify", callback_data="verify_channel_join")],
+            ]),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+
+    # ── Already verified → show main store ──
+    text, keyboard = _store_menu_text_and_keyboard()
     await update.message.reply_text(
         text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN,
     )
 
-    # ── Referral prompt: show AFTER main menu (no reward yet) ──
-    if show_referral_prompt:
-        await update.message.reply_text(
-            "🎁 *You were referred by a friend!*\n\n"
-            "To activate the referral reward for your friend,\n"
-            f"please join our channel:\n\n"
-            f"👉 {CHANNEL_LINK}\n\n"
-            "After joining, tap *✅ Verify* below.",
+
+# ─────────────── Channel gate verify (all new users) ───────────────
+
+async def verify_channel_join(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Verify channel membership for the mandatory join gate."""
+    query = update.callback_query
+    await query.answer()
+    user = query.from_user
+    uid  = str(user.id)
+
+    is_member = await check_channel_membership(context.bot, user.id)
+
+    if is_member is None:
+        await query.edit_message_text(
+            "⚠️ *Verification unavailable right now.*\n\n"
+            "Please contact admin:\n👉 @MyntraCouponsupport\\_bot",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("📢 Join Channel", url=CHANNEL_LINK)],
-                [InlineKeyboardButton("✅ Verify & Activate Referral", callback_data="verify_referral")],
+                [InlineKeyboardButton("🔁 Try Again", callback_data="verify_channel_join")],
             ]),
             parse_mode=ParseMode.MARKDOWN,
         )
+        try:
+            await context.bot.send_message(
+                chat_id=ADMIN_ID,
+                text=f"⚠️ Channel gate verify failed for {user.id} ({user.first_name})\nBot needs to be admin of {CHANNEL_USERNAME}!",
+            )
+        except Exception:
+            pass
+        return
+
+    if is_member is False:
+        await query.edit_message_text(
+            "❌ *You haven't joined the channel yet!*\n\n"
+            f"Please join first:\n👉 {CHANNEL_LINK}\n\n"
+            "After joining, tap ✅ Verify again.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("📢 Join Channel", url=CHANNEL_LINK)],
+                [InlineKeyboardButton("✅ Verify Again", callback_data="verify_channel_join")],
+            ]),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+
+    # ✅ Channel joined — mark verified
+    mark_channel_verified(uid)
+
+    # Also activate referral reward if this user was referred
+    ref_row = db_get_referral(uid)
+    if ref_row and not ref_row[2]:  # referred + reward not yet given
+        db_mark_reward_given(uid)
+        referrer_id    = ref_row[1]
+        referrer_info  = get_users().get(referrer_id, {})
+        referrer_name  = referrer_info.get("first_name", "Friend")
+        total_verified = db_successful_referral_count(referrer_id)
+        await send_referral_reward(context, referrer_id, referrer_name, total_verified)
+        await query.edit_message_text(
+            "✅ *Verified! Channel joined successfully.*\n\n"
+            "🎁 Referral reward activated for your friend!\n\n"
+            "Now explore the store 👇",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+    else:
+        await query.edit_message_text(
+            "✅ *Verified! Welcome to Coupon Store!*\n\n"
+            "Explore the best deals below 👇",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+
+    # Show main store as a new message
+    text, keyboard = _store_menu_text_and_keyboard()
+    await context.bot.send_message(
+        chat_id=user.id,
+        text=text,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode=ParseMode.MARKDOWN,
+    )
 
 
 # ─────────────── Support ───────────────
@@ -1703,9 +1808,10 @@ def main() -> None:
     app.add_handler(CommandHandler("broadcast",  broadcast_command))
 
     # Inline buttons — buy & quantity
-    app.add_handler(CallbackQueryHandler(support,          pattern="^support$"))
-    app.add_handler(CallbackQueryHandler(back_to_start,    pattern="^back_to_start$"))
-    app.add_handler(CallbackQueryHandler(verify_referral,  pattern="^verify_referral$"))
+    app.add_handler(CallbackQueryHandler(support,              pattern="^support$"))
+    app.add_handler(CallbackQueryHandler(back_to_start,        pattern="^back_to_start$"))
+    app.add_handler(CallbackQueryHandler(verify_channel_join,  pattern="^verify_channel_join$"))
+    app.add_handler(CallbackQueryHandler(verify_referral,      pattern="^verify_referral$"))
     app.add_handler(CallbackQueryHandler(referral_menu,    pattern="^referral_menu$"))
     app.add_handler(CallbackQueryHandler(buy_product,         pattern="^buy_"))
     app.add_handler(CallbackQueryHandler(custom_qty_prompt, pattern="^qty_custom$"))
