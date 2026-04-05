@@ -216,8 +216,21 @@ def _repldb_get(key: str) -> str:
         logger.error(f"Replit DB get error [{key}]: {e}")
         return ""
 
+_SEED_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "initial_users.json")
+
+
+def _write_data_file(fp: str, data: dict) -> None:
+    """Atomic write helper used during restore."""
+    tmp = fp + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    os.replace(tmp, fp)
+
+
 def restore_data_from_repldb() -> None:
-    """On startup: restore any missing/empty JSON files from Replit DB backup."""
+    """On startup: restore any missing/empty JSON files.
+    Priority: 1) Replit DB  2) seed file (initial_users.json)  3) start fresh
+    """
     mapping = {
         USERS_FILE:   "users",
         COUPONS_FILE: "coupons",
@@ -225,28 +238,46 @@ def restore_data_from_repldb() -> None:
         PENDING_FILE: "pending",
     }
     for fp, name in mapping.items():
-        # Check if file already has data
+        # Check if local file already has data
         try:
             existing = json.load(open(fp))
-            if existing:  # has data → skip restore
+            if existing:
+                logger.info(f"Local {fp} has {len(existing)} entries — skipping restore")
                 continue
         except Exception:
-            pass  # file missing or corrupt — try restore
+            pass  # file missing or corrupt
 
+        # Try Replit DB first
         db_key = _DB_KEYS[name]
         raw    = _repldb_get(db_key)
         if raw:
             try:
                 data = json.loads(raw)
-                tmp  = fp + ".tmp"
-                with open(tmp, "w") as f:
-                    json.dump(data, f, indent=2, ensure_ascii=False)
-                os.replace(tmp, fp)
-                logger.info(f"✅ Restored {fp} from Replit DB ({len(data)} entries)")
+                if data:
+                    _write_data_file(fp, data)
+                    logger.info(f"✅ Restored {fp} from Replit DB ({len(data)} entries)")
+                    continue
             except Exception as e:
-                logger.error(f"Failed to restore {fp} from Replit DB: {e}")
-        else:
-            logger.info(f"No Replit DB backup for {fp} — starting fresh")
+                logger.error(f"Replit DB restore failed for {fp}: {e}")
+
+        # Fall back to seed file (initial_users.json) for users only
+        if name == "users" and os.path.exists(_SEED_FILE):
+            try:
+                data = json.load(open(_SEED_FILE, encoding="utf-8"))
+                if data:
+                    _write_data_file(fp, data)
+                    # Also push seed to Replit DB so future restores use it
+                    threading.Thread(
+                        target=_repldb_set,
+                        args=(db_key, json.dumps(data, ensure_ascii=False)),
+                        daemon=True,
+                    ).start()
+                    logger.info(f"✅ Restored {fp} from seed file ({len(data)} entries) — also pushed to Replit DB")
+                    continue
+            except Exception as e:
+                logger.error(f"Seed file restore failed: {e}")
+
+        logger.info(f"No backup found for {fp} — starting fresh")
 
 
 def backup_data_to_repldb() -> None:
