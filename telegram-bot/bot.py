@@ -4,6 +4,8 @@ import sqlite3
 import logging
 import threading
 import html
+import urllib.request
+import urllib.parse
 from datetime import datetime, timezone
 from flask import Flask
 from telegram import (
@@ -173,6 +175,100 @@ def keep_alive():
     flask_app.run(host="0.0.0.0", port=port)
 
 
+# ─────────────── Replit DB (persistent KV — survives deployments) ───────────────
+
+_REPLIT_DB_URL = os.environ.get("REPLIT_DB_URL", "")
+
+# Map file path → Replit DB key
+_DB_KEYS = {
+    "users":   "bot_users_json",
+    "coupons": "bot_coupons_json",
+    "orders":  "bot_orders_json",
+    "pending": "bot_pending_json",
+}
+
+def _file_to_db_key(fp: str) -> str:
+    for name, key in _DB_KEYS.items():
+        if name in fp:
+            return key
+    return None
+
+def _repldb_set(key: str, value: str) -> None:
+    """Store a value in Replit DB."""
+    if not _REPLIT_DB_URL:
+        return
+    try:
+        data = urllib.parse.urlencode({key: value}).encode()
+        req  = urllib.request.Request(_REPLIT_DB_URL, data=data, method="POST")
+        urllib.request.urlopen(req, timeout=5)
+    except Exception as e:
+        logger.error(f"Replit DB set error [{key}]: {e}")
+
+def _repldb_get(key: str) -> str:
+    """Retrieve a value from Replit DB. Returns '' if missing."""
+    if not _REPLIT_DB_URL:
+        return ""
+    try:
+        url = f"{_REPLIT_DB_URL}/{urllib.parse.quote(key, safe='')}"
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            return resp.read().decode("utf-8")
+    except Exception as e:
+        logger.error(f"Replit DB get error [{key}]: {e}")
+        return ""
+
+def restore_data_from_repldb() -> None:
+    """On startup: restore any missing/empty JSON files from Replit DB backup."""
+    mapping = {
+        USERS_FILE:   "users",
+        COUPONS_FILE: "coupons",
+        ORDERS_FILE:  "orders",
+        PENDING_FILE: "pending",
+    }
+    for fp, name in mapping.items():
+        # Check if file already has data
+        try:
+            existing = json.load(open(fp))
+            if existing:  # has data → skip restore
+                continue
+        except Exception:
+            pass  # file missing or corrupt — try restore
+
+        db_key = _DB_KEYS[name]
+        raw    = _repldb_get(db_key)
+        if raw:
+            try:
+                data = json.loads(raw)
+                tmp  = fp + ".tmp"
+                with open(tmp, "w") as f:
+                    json.dump(data, f, indent=2, ensure_ascii=False)
+                os.replace(tmp, fp)
+                logger.info(f"✅ Restored {fp} from Replit DB ({len(data)} entries)")
+            except Exception as e:
+                logger.error(f"Failed to restore {fp} from Replit DB: {e}")
+        else:
+            logger.info(f"No Replit DB backup for {fp} — starting fresh")
+
+
+def backup_data_to_repldb() -> None:
+    """On startup: push current local data to Replit DB so next deploy can restore it."""
+    mapping = {
+        USERS_FILE:   ("users",   {}),
+        COUPONS_FILE: ("coupons", {"coupon_100": [], "coupon_150": [], "coupon_bigbasket_150": []}),
+        ORDERS_FILE:  ("orders",  {}),
+        PENDING_FILE: ("pending", {}),
+    }
+    for fp, (name, default) in mapping.items():
+        try:
+            data = json.load(open(fp))
+        except Exception:
+            data = default
+        if data:
+            db_key = _DB_KEYS[name]
+            raw    = json.dumps(data, ensure_ascii=False)
+            _repldb_set(db_key, raw)
+            logger.info(f"✅ Backed up {fp} to Replit DB ({len(data)} entries)")
+
+
 # ─────────────── JSON helpers ───────────────
 
 def load_json(fp: str, default):
@@ -184,11 +280,17 @@ def load_json(fp: str, default):
 
 
 def _save(fp: str, data) -> None:
-    """Atomic write: write to temp file first, then rename to prevent corruption."""
+    """Atomic write + Replit DB backup so data survives deployments."""
+    # 1. Write locally (atomic)
     tmp = fp + ".tmp"
     with open(tmp, "w") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
     os.replace(tmp, fp)
+    # 2. Backup to Replit DB in background thread (non-blocking)
+    db_key = _file_to_db_key(fp)
+    if db_key:
+        raw = json.dumps(data, ensure_ascii=False)
+        threading.Thread(target=_repldb_set, args=(db_key, raw), daemon=True).start()
 
 
 def get_coupons()  -> dict: return load_json(COUPONS_FILE, {"coupon_100": [], "coupon_150": [], "coupon_bigbasket_150": []})
@@ -1783,6 +1885,12 @@ def main() -> None:
         raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set!")
     if not ADMIN_ID:
         raise ValueError("TELEGRAM_ADMIN_ID environment variable not set!")
+
+    # Restore JSON data from Replit DB if local files are missing (fresh deployment)
+    restore_data_from_repldb()
+
+    # Backup current local data to Replit DB (so next deploy can restore it)
+    backup_data_to_repldb()
 
     # Initialise SQLite referral database
     init_referral_db()
