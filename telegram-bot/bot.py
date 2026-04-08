@@ -1408,25 +1408,36 @@ async def _execute_approve(context, order_id: str) -> tuple:
     save_pending(pending)
 
     product      = PRODUCTS.get(pk, {"name": pk})
-    coupon_lines = "\n".join(f"`{c}`" for c in assigned)
+    coupon_lines = "\n".join(f"<code>{html.escape(str(c))}</code>" for c in assigned)
 
-    # ── Step 1: Send ONLY coupon code(s) ──
+    # ── Step 1: Send ONLY coupon code(s) — HTML mode (safer than Markdown) ──
     try:
         await context.bot.send_message(
             chat_id=order["user_id"],
             text=(
-                f"✅ *Payment Confirmed!*\n"
+                f"✅ <b>Payment Confirmed!</b>\n"
                 f"━━━━━━━━━━━━━━━━━━━━\n"
-                f"📦 *{product['name']}*  ×{quantity}\n\n"
-                f"🎟 *Your Coupon Code(s):*\n\n"
+                f"📦 <b>{html.escape(product.get('name', pk))}</b>  ×{quantity}\n\n"
+                f"🎟 <b>Your Coupon Code(s):</b>\n\n"
                 f"{coupon_lines}\n\n"
                 f"🙏 Thank you! Come back for more deals.\n"
-                f"💬 Help: {SUPPORT_HANDLE}"
+                f"💬 Help: {html.escape(SUPPORT_HANDLE)}"
             ),
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
         )
+        logger.info(f"Coupon delivered to {order['user_id']} — codes: {assigned}")
     except Exception as e:
         logger.error(f"Coupon delivery failed for {order['user_id']}: {e}")
+        # Fallback: plain text, no formatting
+        try:
+            plain_codes = "\n".join(str(c) for c in assigned)
+            await context.bot.send_message(
+                chat_id=order["user_id"],
+                text=f"✅ Payment Confirmed!\n\nYour Coupon Code(s):\n\n{plain_codes}\n\nThank you!",
+            )
+            logger.info(f"Coupon delivered (plain fallback) to {order['user_id']}")
+        except Exception as e2:
+            logger.error(f"Coupon delivery fallback also failed: {e2}")
 
     # ── Step 2: Gift message — only for Myntra products ──
     is_myntra_product = pk.startswith("myntra") or pk == "combo"
