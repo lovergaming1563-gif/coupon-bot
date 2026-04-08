@@ -1,0 +1,134 @@
+Modify my existing Telegram bot.
+
+IMPORTANT:
+- Do NOT break anything
+- Do NOT remove existing code
+- Only ADD admin commands + gift system
+- Keep current payment, database, and coupon logic unchanged
+
+====================================
+1. ADD ADMIN COMMANDS
+====================================
+
+Add these commands:
+
+/set_name PRODUCT_ID NEW_NAME
+→ Update product name
+
+/set_price PRODUCT_ID PRICE
+→ Update product price
+
+/products
+→ Show all products like:
+myntra_199 → Myntra ₹100 OFF (199) → ₹35
+
+------------------------------------
+
+If products are hardcoded:
+Convert into dictionary like:
+
+products = {
+  "myntra_199": {"name": "Myntra ₹100 OFF (199)", "price": 35},
+  "myntra_399": {"name": "Myntra ₹100 OFF (399)", "price": 35}
+}
+
+Changes must reflect instantly
+
+====================================
+2. COUPON DELIVERY FLOW (VERY IMPORTANT)
+====================================
+
+When user buys any product:
+
+STEP 1:
+→ Send ONLY coupon code(s)
+
+Example:
+🎟 Your Coupon:
+199-2
+
+(if combo → send both codes together)
+
+------------------------------------
+
+STEP 2:
+→ AFTER sending coupon
+→ Send SECOND message (gift message)
+
+====================================
+3. APPLY GIFT ONLY FOR MYNTRA
+====================================
+
+Apply ONLY for:
+
+- myntra_199
+- myntra_399
+- myntra_499
+- myntra_649
+- combo
+
+DO NOT send gift for:
+- bigbasket
+- chatgpt
+- youtube
+
+====================================
+4. GIFT MESSAGE (SECOND MESSAGE ONLY)
+====================================
+
+🔥 𝗠𝗬𝗡𝗧𝗥𝗔 𝗡𝗘𝗪 𝗟𝗢𝗢𝗧 𝗢𝗙𝗙𝗘𝗥 💸
+
+₹399+ ka product almost FREE 😱
+ya sirf ₹10–₹50 me 🔥
+
+🪄 𝗢𝗙𝗙𝗘𝗥 𝗧𝗥𝗜𝗖𝗞:
+
+➡️ ₹100 OFF on ₹199  
+➡️ ₹100 OFF on ₹399  
+➡️ 30% OFF Code → FWDHALFPRICE  
+➡️ 10% Extra Discount  
+
+👉 Total discount se product almost FREE 😍  
+
+🔗 Product Link:
+https://myntr.in/H0NN8Q
+
+📊 Example:
+
+Product ₹400  
+→ ₹300  
+→ ₹200  
+→ ₹160  
+→ ₹40 approx  
+
+⚡ Important:
+
+✔️ Best on new account  
+✔️ Sometimes adjust karna pade  
+
+🚀 Try fast before it expires!
+
+====================================
+5. LOGIC
+====================================
+
+After coupon delivery:
+
+IF product_id starts with "myntra" OR product_id == "combo":
+    send gift message
+
+ELSE:
+    do nothing
+
+====================================
+6. KEEP EVERYTHING SAME
+====================================
+
+- Payment system same
+- Admin system same
+- Coupon system same
+- Database same
+
+====================================
+
+Apply all changes safely without breaking bot.

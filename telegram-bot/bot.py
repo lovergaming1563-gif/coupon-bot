@@ -1408,29 +1408,59 @@ async def _execute_approve(context, order_id: str) -> tuple:
     save_pending(pending)
 
     product      = PRODUCTS.get(pk, {"name": pk})
-    coupon_lines = "\n".join(f"🎟 `{c}`" for c in assigned)
+    coupon_lines = "\n".join(f"`{c}`" for c in assigned)
 
-    # Delivery message — generic so it works for all products
+    # ── Step 1: Send ONLY coupon code(s) ──
     try:
         await context.bot.send_message(
             chat_id=order["user_id"],
             text=(
                 f"✅ *Payment Confirmed!*\n"
                 f"━━━━━━━━━━━━━━━━━━━━\n"
-                f"🎉 Your order has been *approved!*\n\n"
-                f"📦 Product: *{product['name']}*\n"
-                f"🔢 Quantity: *{quantity}*\n\n"
-                f"🎁 *Your Coupon Code(s):*\n\n"
+                f"📦 *{product['name']}*  ×{quantity}\n\n"
+                f"🎟 *Your Coupon Code(s):*\n\n"
                 f"{coupon_lines}\n\n"
-                f"━━━━━━━━━━━━━━━━━━━━\n"
-                f"🙏 *Thank you for your purchase!*\n"
-                f"⭐ Come back for more deals!\n"
-                f"💬 Need help? Contact {SUPPORT_HANDLE}"
+                f"🙏 Thank you! Come back for more deals.\n"
+                f"💬 Help: {SUPPORT_HANDLE}"
             ),
             parse_mode=ParseMode.MARKDOWN,
         )
     except Exception as e:
         logger.error(f"Coupon delivery failed for {order['user_id']}: {e}")
+
+    # ── Step 2: Gift message — only for Myntra products ──
+    is_myntra_product = pk.startswith("myntra") or pk == "combo"
+    if is_myntra_product:
+        gift_text = (
+            "🔥 𝗠𝗬𝗡𝗧𝗥𝗔 𝗡𝗘𝗪 𝗟𝗢𝗢𝗧 𝗢𝗙𝗙𝗘𝗥 💸\n\n"
+            "₹399+ ka product almost FREE 😱\n"
+            "ya sirf ₹10–₹50 me 🔥\n\n"
+            "🪄 𝗢𝗙𝗙𝗘𝗥 𝗧𝗥𝗜𝗖𝗞:\n\n"
+            "➡️ ₹100 OFF on ₹199\n"
+            "➡️ ₹100 OFF on ₹399\n"
+            "➡️ 30% OFF Code → FWDHALFPRICE\n"
+            "➡️ 10% Extra Discount\n\n"
+            "👉 Total discount se product almost FREE 😍\n\n"
+            "🔗 Product Link:\n"
+            "https://myntr.in/H0NN8Q\n\n"
+            "📊 Example:\n\n"
+            "Product ₹400\n"
+            "→ ₹300\n"
+            "→ ₹200\n"
+            "→ ₹160\n"
+            "→ ₹40 approx\n\n"
+            "⚡ Important:\n\n"
+            "✔️ Best on new account\n"
+            "✔️ Sometimes adjust karna pade\n\n"
+            "🚀 Try fast before it expires!"
+        )
+        try:
+            await context.bot.send_message(
+                chat_id=order["user_id"],
+                text=gift_text,
+            )
+        except Exception as e:
+            logger.error(f"Gift message failed for {order['user_id']}: {e}")
 
     return order, assigned
 
