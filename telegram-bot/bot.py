@@ -1705,10 +1705,13 @@ def _admin_kb():
             InlineKeyboardButton("➕ Add Coupon",     callback_data="admin_add_coupon"),
         ],
         [
-            InlineKeyboardButton("👥 Users",          callback_data="admin_users"),
+            InlineKeyboardButton("📋 Products",       callback_data="admin_products"),
             InlineKeyboardButton("📤 Export Users",   callback_data="admin_export_users"),
         ],
-        [InlineKeyboardButton("📢 Broadcast",         callback_data="admin_broadcast")],
+        [
+            InlineKeyboardButton("👥 Users",          callback_data="admin_users"),
+            InlineKeyboardButton("📢 Broadcast",      callback_data="admin_broadcast"),
+        ],
     ])
 
 
@@ -1747,6 +1750,36 @@ async def admin_stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         lines.append(f"{p['emoji']} *{p['name']}*\n   Count: *{s}* — {status}")
     await query.edit_message_text(
         "\n\n".join(lines),
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back", callback_data="admin_back")]]),
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+async def admin_products_panel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Show all products with name, price, stock — with edit instructions."""
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id != ADMIN_ID:
+        return
+    lines = ["📋 *Products — Name & Price*", "━━━━━━━━━━━━━━━━━━━━", ""]
+    for pk in STORE_PRODUCT_ORDER:
+        p = PRODUCTS.get(pk, {})
+        s = get_stock(pk)
+        lines.append(f"{p.get('emoji','🔹')} `{pk}`\n   *{p.get('name', pk)}* — ₹{p.get('price', 0)}  [Stock: {s}]")
+    lines += [
+        "",
+        "━━━━━━━━━━━━━━━━━━━━",
+        "*Naam change karne ke liye:*",
+        "`/set_name myntra_199 Naya Naam`",
+        "",
+        "*Price change karne ke liye:*",
+        "`/set_price myntra_199 39`",
+        "",
+        "*Description change karne ke liye:*",
+        "`/set_desc myntra_199 ₹100 off on ₹199+`",
+    ]
+    await query.edit_message_text(
+        "\n".join(lines),
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back", callback_data="admin_back")]]),
         parse_mode=ParseMode.MARKDOWN,
     )
@@ -2169,6 +2202,7 @@ def main() -> None:
     app.add_handler(CallbackQueryHandler(admin_export_users,     pattern="^admin_export_users$"))
     app.add_handler(CallbackQueryHandler(admin_pending,          pattern="^admin_pending$"))
     app.add_handler(CallbackQueryHandler(admin_add_coupon,       pattern="^admin_add_coupon$"))
+    app.add_handler(CallbackQueryHandler(admin_products_panel,   pattern="^admin_products$"))
     app.add_handler(CallbackQueryHandler(admin_broadcast_prompt, pattern="^admin_broadcast$"))
     app.add_handler(CallbackQueryHandler(admin_back,             pattern="^admin_back"))
 
