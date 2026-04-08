@@ -150,6 +150,7 @@ _DEFAULT_PRODUCTS: dict = {
     "myntra_649": {"name": "Myntra ₹150 OFF (649)",     "price": 35, "emoji": "🟣", "desc": "₹150 off on orders above ₹649"},
     "combo":      {"name": "Myntra Combo (199+399)",    "price": 60, "emoji": "🎁", "desc": "₹100 OFF (199) + ₹100 OFF (399) — 2 codes"},
     "combo2":     {"name": "Myntra Combo (100+150)",    "price": 69, "emoji": "💝", "desc": "₹100 OFF + ₹150 OFF — 2 codes"},
+    "combo3":     {"name": "Myntra Combo (100+150)",    "price": 69, "emoji": "💜", "desc": "₹100 OFF + ₹150 OFF — 2 codes"},
     "chatgpt":    {"name": "ChatGPT 1 Month",           "price": 49, "emoji": "🤖", "desc": "1 month ChatGPT subscription"},
     "youtube":    {"name": "YouTube 1 Month",           "price": 30, "emoji": "▶️", "desc": "1 month YouTube Premium"},
     # Legacy keys — backward compat for existing orders (hidden from store)
@@ -157,20 +158,24 @@ _DEFAULT_PRODUCTS: dict = {
     "coupon_150":           {"name": "₹150 Myntra Coupon",      "price": 30, "emoji": "🔵", "desc": "", "hidden": True},
     "coupon_bigbasket_150": {"name": "₹150 BigBasket Cashback", "price": 30, "emoji": "🛒", "desc": "", "hidden": True},
     # Sub-products for combo2 (hidden from store — add codes here via /addcoupon)
-    "myntra_100": {"name": "Myntra ₹100 OFF",  "price": 0, "emoji": "🟢", "desc": "", "hidden": True},
-    "myntra_150": {"name": "Myntra ₹150 OFF",  "price": 0, "emoji": "🟣", "desc": "", "hidden": True},
+    "myntra_100": {"name": "Myntra ₹100 OFF",   "price": 0, "emoji": "🟢", "desc": "", "hidden": True},
+    "myntra_150": {"name": "Myntra ₹150 OFF",   "price": 0, "emoji": "🟣", "desc": "", "hidden": True},
+    # Sub-products for combo3 (separate stock pool)
+    "myntra_100b": {"name": "Myntra ₹100 OFF B", "price": 0, "emoji": "🟢", "desc": "", "hidden": True},
+    "myntra_150b": {"name": "Myntra ₹150 OFF B", "price": 0, "emoji": "🟣", "desc": "", "hidden": True},
 }
 
 # Order in which products appear in the store
 STORE_PRODUCT_ORDER = [
     "bigbasket", "myntra_199", "myntra_399", "myntra_499",
-    "myntra_649", "combo", "combo2", "chatgpt", "youtube",
+    "myntra_649", "combo", "combo2", "combo3", "chatgpt", "youtube",
 ]
 
 # Combo product → sub-products whose stock it draws from
 COMBO_PARTS: dict = {
     "combo":  ["myntra_199", "myntra_399"],
     "combo2": ["myntra_100", "myntra_150"],
+    "combo3": ["myntra_100b", "myntra_150b"],
 }
 
 
@@ -1445,7 +1450,7 @@ async def _execute_approve(context, order_id: str) -> tuple:
             logger.error(f"Coupon delivery fallback also failed: {e2}")
 
     # ── Step 2: Gift message — only for Myntra products ──
-    is_myntra_product = pk.startswith("myntra") or pk in ("combo", "combo2")
+    is_myntra_product = pk.startswith("myntra") or pk in ("combo", "combo2", "combo3")
     if is_myntra_product:
         gift_text = (
             "🔥 𝗠𝗬𝗡𝗧𝗥𝗔 𝗡𝗘𝗪 𝗟𝗢𝗢𝗧 𝗢𝗙𝗙𝗘𝗥 💸\n\n"
