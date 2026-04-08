@@ -1,0 +1,140 @@
+Modify my existing Telegram bot.
+
+IMPORTANT:
+- Do NOT change backend logic
+- Do NOT break anything
+- Do NOT delete existing users or data
+- Only update product names + UI + add device protection
+
+====================================
+1. DATA SAFETY (VERY IMPORTANT)
+====================================
+
+- DO NOT delete or reset any existing database
+- Keep all users, orders, coupons intact
+- Apply only updates, no data loss
+
+====================================
+2. REMOVE OLD PRODUCT NAMES
+====================================
+
+- Replace all old product naming styles
+- Do NOT delete coupon data from database
+
+====================================
+3. ADD CLEAN SHORT PRODUCT NAMES
+====================================
+
+🛒 COUPONS SECTION:
+
+1. 🛍 BigBasket ₹150 Cashback  
+   → (on ₹149+)  
+   → Price: ₹15 
+
+2. 👕 Myntra ₹100 OFF (199)  
+   → Price: ₹35  
+
+3. 👕 Myntra ₹100 OFF (399)  
+   → Price: ₹35  
+
+4. 👕 Myntra ₹100 OFF (499)  
+   → Price: ₹35 
+
+5. 👕 Myntra ₹150 OFF (649)  
+   → Price: ₹35   
+
+====================================
+4. PREMIUM SECTION (SHORT)
+====================================
+
+💎 Premium:
+
+1. 🤖 ChatGPT 1 Month  
+   → Price: ₹49   
+
+2. 📺 YouTube 1 Month  
+   → Price: ₹30   
+
+====================================
+5. COMBO PACK (CLEAN)
+====================================
+
+🎁 Combo Pack:
+
+Name:
+🔥 Myntra Combo (199 + 399)
+
+Includes:
+- ₹100 OFF (199)
+- ₹100 OFF (399)
+
+Price: ₹60  
+
+====================================
+6. BUTTON STYLE (IMPORTANT)
+====================================
+
+Buttons should be SHORT:
+
+✅ Myntra ₹100 OFF (399)  
+✅ BigBasket Cashback  
+
+NOT long sentences
+
+====================================
+7. DEVICE FINGERPRINTING (PARTIAL SECURITY)
+====================================
+
+Add basic anti-abuse system:
+
+- Track user_id + username + first_seen_time
+- Store user_id in database (already exists)
+
+Add extra protection:
+
+1. Prevent same user from abusing:
+   - Limit 1 purchase per coupon type (optional flag)
+
+2. Store simple device info:
+   - Telegram user_id
+   - username
+   - optional: chat_id
+
+3. If same user tries repeat exploit:
+   - Show message: "Already used on this account"
+
+NOTE:
+- Telegram bots cannot access real device ID or IP directly
+- So use user_id as unique fingerprint
+
+====================================
+8. COMBO LOGIC (KEEP SAFE)
+====================================
+
+- Give:
+   myntra_199 → 1 code
+   myntra_399 → 1 code
+
+- Mark both used
+- Send together
+
+====================================
+9. UI IMPROVEMENTS
+====================================
+
+- Clean spacing
+- Emoji use
+- Simple readable format
+
+====================================
+10. KEEP EVERYTHING SAME
+====================================
+
+- Payment system same
+- Admin panel same
+- Coupon delivery same
+- Database same
+
+====================================
+
+Apply all changes safely without breaking existing bot.

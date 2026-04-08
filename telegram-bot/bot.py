@@ -138,22 +138,66 @@ EXIT_TRAP_SECONDS      = 180   # 3 min urgency nudge
 FAST_PAYMENT_THRESHOLD = 120   # < 2 min = 🔥 fast
 LOW_STOCK_THRESHOLD    = 5
 
-PRODUCTS = {
-    "coupon_100": {"name": "₹100 Myntra Coupon", "price": 35, "emoji": "🟢"},
-    "coupon_150": {"name": "₹150 Myntra Coupon", "price": 30, "emoji": "🔵"},
-    "coupon_bigbasket_150": {"name": "₹150 BigBasket Cashback", "price": 30, "emoji": "🛒"},
+# ─────────────── Products Config (dynamic — admin can edit via /set_name etc) ───────────────
+
+PRODUCTS_FILE = os.path.join(_DATA_DIR, "products_config.json")
+
+_DEFAULT_PRODUCTS: dict = {
+    "bigbasket":  {"name": "BigBasket ₹150 Cashback",  "price": 15, "emoji": "🛒", "desc": "₹150 cashback on orders above ₹149"},
+    "myntra_199": {"name": "Myntra ₹100 OFF (199)",     "price": 35, "emoji": "🟢", "desc": "₹100 off on orders above ₹199"},
+    "myntra_399": {"name": "Myntra ₹100 OFF (399)",     "price": 35, "emoji": "🔵", "desc": "₹100 off on orders above ₹399"},
+    "myntra_499": {"name": "Myntra ₹100 OFF (499)",     "price": 35, "emoji": "💛", "desc": "₹100 off on orders above ₹499"},
+    "myntra_649": {"name": "Myntra ₹150 OFF (649)",     "price": 35, "emoji": "🟣", "desc": "₹150 off on orders above ₹649"},
+    "combo":      {"name": "Myntra Combo (199+399)",    "price": 60, "emoji": "🎁", "desc": "₹100 OFF (199) + ₹100 OFF (399) — 2 codes"},
+    "chatgpt":    {"name": "ChatGPT 1 Month",           "price": 49, "emoji": "🤖", "desc": "1 month ChatGPT subscription"},
+    "youtube":    {"name": "YouTube 1 Month",           "price": 30, "emoji": "▶️", "desc": "1 month YouTube Premium"},
+    # Legacy keys — backward compat for existing orders (hidden from store)
+    "coupon_100":           {"name": "₹100 Myntra Coupon",      "price": 35, "emoji": "🟢", "desc": "", "hidden": True},
+    "coupon_150":           {"name": "₹150 Myntra Coupon",      "price": 30, "emoji": "🔵", "desc": "", "hidden": True},
+    "coupon_bigbasket_150": {"name": "₹150 BigBasket Cashback", "price": 30, "emoji": "🛒", "desc": "", "hidden": True},
 }
 
+# Order in which products appear in the store
+STORE_PRODUCT_ORDER = [
+    "bigbasket", "myntra_199", "myntra_399", "myntra_499",
+    "myntra_649", "combo", "chatgpt", "youtube",
+]
+
+# Combo product → sub-products whose stock it draws from
+COMBO_PARTS: dict = {
+    "combo": ["myntra_199", "myntra_399"],
+}
+
+
+def _load_products_from_file() -> dict:
+    """Load products config from file; merge with defaults for any missing keys."""
+    try:
+        data = json.load(open(PRODUCTS_FILE, encoding="utf-8"))
+        if data:
+            merged = dict(_DEFAULT_PRODUCTS)
+            merged.update(data)
+            return merged
+    except Exception:
+        pass
+    return dict(_DEFAULT_PRODUCTS)
+
+
+PRODUCTS: dict = _load_products_from_file()
+
+
+def save_products_config() -> None:
+    """Persist current PRODUCTS dict to file."""
+    _save(PRODUCTS_FILE, PRODUCTS)
+
+
 def get_unit_price(product_key: str, quantity: int) -> int:
-    """Returns unit price with tiered discounts for coupon_100."""
+    """Returns unit price. Legacy coupon_100 has tiered discount."""
     if product_key == "coupon_100":
         if quantity >= 20:
             return 30
         elif quantity >= 10:
             return 32
-        else:
-            return 35
-    return PRODUCTS[product_key]["price"]
+    return PRODUCTS.get(product_key, {}).get("price", 0)
 
 
 QTY_EMOJIS = {
@@ -335,7 +379,11 @@ def _save(fp: str, data) -> None:
         threading.Thread(target=_repldb_set, args=(db_key, raw), daemon=True).start()
 
 
-def get_coupons()  -> dict: return load_json(COUPONS_FILE, {"coupon_100": [], "coupon_150": [], "coupon_bigbasket_150": []})
+def get_coupons()  -> dict:
+    default = {k: [] for k in PRODUCTS}
+    return load_json(COUPONS_FILE, default)
+
+
 def save_coupons(d):        _save(COUPONS_FILE, d)
 def get_users()    -> dict: return load_json(USERS_FILE,   {})
 def save_users(d):          _save(USERS_FILE,   d)
@@ -450,6 +498,9 @@ async def send_referral_reward(context, referrer_id: str, referrer_name: str, to
 
 
 def get_stock(pk: str) -> int:
+    if pk in COMBO_PARTS:
+        coupons = get_coupons()
+        return min(len(coupons.get(part, [])) for part in COMBO_PARTS[pk])
     return len(get_coupons().get(pk, []))
 
 
@@ -471,7 +522,10 @@ def get_stats() -> dict:
 
 def low_stock_alert() -> str:
     a = []
-    for k, p in PRODUCTS.items():
+    for k in STORE_PRODUCT_ORDER:
+        p = PRODUCTS.get(k)
+        if not p:
+            continue
         s = get_stock(k)
         if s < LOW_STOCK_THRESHOLD:
             a.append(f"⚠️ *{p['name']}*: only {s} left!")
@@ -545,37 +599,32 @@ async def exit_trap_nudge(context: ContextTypes.DEFAULT_TYPE) -> None:
 # ─────────────── Store menu helper ───────────────
 
 def _store_menu_text_and_keyboard():
-    """Returns (text, keyboard) for the main store menu."""
-    s100 = get_stock("coupon_100")
-    s150 = get_stock("coupon_150")
-    s_bb = get_stock("coupon_bigbasket_150")
-    text = (
-        "🎉 *Welcome to Coupon Store*\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        "🔥 *Best Deals Available*\n\n"
-        "💸 ₹100 Myntra Coupon — *₹35 only*\n"
-        "💸 ₹150 Myntra Coupon — *₹30 only*\n"
-        "🛒 ₹150 BigBasket Cashback — *₹30 only*\n\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        "⚡ Instant Delivery  |  ✅ Trusted  |  💬 24/7 Support"
-    )
-    keyboard = [
-        [InlineKeyboardButton(
-            f"🟢 ₹100 Myntra – ₹35  [{s100} left]" if s100 > 0 else "🟢 ₹100 Myntra – Out of Stock",
-            callback_data="buy_coupon_100",
-        )],
-        [InlineKeyboardButton(
-            f"🔵 ₹150 Myntra – ₹30  [{s150} left]" if s150 > 0 else "🔵 ₹150 Myntra – Out of Stock",
-            callback_data="buy_coupon_150",
-        )],
-        [InlineKeyboardButton(
-            f"🛒 BigBasket ₹150 Cashback – ₹30  [{s_bb} left]" if s_bb > 0 else "🛒 BigBasket ₹150 Cashback – Out of Stock",
-            callback_data="buy_coupon_bigbasket_150",
-        )],
-        [InlineKeyboardButton("🔗 Refer & Earn Free Coupon", callback_data="referral_menu")],
-        [InlineKeyboardButton("📞 Contact Support", url="tg://openmessage?user_id=6724474397")],
+    """Returns (text, keyboard) for the main store menu — fully dynamic."""
+    lines = [
+        "🎉 *Welcome to Coupon Store*",
+        "━━━━━━━━━━━━━━━━━━━━",
+        "🔥 *Best Deals Available*\n",
     ]
-    return text, keyboard
+    keyboard = []
+    for pk in STORE_PRODUCT_ORDER:
+        p = PRODUCTS.get(pk)
+        if not p:
+            continue
+        s = get_stock(pk)
+        desc = f" — {p['desc']}" if p.get("desc") else ""
+        lines.append(f"{p['emoji']} *{p['name']}*{desc} — *₹{p['price']}*")
+        label = (
+            f"{p['emoji']} {p['name']} – ₹{p['price']}  [{s} left]"
+            if s > 0 else
+            f"{p['emoji']} {p['name']} – Out of Stock"
+        )
+        keyboard.append([InlineKeyboardButton(label, callback_data=f"buy_{pk}")])
+
+    lines.append("\n━━━━━━━━━━━━━━━━━━━━")
+    lines.append("⚡ Instant Delivery  |  ✅ Trusted  |  💬 24/7 Support")
+    keyboard.append([InlineKeyboardButton("🔗 Refer & Earn Free Coupon", callback_data="referral_menu")])
+    keyboard.append([InlineKeyboardButton("📞 Contact Support", url="tg://openmessage?user_id=6724474397")])
+    return "\n".join(lines), keyboard
 
 
 # ─────────────── /start ───────────────
@@ -901,35 +950,7 @@ async def referral_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 async def back_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
-    s100    = get_stock("coupon_100")
-    s150    = get_stock("coupon_150")
-    s_bb = get_stock("coupon_bigbasket_150")
-    text = (
-        "🎉 *Welcome to Coupon Store*\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        "🔥 *Best Deals Available*\n\n"
-        "💸 ₹100 Myntra Coupon — *₹35 only*\n"
-        "💸 ₹150 Myntra Coupon — *₹30 only*\n"
-        "🛒 ₹150 BigBasket Cashback — *₹30 only*\n\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        "⚡ Instant Delivery  |  ✅ Trusted  |  💬 24/7 Support"
-    )
-    keyboard = [
-        [InlineKeyboardButton(
-            f"🟢 ₹100 Myntra – ₹35  [{s100} left]" if s100 > 0 else "🟢 ₹100 Myntra – Out of Stock",
-            callback_data="buy_coupon_100",
-        )],
-        [InlineKeyboardButton(
-            f"🔵 ₹150 Myntra – ₹30  [{s150} left]" if s150 > 0 else "🔵 ₹150 Myntra – Out of Stock",
-            callback_data="buy_coupon_150",
-        )],
-        [InlineKeyboardButton(
-            f"🛒 BigBasket ₹150 Cashback – ₹30  [{s_bb} left]" if s_bb > 0 else "🛒 BigBasket ₹150 Cashback – Out of Stock",
-            callback_data="buy_coupon_bigbasket_150",
-        )],
-        [InlineKeyboardButton("🔗 Refer & Earn Free Coupon", callback_data="referral_menu")],
-        [InlineKeyboardButton("📞 Contact Support", url="tg://openmessage?user_id=6724474397")],
-    ]
+    text, keyboard = _store_menu_text_and_keyboard()
     await query.edit_message_text(
         text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN,
     )
@@ -1077,8 +1098,16 @@ async def _confirm_quantity(
 
     qty_disp = QTY_EMOJIS.get(quantity, f"×{quantity}")
 
+    # Combo note — show what the buyer gets
+    combo_note = ""
+    if product_key in COMBO_PARTS:
+        parts_names = " + ".join(
+            PRODUCTS.get(p, {}).get("name", p) for p in COMBO_PARTS[product_key]
+        )
+        combo_note = f"\n🎁 *Combo:* {parts_names} (2 codes per unit)\n"
+
     extra_tnc = ""
-    if product_key == "coupon_bigbasket_150":
+    if product_key in ("coupon_bigbasket_150", "bigbasket"):
         extra_tnc = (
             "\n━━━━━━━━━━━━━━━━━━━━\n"
             "📜 *BigBasket – ₹150 Cashback on ₹149 cart*\n\n"
@@ -1104,6 +1133,7 @@ async def _confirm_quantity(
         f"🧾 *Order Summary*\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"🎟 Product:    *{product['name']}*\n"
+        f"{combo_note}"
         f"📦 Quantity:   *{qty_disp} × {quantity}*\n"
         f"💰 Unit Price: ₹{unit_price}\n"
         f"💵 *Total:     ₹{total}*\n"
@@ -1345,14 +1375,26 @@ async def _execute_approve(context, order_id: str) -> tuple:
     pk       = order["product"]
     quantity = order.get("quantity", 1)
     coupons  = get_coupons()
-    pool     = coupons.get(pk, [])
 
-    if len(pool) < quantity:
-        return order, f"low_stock:{len(pool)}"
-
-    assigned        = pool[:quantity]
-    coupons[pk]     = pool[quantity:]
-    save_coupons(coupons)
+    # ── Combo: dispense from each sub-product ──
+    if pk in COMBO_PARTS:
+        parts = COMBO_PARTS[pk]
+        for part in parts:
+            if len(coupons.get(part, [])) < quantity:
+                return order, f"low_stock:{len(coupons.get(part, []))}"
+        assigned = []
+        for part in parts:
+            pool = coupons.get(part, [])
+            assigned.extend(pool[:quantity])
+            coupons[part] = pool[quantity:]
+        save_coupons(coupons)
+    else:
+        pool = coupons.get(pk, [])
+        if len(pool) < quantity:
+            return order, f"low_stock:{len(pool)}"
+        assigned    = pool[:quantity]
+        coupons[pk] = pool[quantity:]
+        save_coupons(coupons)
 
     order["status"]       = "approved"
     order["coupon_codes"] = assigned
@@ -1365,8 +1407,10 @@ async def _execute_approve(context, order_id: str) -> tuple:
     pending.pop(str(order["user_id"]), None)
     save_pending(pending)
 
-    product      = PRODUCTS[pk]
+    product      = PRODUCTS.get(pk, {"name": pk})
     coupon_lines = "\n".join(f"🎟 `{c}`" for c in assigned)
+
+    # Delivery message — generic so it works for all products
     try:
         await context.bot.send_message(
             chat_id=order["user_id"],
@@ -1379,12 +1423,9 @@ async def _execute_approve(context, order_id: str) -> tuple:
                 f"🎁 *Your Coupon Code(s):*\n\n"
                 f"{coupon_lines}\n\n"
                 f"━━━━━━━━━━━━━━━━━━━━\n"
-                f"📋 *How to redeem:*\n"
-                f"1. Open Myntra App\n"
-                f"2. Add items to cart\n"
-                f"3. Apply code at checkout\n\n"
                 f"🙏 *Thank you for your purchase!*\n"
-                f"⭐ Come back for more deals!"
+                f"⭐ Come back for more deals!\n"
+                f"💬 Need help? Contact {SUPPORT_HANDLE}"
             ),
             parse_mode=ParseMode.MARKDOWN,
         )
@@ -1666,10 +1707,12 @@ async def admin_stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     await query.answer()
     if query.from_user.id != ADMIN_ID:
         return
-    coupons = get_coupons()
     lines   = ["📦 *Current Stock*\n━━━━━━━━━━━━━━━━━━━━\n"]
-    for k, p in PRODUCTS.items():
-        s      = len(coupons.get(k, []))
+    for k in STORE_PRODUCT_ORDER:
+        p = PRODUCTS.get(k)
+        if not p:
+            continue
+        s      = get_stock(k)
         status = "🔴 Out of Stock" if s == 0 else ("⚠️ Low" if s < LOW_STOCK_THRESHOLD else "✅ In Stock")
         lines.append(f"{p['emoji']} *{p['name']}*\n   Count: *{s}* — {status}")
     await query.edit_message_text(
@@ -1813,12 +1856,13 @@ async def admin_add_coupon(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     await query.answer()
     if query.from_user.id != ADMIN_ID:
         return
+    lines = ["➕ *Add Coupons*\n━━━━━━━━━━━━━━━━━━━━\n"]
+    for pk in STORE_PRODUCT_ORDER:
+        p = PRODUCTS.get(pk, {})
+        lines.append(f"*{p.get('name', pk)}* (`{pk}`):\n`/addcoupon {pk} CODE1 CODE2`\n")
+    lines.append("_Multiple codes: space se alag karo._")
     await query.edit_message_text(
-        "➕ *Add Coupons*\n━━━━━━━━━━━━━━━━━━━━\n\n"
-        "*Myntra ₹100:*\n`/addcoupon coupon_100 CODE1 CODE2`\n\n"
-        "*Myntra ₹150:*\n`/addcoupon coupon_150 CODE1 CODE2`\n\n"
-        "*BigBasket ₹150:*\n`/addcoupon coupon_bigbasket_150 CODE1 CODE2`\n\n"
-        "_Ek saath multiple codes space se alag karke add karo._",
+        "\n".join(lines),
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back", callback_data="admin_back")]]),
         parse_mode=ParseMode.MARKDOWN,
     )
@@ -1830,14 +1874,24 @@ async def add_coupon_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
     args = context.args
     if len(args) < 2:
+        keys = ", ".join(f"`{k}`" for k in STORE_PRODUCT_ORDER)
         await update.message.reply_text(
-            "❌ *Usage:*\n`/addcoupon coupon_100 CODE1 CODE2`\n`/addcoupon coupon_150 CODE1 CODE2`\n`/addcoupon coupon_bigbasket_150 CODE1 CODE2`", parse_mode=ParseMode.MARKDOWN,
+            f"❌ *Usage:*\n`/addcoupon PRODUCT_ID CODE1 CODE2`\n\nValid IDs: {keys}",
+            parse_mode=ParseMode.MARKDOWN,
         )
         return
     pk = args[0]
     if pk not in PRODUCTS:
+        valid = ", ".join(f"`{k}`" for k in STORE_PRODUCT_ORDER)
         await update.message.reply_text(
-            "❌ Invalid key. Use `coupon_100`, `coupon_150` or `coupon_bigbasket_150`", parse_mode=ParseMode.MARKDOWN,
+            f"❌ Invalid product ID.\n\nValid IDs: {valid}", parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+    if pk in COMBO_PARTS:
+        await update.message.reply_text(
+            f"⚠️ *{PRODUCTS[pk]['name']}* is a combo — add codes to its parts:\n"
+            + "\n".join(f"`/addcoupon {p} CODE1 CODE2`" for p in COMBO_PARTS[pk]),
+            parse_mode=ParseMode.MARKDOWN,
         )
         return
     new_codes = args[1:]
@@ -1920,6 +1974,108 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
 
 
+# ─────────────── Admin product management commands ───────────────
+
+async def products_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """/products — show all products with id, name, price."""
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
+        return
+    lines = ["📋 *All Products*\n━━━━━━━━━━━━━━━━━━━━\n"]
+    for pk in STORE_PRODUCT_ORDER:
+        p = PRODUCTS.get(pk, {})
+        s = get_stock(pk)
+        desc = p.get("desc", "")
+        lines.append(
+            f"{p.get('emoji','🔹')} *{p.get('name', pk)}*\n"
+            f"   ID: `{pk}`  |  Price: ₹{p.get('price', 0)}  |  Stock: {s}\n"
+            f"   Desc: _{desc}_\n"
+        )
+    lines.append(
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "Edit with:\n"
+        "`/set_name ID new name`\n"
+        "`/set_price ID amount`\n"
+        "`/set_desc ID description`"
+    )
+    await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN)
+
+
+async def set_name_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """/set_name PRODUCT_ID NEW NAME — update product display name."""
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
+        return
+    args = context.args
+    if len(args) < 2:
+        await update.message.reply_text(
+            "❌ *Usage:* `/set_name PRODUCT_ID New Name Here`", parse_mode=ParseMode.MARKDOWN
+        )
+        return
+    pk       = args[0]
+    new_name = " ".join(args[1:])
+    if pk not in PRODUCTS:
+        await update.message.reply_text(f"❌ Unknown product: `{pk}`", parse_mode=ParseMode.MARKDOWN)
+        return
+    PRODUCTS[pk]["name"] = new_name
+    save_products_config()
+    await update.message.reply_text(
+        f"✅ Name updated!\n\n`{pk}` → *{new_name}*", parse_mode=ParseMode.MARKDOWN
+    )
+
+
+async def set_price_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """/set_price PRODUCT_ID PRICE — update product price."""
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
+        return
+    args = context.args
+    if len(args) != 2:
+        await update.message.reply_text(
+            "❌ *Usage:* `/set_price PRODUCT_ID 49`", parse_mode=ParseMode.MARKDOWN
+        )
+        return
+    pk = args[0]
+    if pk not in PRODUCTS:
+        await update.message.reply_text(f"❌ Unknown product: `{pk}`", parse_mode=ParseMode.MARKDOWN)
+        return
+    try:
+        new_price = int(args[1])
+        if new_price <= 0:
+            raise ValueError
+    except ValueError:
+        await update.message.reply_text("❌ Price must be a positive integer.", parse_mode=ParseMode.MARKDOWN)
+        return
+    PRODUCTS[pk]["price"] = new_price
+    save_products_config()
+    await update.message.reply_text(
+        f"✅ Price updated!\n\n`{pk}` → *₹{new_price}*", parse_mode=ParseMode.MARKDOWN
+    )
+
+
+async def set_desc_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """/set_desc PRODUCT_ID description text — update product description."""
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
+        return
+    args = context.args
+    if len(args) < 2:
+        await update.message.reply_text(
+            "❌ *Usage:* `/set_desc PRODUCT_ID Description text here`", parse_mode=ParseMode.MARKDOWN
+        )
+        return
+    pk       = args[0]
+    new_desc = " ".join(args[1:])
+    if pk not in PRODUCTS:
+        await update.message.reply_text(f"❌ Unknown product: `{pk}`", parse_mode=ParseMode.MARKDOWN)
+        return
+    PRODUCTS[pk]["desc"] = new_desc
+    save_products_config()
+    await update.message.reply_text(
+        f"✅ Description updated!\n\n`{pk}` → _{new_desc}_", parse_mode=ParseMode.MARKDOWN
+    )
+
+
 # ─────────────── Main ───────────────
 
 def main() -> None:
@@ -1938,11 +2094,13 @@ def main() -> None:
     init_referral_db()
 
     # Ensure data files exist
+    coupon_default = {k: [] for k in PRODUCTS}
     for fp, default in [
-        (COUPONS_FILE, {"coupon_100": [], "coupon_150": [], "coupon_bigbasket_150": []}),
-        (USERS_FILE,   {}),
-        (ORDERS_FILE,  {}),
-        (PENDING_FILE, {}),
+        (COUPONS_FILE,  coupon_default),
+        (USERS_FILE,    {}),
+        (ORDERS_FILE,   {}),
+        (PENDING_FILE,  {}),
+        (PRODUCTS_FILE, PRODUCTS),
     ]:
         if not os.path.exists(fp):
             _save(fp, default)
@@ -1956,6 +2114,11 @@ def main() -> None:
     app.add_handler(CommandHandler("addcoupon",  add_coupon_command))
     app.add_handler(CommandHandler("approve",    approve_command))
     app.add_handler(CommandHandler("broadcast",  broadcast_command))
+    # Product management
+    app.add_handler(CommandHandler("products",   products_command))
+    app.add_handler(CommandHandler("set_name",   set_name_command))
+    app.add_handler(CommandHandler("set_price",  set_price_command))
+    app.add_handler(CommandHandler("set_desc",   set_desc_command))
 
     # Inline buttons — buy & quantity
     app.add_handler(CallbackQueryHandler(support,              pattern="^support$"))

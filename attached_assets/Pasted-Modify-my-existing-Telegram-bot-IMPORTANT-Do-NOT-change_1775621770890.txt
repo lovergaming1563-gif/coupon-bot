@@ -1,0 +1,138 @@
+Modify my existing Telegram bot.
+
+IMPORTANT:
+- Do NOT change backend logic
+- Do NOT break anything
+- Do NOT delete existing users or data
+- Only update product names, UI, pricing, device protection, and add admin edit control
+
+====================================
+1. DATA SAFETY (VERY IMPORTANT)
+====================================
+
+- Keep all users, orders, coupons intact
+- Do NOT delete database
+- Only update values, not structure removal
+
+====================================
+2. PRODUCT SETUP (DYNAMIC)
+====================================
+
+Instead of hardcoding names and prices:
+
+- Store product data in database OR config dictionary
+
+Each product should have:
+- product_id
+- name
+- description
+- price
+
+Products:
+
+bigbasket → BigBasket ₹150 Cashback  
+myntra_199 → Myntra ₹100 OFF (199)  
+myntra_399 → Myntra ₹100 OFF (399)  
+myntra_499 → Myntra ₹100 OFF (499)  
+myntra_649 → Myntra ₹150 OFF (649)  
+combo → Myntra Combo (199 + 399)  
+chatgpt → ChatGPT 1 Month  
+youtube → YouTube 1 Month  
+
+====================================
+3. ADMIN PANEL UPGRADE
+====================================
+
+Add new admin commands:
+
+------------------------------------
+/set_name PRODUCT_ID NEW_NAME
+------------------------------------
+
+Example:
+/set_name myntra_199 👕 Myntra ₹100 OFF (199)
+
+------------------------------------
+/set_price PRODUCT_ID PRICE
+------------------------------------
+
+Example:
+/set_price myntra_199 39
+
+------------------------------------
+/set_desc PRODUCT_ID DESCRIPTION
+------------------------------------
+
+Example:
+/set_desc myntra_199 Get ₹100 OFF on orders above ₹199
+
+------------------------------------
+/products
+------------------------------------
+
+→ Show all products with:
+- name
+- price
+- id
+
+====================================
+4. APPLY DYNAMIC DATA IN UI
+====================================
+
+- All buttons should use product name from database
+- All messages should use:
+   name + description + price
+
+NO hardcoded text
+
+====================================
+5. DEFAULT VALUES (INITIAL SETUP)
+====================================
+
+Set initial values:
+
+bigbasket → ₹15  
+myntra_199 → ₹35  
+myntra_399 → ₹35  
+myntra_499 → ₹35  
+myntra_649 → ₹35  
+combo → ₹60  
+chatgpt → ₹49  
+youtube → ₹30  
+
+====================================
+6. DEVICE PROTECTION (KEEP)
+====================================
+
+- user_id based tracking
+- one coupon per user per type
+- show:
+  "⚠️ Already used on this account"
+
+====================================
+7. COMBO LOGIC (KEEP SAME)
+====================================
+
+- myntra_199 → 1 code
+- myntra_399 → 1 code
+
+====================================
+8. UI RULES
+====================================
+
+- Buttons short
+- Messages clean
+- Emojis allowed
+
+====================================
+9. KEEP EVERYTHING SAME
+====================================
+
+- Payment system same
+- Coupon system same
+- Admin approval same
+- Database safe
+
+====================================
+
+Apply changes without breaking existing bot.
