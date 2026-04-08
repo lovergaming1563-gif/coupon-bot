@@ -36,7 +36,7 @@ logging.getLogger("werkzeug").setLevel(logging.ERROR)   # silence Flask access l
 BOT_TOKEN  = os.environ.get("TELEGRAM_BOT_TOKEN")
 ADMIN_ID   = int(os.environ.get("TELEGRAM_ADMIN_ID", "6724474397"))
 
-UPI_ID         = "k36672632@okicici"         # UPI ID
+UPI_ID         = "BHARATPE.8B0L1T2H8C56136@fbpe"  # UPI ID
 SUPPORT_HANDLE = "@MyntraCouponsupport_bot"  # Support Telegram handle
 QR_IMAGE_PATH  = "qr_code.jpg"              # QR code image (already loaded)
 
