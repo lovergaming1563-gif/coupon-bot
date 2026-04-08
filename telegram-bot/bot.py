@@ -2011,23 +2011,19 @@ async def products_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     if update.effective_user.id != ADMIN_ID:
         await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
         return
-    lines = ["📋 *All Products*\n━━━━━━━━━━━━━━━━━━━━\n"]
+    lines = ["📋 *Products List*", "━━━━━━━━━━━━━━━━━━━━", ""]
     for pk in STORE_PRODUCT_ORDER:
         p = PRODUCTS.get(pk, {})
         s = get_stock(pk)
-        desc = p.get("desc", "")
-        lines.append(
-            f"{p.get('emoji','🔹')} *{p.get('name', pk)}*\n"
-            f"   ID: `{pk}`  |  Price: ₹{p.get('price', 0)}  |  Stock: {s}\n"
-            f"   Desc: _{desc}_\n"
-        )
-    lines.append(
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        "Edit with:\n"
-        "`/set_name ID new name`\n"
-        "`/set_price ID amount`\n"
-        "`/set_desc ID description`"
-    )
+        lines.append(f"`{pk}` → {p.get('name', pk)} → ₹{p.get('price', 0)}  [Stock: {s}]")
+    lines += [
+        "",
+        "━━━━━━━━━━━━━━━━━━━━",
+        "*Edit commands:*",
+        "`/set_name ID new name`",
+        "`/set_price ID amount`",
+        "`/set_desc ID description`",
+    ]
     await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN)
 
 
