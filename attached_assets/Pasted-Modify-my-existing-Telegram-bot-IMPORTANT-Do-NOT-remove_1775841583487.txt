@@ -1,0 +1,135 @@
+Modify my existing Telegram bot.
+
+IMPORTANT:
+- Do NOT remove existing code
+- Do NOT break anything
+- Only ADD features cleanly
+
+====================================
+1. ANTI-CHEAT (STRICT)
+====================================
+
+- Apply rule:
+  1 IP = 1 referral only
+
+Logic:
+- On referral verify:
+    → Get user IP
+    → If IP already used:
+         ❌ Do not count referral
+         Show: "Referral already used on this network"
+    → Else:
+         ✅ Count referral
+         Save IP
+
+====================================
+2. MULTIPLE CHANNEL JOIN (3 CHANNELS)
+====================================
+
+- User must join 3 channels before using bot
+
+Buttons:
+- Join Channel 1
+- Join Channel 2
+- Join Channel 3
+- ✅ Verify
+
+Logic:
+- On Verify:
+    → Check all 3 joined
+    → If yes → allow access
+    → Else → show join message
+
+====================================
+3. REFERRAL = POINT SYSTEM
+====================================
+
+- 1 referral = 1 point
+
+Store:
+- user_id
+- points
+
+On successful referral:
+→ +1 point
+
+====================================
+4. REFER SECTION BUTTONS
+====================================
+
+Add 2 buttons:
+
+1. 🎯 My Points
+   → Show user points
+
+2. 🎁 Redeem Points
+   → Show available rewards
+
+====================================
+5. REWARD SYSTEM (ADMIN CONTROL)
+====================================
+
+Admin command:
+
+/add_reward POINTS NAME
+
+Example:
+/add_reward 10 BigBasket150
+
+Store:
+- reward_name
+- points_required
+
+====================================
+6. ADD COUPON (IMPORTANT)
+====================================
+
+Admin command:
+
+/add_coupon REWARD_NAME CODE
+
+Example:
+/add_coupon BigBasket150 BBSAVE150-ABC123
+
+Store:
+- reward_name
+- coupon_codes (list)
+
+NOTE:
+- Each coupon = 1 stock
+- Stock auto = number of coupons
+
+====================================
+7. REDEEM SYSTEM
+====================================
+
+When user clicks redeem:
+
+IF points >= required AND coupon available:
+
+    → Give 1 coupon
+    → Remove that coupon from list
+    → Deduct user points
+
+ELSE:
+    → Show error (no coupon / low points)
+
+====================================
+8. UI MESSAGE
+====================================
+
+🎁 Refer & Earn
+
+👥 1 Referral = 1 Point
+📊 Your Points: X
+
+🔗 Your Link:
+https://t.me/yourbot?start=ref_xxx
+
+⚠️ Rules:
+- 1 IP = 1 referral
+- Fake referrals not allowed
+
+====================================
+END
+====================================
