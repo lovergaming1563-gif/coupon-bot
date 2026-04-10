@@ -269,6 +269,28 @@ def db_add_reward_coupon(reward_name: str, code: str) -> bool:
     except sqlite3.IntegrityError:
         return False
 
+def db_delete_reward_coupon(reward_name: str, code: str) -> bool:
+    """Admin: delete a specific coupon code from a reward pool."""
+    con = sqlite3.connect(REFERRAL_DB)
+    cur = con.execute(
+        "DELETE FROM reward_coupons WHERE reward_name=? AND code=? AND used=0",
+        (reward_name, code)
+    )
+    con.commit()
+    deleted = cur.rowcount > 0
+    con.close()
+    return deleted
+
+def db_list_reward_coupons(reward_name: str) -> list:
+    """Admin: list all unused coupon codes for a reward."""
+    con = sqlite3.connect(REFERRAL_DB)
+    rows = con.execute(
+        "SELECT code FROM reward_coupons WHERE reward_name=? AND used=0 ORDER BY id",
+        (reward_name,)
+    ).fetchall()
+    con.close()
+    return [r[0] for r in rows]
+
 def db_redeem_reward(user_id: str, reward_name: str) -> str | None:
     """Redeem 1 coupon for the user. Returns the code or None if no stock."""
     con = sqlite3.connect(REFERRAL_DB)
@@ -1468,6 +1490,64 @@ async def cmd_add_reward_coupon(update: Update, context: ContextTypes.DEFAULT_TY
             f"❌ Code already exists or error adding coupon.",
             parse_mode=ParseMode.MARKDOWN,
         )
+
+
+# ─────────────── Admin: /del_coupon ───────────────
+
+async def cmd_del_reward_coupon(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Admin: /del_coupon REWARD_NAME CODE"""
+    if update.effective_user.id != ADMIN_ID:
+        return
+    args = context.args or []
+    if len(args) < 2:
+        await update.message.reply_text(
+            "Usage: `/del_coupon REWARD_NAME CODE`\n\nExample:\n`/del_coupon Bigbasket_Free 5677`",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+    reward_name = args[0]
+    code        = args[1]
+    ok = db_delete_reward_coupon(reward_name, code)
+    if ok:
+        remaining = db_list_reward_coupons(reward_name)
+        await update.message.reply_text(
+            f"✅ Code `{code}` deleted from *{reward_name}*\n"
+            f"Remaining stock: *{len(remaining)}*",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+    else:
+        await update.message.reply_text(
+            f"❌ Code `{code}` not found in *{reward_name}* (or already used)",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+
+
+# ─────────────── Admin: /list_coupons ───────────────
+
+async def cmd_list_reward_coupons(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Admin: /list_coupons REWARD_NAME — show all unused codes"""
+    if update.effective_user.id != ADMIN_ID:
+        return
+    args = context.args or []
+    if not args:
+        await update.message.reply_text(
+            "Usage: `/list_coupons REWARD_NAME`\n\nExample:\n`/list_coupons Bigbasket_Free`",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+    reward_name = args[0]
+    codes = db_list_reward_coupons(reward_name)
+    if not codes:
+        await update.message.reply_text(
+            f"📭 No unused codes in *{reward_name}*",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+    code_list = "\n".join(f"• `{c}`" for c in codes)
+    await update.message.reply_text(
+        f"📋 *{reward_name}* — {len(codes)} unused codes:\n\n{code_list}",
+        parse_mode=ParseMode.MARKDOWN,
+    )
 
 
 # ─────────────── Step 1: Product selected → quantity grid ───────────────
@@ -2704,8 +2784,10 @@ def main() -> None:
     app.add_handler(CommandHandler("set_price",  set_price_command))
     app.add_handler(CommandHandler("set_desc",   set_desc_command))
     # Rewards system (points-based referral)
-    app.add_handler(CommandHandler("add_reward",  cmd_add_reward))
-    app.add_handler(CommandHandler("add_coupon",  cmd_add_reward_coupon))
+    app.add_handler(CommandHandler("add_reward",    cmd_add_reward))
+    app.add_handler(CommandHandler("add_coupon",    cmd_add_reward_coupon))
+    app.add_handler(CommandHandler("del_coupon",    cmd_del_reward_coupon))
+    app.add_handler(CommandHandler("list_coupons",  cmd_list_reward_coupons))
 
     # Inline buttons — buy & quantity
     app.add_handler(CallbackQueryHandler(support,              pattern="^support$"))
