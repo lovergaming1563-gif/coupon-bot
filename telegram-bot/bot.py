@@ -65,12 +65,19 @@ def init_referral_db():
     con = sqlite3.connect(REFERRAL_DB)
     con.execute("""
         CREATE TABLE IF NOT EXISTS referrals (
-            user_id      TEXT PRIMARY KEY,
-            referred_by  TEXT NOT NULL,
-            reward_given INTEGER NOT NULL DEFAULT 0,
-            joined_at    TEXT
+            user_id          TEXT PRIMARY KEY,
+            referred_by      TEXT NOT NULL,
+            reward_given     INTEGER NOT NULL DEFAULT 0,
+            joined_at        TEXT,
+            referral_status  TEXT NOT NULL DEFAULT 'active'
         )
     """)
+    # Safe migration: add referral_status column if it doesn't exist yet (for existing DBs)
+    try:
+        con.execute("ALTER TABLE referrals ADD COLUMN referral_status TEXT NOT NULL DEFAULT 'active'")
+        con.commit()
+    except Exception:
+        pass  # Column already exists — ignore
     # Rewards catalogue (admin-managed)
     con.execute("""
         CREATE TABLE IF NOT EXISTS rewards (
@@ -124,14 +131,33 @@ def db_mark_reward_given(user_id: str):
     con.close()
 
 def db_successful_referral_count(referrer_id: str) -> int:
-    """Count of verified referrals (reward_given=1) for this referrer."""
+    """Count of ACTIVE verified referrals (reward_given=1, status=active) — this is the points value."""
     con = sqlite3.connect(REFERRAL_DB)
     count = con.execute(
-        "SELECT COUNT(*) FROM referrals WHERE referred_by = ? AND reward_given = 1",
+        "SELECT COUNT(*) FROM referrals WHERE referred_by = ? AND reward_given = 1 AND referral_status = 'active'",
         (referrer_id,)
     ).fetchone()[0]
     con.close()
     return count
+
+def db_set_referral_status(user_id: str, status: str):
+    """Set referral_status = 'active' or 'removed' for the referred user."""
+    con = sqlite3.connect(REFERRAL_DB)
+    con.execute(
+        "UPDATE referrals SET referral_status = ? WHERE user_id = ?",
+        (status, user_id)
+    )
+    con.commit()
+    con.close()
+
+def db_get_all_verified_referrals() -> list:
+    """Return all verified referrals: [(user_id, referred_by, referral_status), ...]"""
+    con = sqlite3.connect(REFERRAL_DB)
+    rows = con.execute(
+        "SELECT user_id, referred_by, referral_status FROM referrals WHERE reward_given = 1"
+    ).fetchall()
+    con.close()
+    return rows
 
 def db_total_referral_count(referrer_id: str) -> int:
     """Count of all referrals (pending + verified) for this referrer."""
@@ -741,6 +767,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     cancel_user_timers(context, user.id)
     clear_user_order_state(context)
 
+    # ── Real-time referral validity check (non-blocking, fire-and-forget) ──
+    if is_channel_verified(uid):
+        context.application.create_task(realtime_referral_check(context.bot, uid))
+
     # ── Channel Gate: unverified users must join all channels first ──
     if not is_channel_verified(uid):
         has_referral = db_get_referral(uid) is not None
@@ -1037,6 +1067,93 @@ async def back_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     await query.edit_message_text(
         text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN,
     )
+
+
+# ─────────────── Referral Validity: single-user check ───────────────
+
+async def _update_referral_validity(bot, user_id: str, referred_by: str, current_status: str) -> str:
+    """
+    Check if 'user_id' is still in the verifiable channel (Channel 3).
+    Returns new status: 'active' or 'removed'.
+    Notifies referrer if status changed.
+    NOTE: Private channels (1 & 2) cannot be checked via Telegram API.
+    """
+    try:
+        member = await bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=int(user_id))
+        still_in = member.status not in ("left", "kicked", "banned")
+    except Exception as e:
+        logger.debug(f"referral validity check failed for {user_id}: {e}")
+        return current_status  # Can't check — leave as-is
+
+    if still_in and current_status == "removed":
+        # User rejoined → restore
+        db_set_referral_status(user_id, "active")
+        new_pts = db_successful_referral_count(referred_by)
+        try:
+            await bot.send_message(
+                chat_id=int(referred_by),
+                text=(
+                    "✅ *Referral Restored!*\n\n"
+                    "Your friend rejoined the channel. 🎉\n"
+                    f"📊 *Your Points: {new_pts}*"
+                ),
+                parse_mode=ParseMode.MARKDOWN,
+            )
+        except Exception:
+            pass
+        return "active"
+
+    if not still_in and current_status == "active":
+        # User left → remove
+        db_set_referral_status(user_id, "removed")
+        new_pts = db_successful_referral_count(referred_by)
+        try:
+            await bot.send_message(
+                chat_id=int(referred_by),
+                text=(
+                    "⚠️ *Referral Removed!*\n\n"
+                    "Your referred friend left the channel. −1 point.\n"
+                    f"📊 *Your Points: {new_pts}*"
+                ),
+                parse_mode=ParseMode.MARKDOWN,
+            )
+        except Exception:
+            pass
+        return "removed"
+
+    return current_status
+
+
+# ─────────────── Periodic Job: check all referrals every 6 min ───────────────
+
+async def periodic_referral_check(context) -> None:
+    """Runs every 6 minutes. Checks all verified referrals against Channel 3 membership."""
+    rows = db_get_all_verified_referrals()
+    if not rows:
+        return
+    logger.info(f"periodic_referral_check: checking {len(rows)} referrals")
+    for user_id, referred_by, current_status in rows:
+        await _update_referral_validity(context.bot, user_id, referred_by, current_status)
+
+
+# ─────────────── Real-time check when a referred user opens bot ───────────────
+
+async def realtime_referral_check(bot, user_id: str) -> None:
+    """Call this whenever a verified referred user interacts with the bot."""
+    row = db_get_referral(user_id)
+    if not row:
+        return
+    _, referred_by, reward_given = row
+    if not reward_given:
+        return  # Not yet verified — skip
+    # Get current status
+    con = sqlite3.connect(REFERRAL_DB)
+    status_row = con.execute(
+        "SELECT referral_status FROM referrals WHERE user_id = ?", (user_id,)
+    ).fetchone()
+    con.close()
+    current_status = status_row[0] if status_row else "active"
+    await _update_referral_validity(bot, user_id, referred_by, current_status)
 
 
 # ─────────────── My Points ───────────────
@@ -2518,6 +2635,18 @@ def main() -> None:
             except Exception:
                 pass
     app.add_error_handler(error_handler)
+
+    # ── Periodic referral validity check (every 6 minutes) ──
+    if app.job_queue:
+        app.job_queue.run_repeating(
+            periodic_referral_check,
+            interval=360,   # 6 minutes in seconds
+            first=60,       # start 1 minute after bot launch
+            name="referral_validity_check",
+        )
+        logger.info("✅ Periodic referral validity check job registered (every 6 min)")
+    else:
+        logger.warning("⚠️ JobQueue not available — periodic referral check disabled")
 
     logger.info("🤖 Bot fully started — all systems active!")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
