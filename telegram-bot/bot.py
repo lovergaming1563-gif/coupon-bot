@@ -1464,32 +1464,33 @@ async def cmd_add_reward(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 # ─────────────── Admin: /add_coupon (reward coupons) ───────────────
 
 async def cmd_add_reward_coupon(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Admin: /add_coupon REWARD_NAME CODE"""
+    """Admin: /add_coupon REWARD_NAME CODE1 CODE2 CODE3 ..."""
     if update.effective_user.id != ADMIN_ID:
         return
     args = context.args or []
     if len(args) < 2:
         await update.message.reply_text(
-            "Usage: `/add_coupon REWARD_NAME CODE`\n\nExample:\n`/add_coupon BigBasket150 BBSAVE150-ABC123`",
+            "Usage: `/add_coupon REWARD_NAME CODE1 CODE2 ...`\n\nExample:\n`/add_coupon Bigbasket_Free ABC123 DEF456 GHI789`",
             parse_mode=ParseMode.MARKDOWN,
         )
         return
     reward_name = args[0]
-    code        = args[1]
-    ok = db_add_reward_coupon(reward_name, code)
-    if ok:
-        rewards = db_list_rewards()
-        reward  = next((r for r in rewards if r["name"] == reward_name), None)
-        stock   = reward["stock"] if reward else "?"
-        await update.message.reply_text(
-            f"✅ Coupon added to *{reward_name}*!\nStock: {stock}",
-            parse_mode=ParseMode.MARKDOWN,
-        )
-    else:
-        await update.message.reply_text(
-            f"❌ Code already exists or error adding coupon.",
-            parse_mode=ParseMode.MARKDOWN,
-        )
+    codes       = args[1:]   # har space-separated word ek alag code hai
+
+    added, skipped = [], []
+    for code in codes:
+        if db_add_reward_coupon(reward_name, code):
+            added.append(code)
+        else:
+            skipped.append(code)
+
+    total_stock = len(db_list_reward_coupons(reward_name))
+    lines = [f"✅ *{len(added)} code(s) added to {reward_name}*", f"Stock ab: *{total_stock}*"]
+    if added:
+        lines.append("\n➕ Added:\n" + "\n".join(f"• `{c}`" for c in added))
+    if skipped:
+        lines.append("\n⚠️ Already exists (skipped):\n" + "\n".join(f"• `{c}`" for c in skipped))
+    await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN)
 
 
 # ─────────────── Admin: /del_coupon ───────────────
