@@ -46,6 +46,16 @@ CHANNEL_LINK        = "https://t.me/withoutanyinvestmentwork"
 REFERRAL_GOAL       = 5                          # referrals needed for free coupon
 REFERRAL_REWARD_KEY = "coupon_bigbasket_150"     # free coupon product key
 
+# ─────────────── Multi-Channel Config ───────────────
+# Users must join ALL of these channels before using the bot.
+# For private channels (t.me/+xxx), membership cannot be verified via API.
+# We show join buttons and trust the user joined.
+REQUIRED_CHANNELS = [
+    {"name": "Channel 1", "link": "https://t.me/+_diGJbgVkeQzNzFl",         "username": None},
+    {"name": "Channel 2", "link": "https://t.me/+OnJsUcXtvoRkMjg9",         "username": None},
+    {"name": "Channel 3", "link": "https://t.me/withoutanyinvestmentwork",   "username": "@withoutanyinvestmentwork"},
+]
+
 # ─────────────── SQLite Referral DB ───────────────
 REFERRAL_DB = os.path.join(
     os.environ.get("BOT_DATA_DIR", "/home/runner/bot_data"), "referrals.db"
@@ -59,6 +69,25 @@ def init_referral_db():
             referred_by  TEXT NOT NULL,
             reward_given INTEGER NOT NULL DEFAULT 0,
             joined_at    TEXT
+        )
+    """)
+    # Rewards catalogue (admin-managed)
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS rewards (
+            reward_name     TEXT PRIMARY KEY,
+            points_required INTEGER NOT NULL DEFAULT 5,
+            created_at      TEXT
+        )
+    """)
+    # Coupon codes for each reward
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS reward_coupons (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            reward_name TEXT NOT NULL,
+            code        TEXT NOT NULL UNIQUE,
+            used        INTEGER NOT NULL DEFAULT 0,
+            used_by     TEXT,
+            used_at     TEXT
         )
     """)
     con.commit()
@@ -113,6 +142,68 @@ def db_total_referral_count(referrer_id: str) -> int:
     ).fetchone()[0]
     con.close()
     return count
+
+# ── Points = verified referral count (1 referral = 1 point) ──
+def db_get_points(user_id: str) -> int:
+    return db_successful_referral_count(user_id)
+
+# ── Rewards CRUD ──
+def db_add_reward(reward_name: str, points_required: int) -> bool:
+    try:
+        con = sqlite3.connect(REFERRAL_DB)
+        con.execute(
+            "INSERT OR REPLACE INTO rewards (reward_name, points_required, created_at) VALUES (?,?,?)",
+            (reward_name, points_required, datetime.now().isoformat())
+        )
+        con.commit()
+        con.close()
+        return True
+    except Exception:
+        return False
+
+def db_list_rewards() -> list:
+    """Returns list of (reward_name, points_required, stock) sorted by points_required."""
+    con = sqlite3.connect(REFERRAL_DB)
+    rows = con.execute("SELECT reward_name, points_required FROM rewards ORDER BY points_required").fetchall()
+    result = []
+    for name, pts in rows:
+        stock = con.execute(
+            "SELECT COUNT(*) FROM reward_coupons WHERE reward_name=? AND used=0", (name,)
+        ).fetchone()[0]
+        result.append({"name": name, "points": pts, "stock": stock})
+    con.close()
+    return result
+
+def db_add_reward_coupon(reward_name: str, code: str) -> bool:
+    try:
+        con = sqlite3.connect(REFERRAL_DB)
+        con.execute(
+            "INSERT INTO reward_coupons (reward_name, code) VALUES (?,?)",
+            (reward_name, code)
+        )
+        con.commit()
+        con.close()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+
+def db_redeem_reward(user_id: str, reward_name: str) -> str | None:
+    """Redeem 1 coupon for the user. Returns the code or None if no stock."""
+    con = sqlite3.connect(REFERRAL_DB)
+    row = con.execute(
+        "SELECT id, code FROM reward_coupons WHERE reward_name=? AND used=0 ORDER BY id LIMIT 1",
+        (reward_name,)
+    ).fetchone()
+    if not row:
+        con.close()
+        return None
+    con.execute(
+        "UPDATE reward_coupons SET used=1, used_by=?, used_at=? WHERE id=?",
+        (user_id, datetime.now().isoformat(), row[0])
+    )
+    con.commit()
+    con.close()
+    return row[1]
 
 # Data files stored in a persistent directory that survives deployments.
 # Always stored outside the repo so code changes never wipe user data.
@@ -650,24 +741,24 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     cancel_user_timers(context, user.id)
     clear_user_order_state(context)
 
-    # ── Channel Gate: unverified users must join channel first ──
+    # ── Channel Gate: unverified users must join all channels first ──
     if not is_channel_verified(uid):
         has_referral = db_get_referral(uid) is not None
         intro = (
             "🎁 *You were referred by a friend!*\n\n"
-            "Join our channel to activate the referral reward\nand unlock the store:\n\n"
+            "Join ALL our channels to activate the referral reward\nand unlock the store:\n\n"
             if has_referral else
             "👋 *Welcome!*\n\n"
-            "To use this bot, please join our channel first:\n\n"
+            "To use this bot, please join *all 3 channels* first:\n\n"
         )
+        channel_buttons = [
+            [InlineKeyboardButton(f"📢 Join {ch['name']}", url=ch["link"])]
+            for ch in REQUIRED_CHANNELS
+        ]
+        channel_buttons.append([InlineKeyboardButton("✅ I've Joined All — Verify", callback_data="verify_channel_join")])
         await update.message.reply_text(
-            intro +
-            f"👉 {CHANNEL_LINK}\n\n"
-            "After joining, tap ✅ *I've Joined* below.",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("📢 Join Channel", url=CHANNEL_LINK)],
-                [InlineKeyboardButton("✅ I've Joined — Verify", callback_data="verify_channel_join")],
-            ]),
+            intro + "After joining all 3, tap ✅ *I've Joined All* below.",
+            reply_markup=InlineKeyboardMarkup(channel_buttons),
             parse_mode=ParseMode.MARKDOWN,
         )
         return
@@ -688,17 +779,27 @@ async def verify_channel_join(update: Update, context: ContextTypes.DEFAULT_TYPE
     user = query.from_user
     uid  = str(user.id)
 
+    # Check the one verifiable channel (Channel 3 — public @withoutanyinvestmentwork)
+    # Private channels (1 & 2) cannot be verified via API — we trust the user joined them.
     is_member = await check_channel_membership(context.bot, user.id)
 
-    if is_member is None:
+    if is_member is False:
+        channel_buttons = [
+            [InlineKeyboardButton(f"📢 Join {ch['name']}", url=ch["link"])]
+            for ch in REQUIRED_CHANNELS
+        ]
+        channel_buttons.append([InlineKeyboardButton("✅ Verify Again", callback_data="verify_channel_join")])
         await query.edit_message_text(
-            "⚠️ *Verification unavailable right now.*\n\n"
-            "Please contact admin:\n👉 @MyntraCouponsupport\\_bot",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔁 Try Again", callback_data="verify_channel_join")],
-            ]),
+            "❌ *You haven't joined Channel 3 yet!*\n\n"
+            "Please join *all 3 channels* then tap Verify Again.",
+            reply_markup=InlineKeyboardMarkup(channel_buttons),
             parse_mode=ParseMode.MARKDOWN,
         )
+        return
+
+    if is_member is None:
+        # API check failed — warn admin but let user through (bot not admin of channel)
+        logger.warning(f"Channel membership check failed for {user.id} — letting through")
         try:
             await context.bot.send_message(
                 chat_id=ADMIN_ID,
@@ -706,22 +807,8 @@ async def verify_channel_join(update: Update, context: ContextTypes.DEFAULT_TYPE
             )
         except Exception:
             pass
-        return
 
-    if is_member is False:
-        await query.edit_message_text(
-            "❌ *You haven't joined the channel yet!*\n\n"
-            f"Please join first:\n👉 {CHANNEL_LINK}\n\n"
-            "After joining, tap ✅ Verify again.",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("📢 Join Channel", url=CHANNEL_LINK)],
-                [InlineKeyboardButton("✅ Verify Again", callback_data="verify_channel_join")],
-            ]),
-            parse_mode=ParseMode.MARKDOWN,
-        )
-        return
-
-    # ✅ Channel joined — mark verified
+    # ✅ All channels joined — mark verified
     mark_channel_verified(uid)
 
     # Also activate referral reward if this user was referred
@@ -804,23 +891,26 @@ async def verify_referral(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
         return
 
-    # Check actual channel membership via Telegram API
+    # Check the verifiable channel (Channel 3 — public)
     is_member = await check_channel_membership(context.bot, user.id)
 
-    # None = API error (bot not admin in channel or other Telegram error)
-    if is_member is None:
+    if is_member is False:
+        channel_buttons = [
+            [InlineKeyboardButton(f"📢 Join {ch['name']}", url=ch["link"])]
+            for ch in REQUIRED_CHANNELS
+        ]
+        channel_buttons.append([InlineKeyboardButton("✅ Verify Again", callback_data="verify_referral")])
         await query.edit_message_text(
-            "⚠️ *Verification temporarily unavailable*\n\n"
-            "Bot cannot verify channel membership right now.\n\n"
-            "Please contact admin to manually verify:\n"
-            f"👉 @MyntraCouponsupport\\_bot\n\n"
-            "_Reason: Bot needs to be admin of the channel._",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔁 Try Again", callback_data="verify_referral")],
-            ]),
+            "❌ *You haven't joined all channels yet!*\n\n"
+            "Please join *all 3 channels* then tap Verify Again.",
+            reply_markup=InlineKeyboardMarkup(channel_buttons),
             parse_mode=ParseMode.MARKDOWN,
         )
-        # Alert admin about the issue
+        return
+
+    if is_member is None:
+        # API check failed — alert admin but continue
+        logger.warning(f"Referral verify: membership check failed for {user.id}")
         try:
             await context.bot.send_message(
                 chat_id=ADMIN_ID,
@@ -828,20 +918,6 @@ async def verify_referral(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             )
         except Exception:
             pass
-        return
-
-    if is_member is False:
-        await query.edit_message_text(
-            "❌ *You haven't joined the channel yet!*\n\n"
-            f"Please join first:\n👉 {CHANNEL_LINK}\n\n"
-            "After joining, tap ✅ Verify again.",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("📢 Join Channel", url=CHANNEL_LINK)],
-                [InlineKeyboardButton("✅ Verify Again", callback_data="verify_referral")],
-            ]),
-            parse_mode=ParseMode.MARKDOWN,
-        )
-        return
 
     # ✅ Channel joined + reward not given → process reward
     db_mark_reward_given(uid)
@@ -900,20 +976,25 @@ async def referral_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     progress_bar   = "✅" * progress + "⬜" * (REFERRAL_GOAL - progress)
 
     text = (
-        "🔗 *Refer & Earn Free Coupon*\n"
+        "🎁 *Refer & Earn*\n"
         "━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"🎁 Reward: *Free ₹150 BigBasket Cashback Coupon*\n"
-        f"🎯 Goal: *{REFERRAL_GOAL} verified referrals* = 1 free coupon\n\n"
-        f"📊 Verified: *{progress}/{REFERRAL_GOAL}*\n"
-        f"{progress_bar}\n\n"
+        f"👥 *1 Referral = 1 Point*\n"
+        f"📊 *Your Points: {total_verified}*\n\n"
+        f"🎯 Goal: *{REFERRAL_GOAL} points* = 1 free coupon\n"
+        f"{progress_bar}  {progress}/{REFERRAL_GOAL}\n\n"
         f"📥 Total referred: *{total_pending}*  |  ✅ Verified: *{total_verified}*\n\n"
-        f"📤 *Your Referral Link:*\n"
+        f"🔗 *Your Referral Link:*\n"
         f"`{ref_link}`\n\n"
-        f"_Share this link. Your friend must join the channel & tap Verify to count._"
+        f"⚠️ *Rules:*\n"
+        f"• Share this link with friends\n"
+        f"• Friend must join all 3 channels & tap Verify\n"
+        f"• Fake referrals are not allowed"
     )
     await query.edit_message_text(
         text,
         reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🎯 My Points", callback_data="my_points"),
+             InlineKeyboardButton("🎁 Redeem Points", callback_data="redeem_points")],
             [InlineKeyboardButton("◀️ Back", callback_data="back_to_start")],
         ]),
         parse_mode=ParseMode.MARKDOWN,
@@ -956,6 +1037,205 @@ async def back_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     await query.edit_message_text(
         text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN,
     )
+
+
+# ─────────────── My Points ───────────────
+
+async def my_points(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    user   = update.effective_user
+    uid    = str(user.id)
+    points = db_get_points(uid)
+    rewards = db_list_rewards()
+
+    lines = [
+        "🎯 *My Points*",
+        "━━━━━━━━━━━━━━━━━━━━",
+        f"",
+        f"📊 *Total Points: {points}*",
+        f"",
+        "🎁 *Available Rewards:*",
+    ]
+    if rewards:
+        for r in rewards:
+            status = "✅ Claimable" if points >= r["points"] and r["stock"] > 0 else (
+                "❌ No Stock" if r["stock"] == 0 else f"⬜ Need {r['points'] - points} more"
+            )
+            lines.append(f"  • *{r['name']}* — {r['points']} pts  [{status}]")
+    else:
+        lines.append("  _No rewards added yet_")
+
+    await query.edit_message_text(
+        "\n".join(lines),
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🎁 Redeem Points", callback_data="redeem_points")],
+            [InlineKeyboardButton("◀️ Back", callback_data="referral_menu")],
+        ]),
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+# ─────────────── Redeem Points ───────────────
+
+async def redeem_points(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    user    = update.effective_user
+    uid     = str(user.id)
+    points  = db_get_points(uid)
+    rewards = db_list_rewards()
+
+    if not rewards:
+        await query.edit_message_text(
+            "🎁 *Redeem Points*\n\n"
+            "No rewards available right now.\nCheck back later!",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("◀️ Back", callback_data="referral_menu")],
+            ]),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+
+    lines = [
+        "🎁 *Redeem Points*",
+        "━━━━━━━━━━━━━━━━━━━━",
+        f"📊 *Your Points: {points}*",
+        "",
+        "Select a reward to redeem:",
+    ]
+    buttons = []
+    for r in rewards:
+        can = points >= r["points"] and r["stock"] > 0
+        label = f"{'✅' if can else '🔒'} {r['name']} — {r['points']} pts  [Stock: {r['stock']}]"
+        if can:
+            buttons.append([InlineKeyboardButton(label, callback_data=f"do_redeem_{r['name']}")])
+        else:
+            lines.append(f"  🔒 *{r['name']}* — {r['points']} pts  [Stock: {r['stock']}]")
+    buttons.append([InlineKeyboardButton("◀️ Back", callback_data="referral_menu")])
+
+    await query.edit_message_text(
+        "\n".join(lines),
+        reply_markup=InlineKeyboardMarkup(buttons),
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+async def do_redeem(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle redeem button press — do_redeem_<reward_name>."""
+    query = update.callback_query
+    await query.answer()
+    user        = update.effective_user
+    uid         = str(user.id)
+    reward_name = query.data[len("do_redeem_"):]
+
+    # Check points
+    reward_row = next((r for r in db_list_rewards() if r["name"] == reward_name), None)
+    if not reward_row:
+        await query.answer("Reward not found!", show_alert=True)
+        return
+
+    points = db_get_points(uid)
+    if points < reward_row["points"]:
+        await query.answer(f"Not enough points! You have {points}, need {reward_row['points']}.", show_alert=True)
+        return
+
+    # Deduct points — we use a separate table to track deductions
+    code = db_redeem_reward(uid, reward_name)
+    if not code:
+        await query.answer("No stock available for this reward!", show_alert=True)
+        return
+
+    # Record points spent in DB
+    con = sqlite3.connect(REFERRAL_DB)
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS points_spent (
+            user_id TEXT, points INTEGER, reward_name TEXT, spent_at TEXT
+        )
+    """)
+    con.execute(
+        "INSERT INTO points_spent (user_id, points, reward_name, spent_at) VALUES (?,?,?,?)",
+        (uid, reward_row["points"], reward_name, datetime.now().isoformat())
+    )
+    con.commit()
+    con.close()
+
+    await query.edit_message_text(
+        f"🎉 *Redemption Successful!*\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"🎁 *{reward_name}*\n\n"
+        f"🔑 *Your Code:*\n\n"
+        f"`{code}`\n\n"
+        f"✅ {reward_row['points']} points used.\n"
+        f"📊 Remaining Points: {max(0, points - reward_row['points'])}\n\n"
+        f"💬 Help: {SUPPORT_HANDLE}",
+        parse_mode=ParseMode.MARKDOWN,
+    )
+    # Notify admin
+    try:
+        await context.bot.send_message(
+            chat_id=ADMIN_ID,
+            text=f"🎁 Reward Redeemed!\nUser: {user.id} ({user.first_name})\nReward: {reward_name}\nCode: {code}",
+        )
+    except Exception:
+        pass
+
+
+# ─────────────── Admin: /add_reward ───────────────
+
+async def cmd_add_reward(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Admin: /add_reward POINTS NAME"""
+    if update.effective_user.id != ADMIN_ID:
+        return
+    args = context.args or []
+    if len(args) < 2:
+        await update.message.reply_text(
+            "Usage: `/add_reward POINTS NAME`\n\nExample:\n`/add_reward 10 BigBasket150`",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+    try:
+        pts = int(args[0])
+    except ValueError:
+        await update.message.reply_text("❌ Points must be a number.", parse_mode=ParseMode.MARKDOWN)
+        return
+    name = " ".join(args[1:])
+    db_add_reward(name, pts)
+    await update.message.reply_text(
+        f"✅ Reward added!\n*{name}* — {pts} points required.",
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+# ─────────────── Admin: /add_coupon (reward coupons) ───────────────
+
+async def cmd_add_reward_coupon(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Admin: /add_coupon REWARD_NAME CODE"""
+    if update.effective_user.id != ADMIN_ID:
+        return
+    args = context.args or []
+    if len(args) < 2:
+        await update.message.reply_text(
+            "Usage: `/add_coupon REWARD_NAME CODE`\n\nExample:\n`/add_coupon BigBasket150 BBSAVE150-ABC123`",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+    reward_name = args[0]
+    code        = args[1]
+    ok = db_add_reward_coupon(reward_name, code)
+    if ok:
+        rewards = db_list_rewards()
+        reward  = next((r for r in rewards if r["name"] == reward_name), None)
+        stock   = reward["stock"] if reward else "?"
+        await update.message.reply_text(
+            f"✅ Coupon added to *{reward_name}*!\nStock: {stock}",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+    else:
+        await update.message.reply_text(
+            f"❌ Code already exists or error adding coupon.",
+            parse_mode=ParseMode.MARKDOWN,
+        )
 
 
 # ─────────────── Step 1: Product selected → quantity grid ───────────────
@@ -2191,13 +2471,19 @@ def main() -> None:
     app.add_handler(CommandHandler("set_name",   set_name_command))
     app.add_handler(CommandHandler("set_price",  set_price_command))
     app.add_handler(CommandHandler("set_desc",   set_desc_command))
+    # Rewards system (points-based referral)
+    app.add_handler(CommandHandler("add_reward",  cmd_add_reward))
+    app.add_handler(CommandHandler("add_coupon",  cmd_add_reward_coupon))
 
     # Inline buttons — buy & quantity
     app.add_handler(CallbackQueryHandler(support,              pattern="^support$"))
     app.add_handler(CallbackQueryHandler(back_to_start,        pattern="^back_to_start$"))
     app.add_handler(CallbackQueryHandler(verify_channel_join,  pattern="^verify_channel_join$"))
     app.add_handler(CallbackQueryHandler(verify_referral,      pattern="^verify_referral$"))
-    app.add_handler(CallbackQueryHandler(referral_menu,    pattern="^referral_menu$"))
+    app.add_handler(CallbackQueryHandler(referral_menu,        pattern="^referral_menu$"))
+    app.add_handler(CallbackQueryHandler(my_points,            pattern="^my_points$"))
+    app.add_handler(CallbackQueryHandler(redeem_points,        pattern="^redeem_points$"))
+    app.add_handler(CallbackQueryHandler(do_redeem,            pattern="^do_redeem_"))
     app.add_handler(CallbackQueryHandler(buy_product,         pattern="^buy_"))
     app.add_handler(CallbackQueryHandler(custom_qty_prompt, pattern="^qty_custom$"))
     app.add_handler(CallbackQueryHandler(select_quantity,   pattern=r"^qty_\d+$"))
