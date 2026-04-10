@@ -29,7 +29,7 @@ timeoutMs = 20000
 [userenv.shared]
 TELEGRAM_ADMIN_ID = "6724474397"
 BOT_USERNAME = "MyntraCouponStores_bot"
-REFERRAL_BASE_URL = "https://61cdbb26-f7be-4c35-a4c6-0813cf6a666f-00-2kjl8sq61fodp.janeway.replit.dev/api-server"
+REFERRAL_BASE_URL = "https://coupon-bot-creator.replit.app"
 
 [nix]
 channel = "stable-25_05"
