@@ -18,6 +18,38 @@ for FILE in coupons.json users.json orders.json pending_orders.json; do
     fi
 done
 
+# ── Merge initial_users.json into users.json (adds missing users, never deletes) ──
+INITIAL_USERS="/home/runner/workspace/telegram-bot/initial_users.json"
+USERS_FILE="$DATA_DIR/users.json"
+if [ -f "$INITIAL_USERS" ]; then
+    python3 - << 'PYEOF'
+import json, os, sys
+
+initial_path = "/home/runner/workspace/telegram-bot/initial_users.json"
+users_path   = os.environ.get("BOT_DATA_DIR", "/home/runner/bot_data") + "/users.json"
+
+with open(initial_path) as f:
+    initial = json.load(f)
+
+if os.path.exists(users_path):
+    with open(users_path) as f:
+        existing = json.load(f)
+else:
+    existing = {}
+
+before = len(existing)
+for uid, data in initial.items():
+    if uid not in existing:
+        existing[uid] = data
+
+after = len(existing)
+with open(users_path, "w") as f:
+    json.dump(existing, f, ensure_ascii=False, indent=2)
+
+print(f"      Users merged: {before} → {after} (+{after - before} restored)")
+PYEOF
+fi
+
 # Install Python dependencies
 echo "[1/3] Installing Python dependencies..."
 pip install -q -r /home/runner/workspace/telegram-bot/requirements.txt 2>/dev/null || true
