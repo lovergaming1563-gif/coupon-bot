@@ -880,12 +880,15 @@ async def verify_channel_join(update: Update, context: ContextTypes.DEFAULT_TYPE
             for ch in REQUIRED_CHANNELS
         ]
         channel_buttons.append([InlineKeyboardButton("✅ Verify Again", callback_data="verify_channel_join")])
-        await query.edit_message_text(
-            "❌ *You haven't joined Channel 3 yet!*\n\n"
-            "Please join *all 3 channels* then tap Verify Again.",
-            reply_markup=InlineKeyboardMarkup(channel_buttons),
-            parse_mode=ParseMode.MARKDOWN,
-        )
+        try:
+            await query.edit_message_text(
+                "❌ *You haven't joined Channel 3 yet!*\n\n"
+                "Please join *all 3 channels* then tap Verify Again.",
+                reply_markup=InlineKeyboardMarkup(channel_buttons),
+                parse_mode=ParseMode.MARKDOWN,
+            )
+        except Exception:
+            pass  # Message already showing same content (double-click) — ignore
         return
 
     if is_member is None:
