@@ -46,6 +46,12 @@ CHANNEL_LINK        = "https://t.me/withoutanyinvestmentwork"
 REFERRAL_GOAL       = 5                          # referrals needed for free coupon
 REFERRAL_REWARD_KEY = "coupon_bigbasket_150"     # free coupon product key
 
+# ── Referral redirect base URL (set env var REFERRAL_BASE_URL to enable IP tracking) ──
+# Example: https://yourapp.replit.app/api-server
+# Leave empty → direct t.me link (no IP check)
+REFERRAL_BASE_URL   = os.environ.get("REFERRAL_BASE_URL", "").rstrip("/")
+BOT_USERNAME        = os.environ.get("BOT_USERNAME", "")   # e.g. MyntraCouponBot
+
 # ─────────────── Multi-Channel Config ───────────────
 # Users must join ALL of these channels before using the bot.
 # For private channels (t.me/+xxx), membership cannot be verified via API.
@@ -72,12 +78,16 @@ def init_referral_db():
             referral_status  TEXT NOT NULL DEFAULT 'active'
         )
     """)
-    # Safe migration: add referral_status column if it doesn't exist yet (for existing DBs)
-    try:
-        con.execute("ALTER TABLE referrals ADD COLUMN referral_status TEXT NOT NULL DEFAULT 'active'")
-        con.commit()
-    except Exception:
-        pass  # Column already exists — ignore
+    # Safe migrations for existing DBs (ignore errors = column already exists)
+    for migration in [
+        "ALTER TABLE referrals ADD COLUMN referral_status TEXT NOT NULL DEFAULT 'active'",
+        "ALTER TABLE referrals ADD COLUMN ip_token TEXT",
+    ]:
+        try:
+            con.execute(migration)
+            con.commit()
+        except Exception:
+            pass
     # Rewards catalogue (admin-managed)
     con.execute("""
         CREATE TABLE IF NOT EXISTS rewards (
@@ -110,19 +120,26 @@ def db_get_referral(user_id: str):
     con.close()
     return row
 
-def db_insert_referral(user_id: str, referred_by: str) -> bool:
+def db_insert_referral(user_id: str, referred_by: str, token: str = None) -> bool:
     """Insert referral. Returns True if new row inserted."""
     try:
         con = sqlite3.connect(REFERRAL_DB)
         con.execute(
-            "INSERT INTO referrals (user_id, referred_by, reward_given, joined_at) VALUES (?,?,0,?)",
-            (user_id, referred_by, datetime.now().isoformat())
+            "INSERT INTO referrals (user_id, referred_by, reward_given, joined_at, ip_token) VALUES (?,?,0,?,?)",
+            (user_id, referred_by, datetime.now().isoformat(), token)
         )
         con.commit()
         con.close()
         return True
     except sqlite3.IntegrityError:
         return False
+
+def db_get_referral_token(user_id: str) -> str | None:
+    """Get the IP token stored for this referred user (may be None if old link used)."""
+    con = sqlite3.connect(REFERRAL_DB)
+    row = con.execute("SELECT ip_token FROM referrals WHERE user_id = ?", (user_id,)).fetchone()
+    con.close()
+    return row[0] if row else None
 
 def db_mark_reward_given(user_id: str):
     con = sqlite3.connect(REFERRAL_DB)
@@ -168,6 +185,45 @@ def db_total_referral_count(referrer_id: str) -> int:
     ).fetchone()[0]
     con.close()
     return count
+
+# ── IP tracking helpers (shared file with api-server) ──
+_IP_FILE = os.path.join(os.environ.get("BOT_DATA_DIR", "/home/runner/bot_data"), "referral_ips.json")
+
+def _load_ip_data() -> dict:
+    try:
+        if os.path.exists(_IP_FILE):
+            with open(_IP_FILE) as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {"tokens": {}, "used_ips": []}
+
+def _save_ip_data(data: dict) -> None:
+    try:
+        os.makedirs(os.path.dirname(_IP_FILE), exist_ok=True)
+        with open(_IP_FILE, "w") as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        logger.error(f"_save_ip_data error: {e}")
+
+def check_referral_ip(token: str) -> tuple:
+    """Returns (ip, is_duplicate). is_duplicate=True means IP already used for referral."""
+    data = _load_ip_data()
+    entry = data.get("tokens", {}).get(token)
+    if not entry:
+        return None, False
+    ip = entry.get("ip", "unknown")
+    is_dup = ip in data.get("used_ips", [])
+    return ip, is_dup
+
+def claim_referral_ip(token: str, ip: str) -> None:
+    """Mark IP as used + token as claimed."""
+    data = _load_ip_data()
+    if ip and ip not in data.setdefault("used_ips", []):
+        data["used_ips"].append(ip)
+    if token in data.get("tokens", {}):
+        data["tokens"][token]["claimed"] = True
+    _save_ip_data(data)
 
 # ── Points = verified referral count (1 referral = 1 point) ──
 def db_get_points(user_id: str) -> int:
@@ -752,17 +808,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     uid  = str(user.id)
 
-    # ── Handle referral arg: /start ref_12345 ──
+    # ── Handle referral arg: /start ref_12345 OR ref_12345_tk_TOKEN ──
     args        = context.args or []
     referrer_id = None
+    ip_token    = None
     if args and args[0].startswith("ref_"):
-        referrer_id = args[0][4:]  # strip "ref_" prefix
+        raw = args[0][4:]          # strip "ref_"
+        if "_tk_" in raw:
+            referrer_id, ip_token = raw.split("_tk_", 1)
+        else:
+            referrer_id = raw      # old-format link (no IP tracking)
 
     is_new = register_user(user)
 
     # ── Record referral in SQLite (only for genuinely new users, no self-referral) ──
     if is_new and referrer_id and referrer_id != uid:
-        db_insert_referral(uid, referrer_id)
+        db_insert_referral(uid, referrer_id, token=ip_token)
 
     cancel_user_timers(context, user.id)
     clear_user_order_state(context)
@@ -844,18 +905,38 @@ async def verify_channel_join(update: Update, context: ContextTypes.DEFAULT_TYPE
     # Also activate referral reward if this user was referred
     ref_row = db_get_referral(uid)
     if ref_row and not ref_row[2]:  # referred + reward not yet given
-        db_mark_reward_given(uid)
-        referrer_id    = ref_row[1]
-        referrer_info  = get_users().get(referrer_id, {})
-        referrer_name  = referrer_info.get("first_name", "Friend")
-        total_verified = db_successful_referral_count(referrer_id)
-        await send_referral_reward(context, referrer_id, referrer_name, total_verified)
-        await query.edit_message_text(
-            "✅ *Verified! Channel joined successfully.*\n\n"
-            "🎁 Referral reward activated for your friend!\n\n"
-            "Now explore the store 👇",
-            parse_mode=ParseMode.MARKDOWN,
-        )
+        # ── IP check ──
+        ip_token   = db_get_referral_token(uid)
+        ip_blocked = False
+        if ip_token:
+            ip, is_dup = check_referral_ip(ip_token)
+            if is_dup:
+                ip_blocked = True
+                logger.info(f"Referral IP duplicate blocked for {uid} (token={ip_token}, ip={ip})")
+
+        if ip_blocked:
+            # Allow bot access — but do NOT count referral
+            await query.edit_message_text(
+                "✅ *Welcome to Coupon Store!*\n\n"
+                "⚠️ Referral not counted (same network detected)\n"
+                "But you can still use the bot ✅",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+        else:
+            db_mark_reward_given(uid)
+            referrer_id   = ref_row[1]
+            referrer_info = get_users().get(referrer_id, {})
+            referrer_name = referrer_info.get("first_name", "Friend")
+            total_verified = db_successful_referral_count(referrer_id)
+            await send_referral_reward(context, referrer_id, referrer_name, total_verified)
+            if ip_token and ip:
+                claim_referral_ip(ip_token, ip)
+            await query.edit_message_text(
+                "✅ *Verified! Channel joined successfully.*\n\n"
+                "🎁 Referral reward activated for your friend!\n\n"
+                "Now explore the store 👇",
+                parse_mode=ParseMode.MARKDOWN,
+            )
     else:
         await query.edit_message_text(
             "✅ *Verified! Welcome to Coupon Store!*\n\n"
@@ -949,8 +1030,33 @@ async def verify_referral(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         except Exception:
             pass
 
-    # ✅ Channel joined + reward not given → process reward
+    # ✅ Channel joined — IP check before counting referral
+    ip_token   = db_get_referral_token(uid)
+    ip_blocked = False
+    if ip_token:
+        ip, is_dup = check_referral_ip(ip_token)
+        if is_dup:
+            ip_blocked = True
+            logger.info(f"verify_referral: IP duplicate for {uid} (ip={ip})")
+
+    if ip_blocked:
+        await query.edit_message_text(
+            "✅ *Verified!*\n\n"
+            "⚠️ Referral not counted (same network detected)\n"
+            "But you can still use the bot ✅",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        text, keyboard = _store_menu_text_and_keyboard()
+        await context.bot.send_message(
+            chat_id=user.id, text=text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+
     db_mark_reward_given(uid)
+    if ip_token:
+        claim_referral_ip(ip_token, ip)
 
     # Count how many verified referrals the referrer now has
     total_verified = db_successful_referral_count(referrer_id)
@@ -1001,8 +1107,11 @@ async def referral_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     total_verified = db_successful_referral_count(uid)
     total_pending  = db_total_referral_count(uid)
     progress       = total_verified % REFERRAL_GOAL
-    bot_username   = (await context.bot.get_me()).username
-    ref_link       = f"https://t.me/{bot_username}?start=ref_{uid}"
+    bot_username   = BOT_USERNAME or (await context.bot.get_me()).username
+    if REFERRAL_BASE_URL:
+        ref_link = f"{REFERRAL_BASE_URL}/api/ref/{uid}"
+    else:
+        ref_link = f"https://t.me/{bot_username}?start=ref_{uid}"
     progress_bar   = "✅" * progress + "⬜" * (REFERRAL_GOAL - progress)
 
     text = (
@@ -1038,8 +1147,11 @@ async def referral_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     total_verified = db_successful_referral_count(uid)
     total_pending  = db_total_referral_count(uid)
     progress       = total_verified % REFERRAL_GOAL
-    bot_username   = (await context.bot.get_me()).username
-    ref_link       = f"https://t.me/{bot_username}?start=ref_{uid}"
+    bot_username   = BOT_USERNAME or (await context.bot.get_me()).username
+    if REFERRAL_BASE_URL:
+        ref_link = f"{REFERRAL_BASE_URL}/api/ref/{uid}"
+    else:
+        ref_link = f"https://t.me/{bot_username}?start=ref_{uid}"
     progress_bar   = "✅" * progress + "⬜" * (REFERRAL_GOAL - progress)
 
     await update.message.reply_text(
