@@ -2472,26 +2472,28 @@ async def admin_referrals(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     if not leaderboard:
         await query.edit_message_text(
-            "🔗 *Referral Tracker*\n\nKoi referral abhi nahi hua.",
+            "🔗 <b>Referral Tracker</b>\n\nKoi referral abhi nahi hua.",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back", callback_data="admin_back")]]),
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
         )
         return
 
-    lines = ["🔗 *Referral Tracker*", "━━━━━━━━━━━━━━━━━━━━",
-             f"Total referrers: *{len(leaderboard)}*\n"]
+    import html as _html
+    lines = ["🔗 <b>Referral Tracker</b>", "━━━━━━━━━━━━━━━━━━━━",
+             f"Total referrers: <b>{len(leaderboard)}</b>\n"]
 
     buttons = []
     for referrer_id, active, total in leaderboard[:20]:   # top 20
         u    = users.get(str(referrer_id), {})
-        name = u.get("first_name", "Unknown")
-        uname = f"@{u['username']}" if u.get("username") else f"ID:{referrer_id}"
+        name = _html.escape(u.get("first_name", "Unknown"))
+        uname = f"@{_html.escape(u['username'])}" if u.get("username") else f"ID:{referrer_id}"
         lines.append(
-            f"👤 *{name}* ({uname})\n"
-            f"   ✅ Active: *{active}*  |  📨 Total: *{total}*"
+            f"👤 <b>{name}</b> ({uname})\n"
+            f"   ✅ Active: <b>{active}</b>  |  📨 Total: <b>{total}</b>"
         )
+        raw_name = u.get("first_name", "Unknown")
         buttons.append([InlineKeyboardButton(
-            f"👁 {name[:20]} ({active}✅/{total}📨)",
+            f"👁 {raw_name[:20]} ({active}✅/{total}📨)",
             callback_data=f"admin_ref_detail_{referrer_id}"
         )])
 
@@ -2500,12 +2502,12 @@ async def admin_referrals(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     # Telegram 4096 char limit — trim if needed
     text = "\n".join(lines)
     if len(text) > 3900:
-        text = text[:3900] + "\n\n_(aur bhi hain, detail button se dekho)_"
+        text = text[:3900] + "\n\n<i>(aur bhi hain, detail button se dekho)</i>"
 
     await query.edit_message_text(
         text,
         reply_markup=InlineKeyboardMarkup(buttons),
-        parse_mode=ParseMode.MARKDOWN,
+        parse_mode=ParseMode.HTML,
     )
 
 
@@ -2516,37 +2518,38 @@ async def admin_ref_detail(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     if query.from_user.id != ADMIN_ID:
         return
 
+    import html as _html
     referrer_id = query.data.replace("admin_ref_detail_", "")
     users       = get_users()
     u           = users.get(referrer_id, {})
-    name        = u.get("first_name", "Unknown")
-    uname       = f"@{u.get('username')}" if u.get("username") else f"ID:{referrer_id}"
+    name        = _html.escape(u.get("first_name", "Unknown"))
+    uname       = f"@{_html.escape(u.get('username'))}" if u.get("username") else f"ID:{referrer_id}"
 
     referred = db_get_referred_users_detail(referrer_id)
 
     lines = [
-        f"🔗 *Referral Detail*",
+        f"🔗 <b>Referral Detail</b>",
         f"━━━━━━━━━━━━━━━━━━━━",
-        f"👤 Referrer: *{name}* ({uname})",
-        f"Total referred: *{len(referred)}*\n",
+        f"👤 Referrer: <b>{name}</b> ({uname})",
+        f"Total referred: <b>{len(referred)}</b>\n",
     ]
 
     for uid, reward_given, status, joined_at in referred:
         ru      = users.get(str(uid), {})
-        rname   = ru.get("first_name", "Unknown")
-        runame  = f"@{ru['username']}" if ru.get("username") else f"ID:{uid}"
+        rname   = _html.escape(ru.get("first_name", "Unknown"))
+        runame  = f"@{_html.escape(ru['username'])}" if ru.get("username") else f"ID:{uid}"
         date    = joined_at[:10] if joined_at else "?"
         if reward_given and status == "active":
-            badge = "✅"   # active verified referral
+            badge = "✅"
         elif reward_given and status == "removed":
-            badge = "🚫"   # left channel — deducted
+            badge = "🚫"
         else:
-            badge = "⏳"   # pending (not yet verified)
-        lines.append(f"{badge} *{rname}* ({runame}) — {date}")
+            badge = "⏳"
+        lines.append(f"{badge} <b>{rname}</b> ({runame}) — {date}")
 
     text = "\n".join(lines)
     if len(text) > 3900:
-        text = text[:3900] + "\n\n_(list bahut badi hai)_"
+        text = text[:3900] + "\n\n<i>(list bahut badi hai)</i>"
 
     await query.edit_message_text(
         text + "\n\n✅=Active  ⏳=Pending  🚫=Left Channel",
@@ -2554,7 +2557,7 @@ async def admin_ref_detail(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             [InlineKeyboardButton("◀️ Referral List", callback_data="admin_referrals")],
             [InlineKeyboardButton("🏠 Admin Home",    callback_data="admin_back")],
         ]),
-        parse_mode=ParseMode.MARKDOWN,
+        parse_mode=ParseMode.HTML,
     )
 
 
