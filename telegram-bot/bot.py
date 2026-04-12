@@ -186,6 +186,33 @@ def db_total_referral_count(referrer_id: str) -> int:
     con.close()
     return count
 
+def db_get_referral_leaderboard() -> list:
+    """Return list of (referrer_id, active_count, total_count) sorted by active_count desc."""
+    con = sqlite3.connect(REFERRAL_DB)
+    rows = con.execute("""
+        SELECT
+            referred_by,
+            SUM(CASE WHEN reward_given=1 AND referral_status='active' THEN 1 ELSE 0 END) AS active,
+            COUNT(*) AS total
+        FROM referrals
+        GROUP BY referred_by
+        ORDER BY active DESC, total DESC
+    """).fetchall()
+    con.close()
+    return rows  # list of (referrer_id, active, total)
+
+def db_get_referred_users_detail(referrer_id: str) -> list:
+    """Return rows of (user_id, reward_given, referral_status, joined_at) for a referrer."""
+    con = sqlite3.connect(REFERRAL_DB)
+    rows = con.execute("""
+        SELECT user_id, reward_given, referral_status, joined_at
+        FROM referrals
+        WHERE referred_by = ?
+        ORDER BY joined_at DESC
+    """, (referrer_id,)).fetchall()
+    con.close()
+    return rows
+
 # ── IP tracking helpers (shared file with api-server) ──
 _IP_FILE = os.path.join(os.environ.get("BOT_DATA_DIR", "/home/runner/bot_data"), "referral_ips.json")
 
@@ -2318,6 +2345,9 @@ def _admin_kb():
             InlineKeyboardButton("👥 Users",          callback_data="admin_users"),
             InlineKeyboardButton("📢 Broadcast",      callback_data="admin_broadcast"),
         ],
+        [
+            InlineKeyboardButton("🔗 Referral Tracker", callback_data="admin_referrals"),
+        ],
     ])
 
 
@@ -2425,6 +2455,104 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     await query.edit_message_text(
         "\n".join(lines),
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back", callback_data="admin_back")]]),
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+async def admin_referrals(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Admin: Referral Tracker — who referred whom, how many."""
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id != ADMIN_ID:
+        return
+
+    leaderboard = db_get_referral_leaderboard()
+    users       = get_users()
+
+    if not leaderboard:
+        await query.edit_message_text(
+            "🔗 *Referral Tracker*\n\nKoi referral abhi nahi hua.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back", callback_data="admin_back")]]),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+
+    lines = ["🔗 *Referral Tracker*", "━━━━━━━━━━━━━━━━━━━━",
+             f"Total referrers: *{len(leaderboard)}*\n"]
+
+    buttons = []
+    for referrer_id, active, total in leaderboard[:20]:   # top 20
+        u    = users.get(str(referrer_id), {})
+        name = u.get("first_name", "Unknown")
+        uname = f"@{u['username']}" if u.get("username") else f"ID:{referrer_id}"
+        lines.append(
+            f"👤 *{name}* ({uname})\n"
+            f"   ✅ Active: *{active}*  |  📨 Total: *{total}*"
+        )
+        buttons.append([InlineKeyboardButton(
+            f"👁 {name[:20]} ({active}✅/{total}📨)",
+            callback_data=f"admin_ref_detail_{referrer_id}"
+        )])
+
+    buttons.append([InlineKeyboardButton("◀️ Back", callback_data="admin_back")])
+
+    # Telegram 4096 char limit — trim if needed
+    text = "\n".join(lines)
+    if len(text) > 3900:
+        text = text[:3900] + "\n\n_(aur bhi hain, detail button se dekho)_"
+
+    await query.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(buttons),
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+async def admin_ref_detail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Admin: Show detail of who a specific referrer referred."""
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id != ADMIN_ID:
+        return
+
+    referrer_id = query.data.replace("admin_ref_detail_", "")
+    users       = get_users()
+    u           = users.get(referrer_id, {})
+    name        = u.get("first_name", "Unknown")
+    uname       = f"@{u.get('username')}" if u.get("username") else f"ID:{referrer_id}"
+
+    referred = db_get_referred_users_detail(referrer_id)
+
+    lines = [
+        f"🔗 *Referral Detail*",
+        f"━━━━━━━━━━━━━━━━━━━━",
+        f"👤 Referrer: *{name}* ({uname})",
+        f"Total referred: *{len(referred)}*\n",
+    ]
+
+    for uid, reward_given, status, joined_at in referred:
+        ru      = users.get(str(uid), {})
+        rname   = ru.get("first_name", "Unknown")
+        runame  = f"@{ru['username']}" if ru.get("username") else f"ID:{uid}"
+        date    = joined_at[:10] if joined_at else "?"
+        if reward_given and status == "active":
+            badge = "✅"   # active verified referral
+        elif reward_given and status == "removed":
+            badge = "🚫"   # left channel — deducted
+        else:
+            badge = "⏳"   # pending (not yet verified)
+        lines.append(f"{badge} *{rname}* ({runame}) — {date}")
+
+    text = "\n".join(lines)
+    if len(text) > 3900:
+        text = text[:3900] + "\n\n_(list bahut badi hai)_"
+
+    await query.edit_message_text(
+        text + "\n\n✅=Active  ⏳=Pending  🚫=Left Channel",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("◀️ Referral List", callback_data="admin_referrals")],
+            [InlineKeyboardButton("🏠 Admin Home",    callback_data="admin_back")],
+        ]),
         parse_mode=ParseMode.MARKDOWN,
     )
 
@@ -2813,6 +2941,8 @@ def main() -> None:
     app.add_handler(CallbackQueryHandler(admin_stock,            pattern="^admin_stock$"))
     app.add_handler(CallbackQueryHandler(admin_stats,            pattern="^admin_stats$"))
     app.add_handler(CallbackQueryHandler(admin_users,            pattern="^admin_users$"))
+    app.add_handler(CallbackQueryHandler(admin_referrals,        pattern="^admin_referrals$"))
+    app.add_handler(CallbackQueryHandler(admin_ref_detail,       pattern="^admin_ref_detail_"))
     app.add_handler(CallbackQueryHandler(admin_export_users,     pattern="^admin_export_users$"))
     app.add_handler(CallbackQueryHandler(admin_pending,          pattern="^admin_pending$"))
     app.add_handler(CallbackQueryHandler(admin_add_coupon,       pattern="^admin_add_coupon$"))
