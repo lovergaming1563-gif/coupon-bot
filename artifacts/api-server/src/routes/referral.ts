@@ -6,7 +6,7 @@ import type { Request, Response } from "express";
 
 const router = Router();
 
-const DATA_DIR = process.env["BOT_DATA_DIR"] ?? "/home/runner/bot_data";
+const DATA_DIR = process.env["BOT_DATA_DIR"] ?? join(__dirname, "../../../../telegram-bot/data");
 const IP_FILE  = join(DATA_DIR, "referral_ips.json");
 
 interface TokenEntry {

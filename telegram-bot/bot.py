@@ -63,8 +63,9 @@ REQUIRED_CHANNELS = [
 ]
 
 # ─────────────── SQLite Referral DB ───────────────
+_DEFAULT_DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 REFERRAL_DB = os.path.join(
-    os.environ.get("BOT_DATA_DIR", "/home/runner/bot_data"), "referrals.db"
+    os.environ.get("BOT_DATA_DIR", _DEFAULT_DATA_DIR), "referrals.db"
 )
 
 def init_referral_db():
@@ -214,7 +215,7 @@ def db_get_referred_users_detail(referrer_id: str) -> list:
     return rows
 
 # ── IP tracking helpers (shared file with api-server) ──
-_IP_FILE = os.path.join(os.environ.get("BOT_DATA_DIR", "/home/runner/bot_data"), "referral_ips.json")
+_IP_FILE = os.path.join(os.environ.get("BOT_DATA_DIR", _DEFAULT_DATA_DIR), "referral_ips.json")
 
 def _load_ip_data() -> dict:
     try:
@@ -336,19 +337,19 @@ def db_redeem_reward(user_id: str, reward_name: str) -> str | None:
     con.close()
     return row[1]
 
-# Data files stored in a persistent directory that survives deployments.
-# Always stored outside the repo so code changes never wipe user data.
-_DATA_DIR    = os.environ.get("BOT_DATA_DIR", "/home/runner/bot_data")
+# Data files stored inside workspace/telegram-bot/data/ — persists across restarts
+_DATA_DIR = os.environ.get("BOT_DATA_DIR", _DEFAULT_DATA_DIR)
 os.makedirs(_DATA_DIR, exist_ok=True)
 
-# One-time migration: if data exists in old telegram-bot/ location, move it here
+# One-time migration: if data exists in old telegram-bot/ location, copy it here
 _OLD_DIR = os.path.dirname(os.path.abspath(__file__))
 if _OLD_DIR != _DATA_DIR:
+    import shutil
     for _f in ["coupons.json", "users.json", "orders.json", "pending_orders.json"]:
         _src = os.path.join(_OLD_DIR, _f)
         _dst = os.path.join(_DATA_DIR, _f)
         if os.path.exists(_src) and not os.path.exists(_dst):
-            import shutil; shutil.copy2(_src, _dst)
+            shutil.copy2(_src, _dst)
 
 COUPONS_FILE = os.path.join(_DATA_DIR, "coupons.json")
 USERS_FILE   = os.path.join(_DATA_DIR, "users.json")
