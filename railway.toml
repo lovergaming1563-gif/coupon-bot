@@ -1,7 +1,7 @@
 [build]
-builder = "nixpacks"
+dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "cd telegram-bot && python bot.py"
+startCommand = "python telegram-bot/bot.py"
 restartPolicyType = "always"
 restartPolicyMaxRetries = 10
