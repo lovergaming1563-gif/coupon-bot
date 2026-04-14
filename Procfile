@@ -1,1 +1,1 @@
-web: cd telegram-bot && python bot.py
+web: python telegram-bot/bot.py
