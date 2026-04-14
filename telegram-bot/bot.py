@@ -730,7 +730,9 @@ def get_stock(pk: str) -> int:
 
 
 def get_stats() -> dict:
-    orders    = get_orders()
+    orders = get_orders()
+    if isinstance(orders, list):
+        orders = {}
     completed = [o for o in orders.values() if o.get("status") == "approved"]
     pending   = [o for o in orders.values() if o.get("status") == "pending"]
     revenue   = sum(
