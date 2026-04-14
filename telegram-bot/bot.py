@@ -7,7 +7,7 @@ import html
 import urllib.request
 import urllib.parse
 from datetime import datetime, timezone
-from flask import Flask
+from flask import Flask, redirect, request as flask_request
 from telegram import (
     Update,
     InlineKeyboardButton,
@@ -438,6 +438,22 @@ flask_app = Flask(__name__)
 @flask_app.route("/")
 def index():
     return "Bot is running ✅"
+
+@flask_app.route("/api/ref/<uid>")
+def referral_redirect(uid):
+    """Track referral click IP and redirect to Telegram bot."""
+    import secrets as _secrets
+    ip = (
+        flask_request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+        or flask_request.remote_addr
+        or "unknown"
+    )
+    token = f"{uid}_{_secrets.token_hex(8)}"
+    data = _load_ip_data()
+    data.setdefault("tokens", {})[token] = {"uid": uid, "ip": ip, "claimed": False}
+    _save_ip_data(data)
+    bot_uname = BOT_USERNAME or "MyntraCouponStores_bot"
+    return redirect(f"https://t.me/{bot_uname}?start=ref_{uid}", code=302)
 
 def keep_alive():
     port = int(os.environ.get("PORT", 3000))
@@ -3009,12 +3025,9 @@ if __name__ == "__main__":
     # Kill any duplicate instance first — prevents 409 Conflict
     acquire_pid_lock()
 
-    # Only start Flask keep-alive in non-production environments.
-    # In production, Node.js handles health checks on PORT; Flask would conflict.
-    is_production = os.environ.get("NODE_ENV") == "production"
-    if not is_production:
-        flask_port = int(os.environ.get("FLASK_PORT", 3000))
-        threading.Thread(target=lambda: flask_app.run(host="0.0.0.0", port=flask_port), daemon=True).start()
-        logger.info(f"🌐 Keep-alive server started on port {flask_port}")
+    # Always start Flask — handles health checks + referral redirects on all platforms
+    flask_port = int(os.environ.get("PORT", os.environ.get("FLASK_PORT", 3000)))
+    threading.Thread(target=lambda: flask_app.run(host="0.0.0.0", port=flask_port), daemon=True).start()
+    logger.info(f"🌐 Keep-alive server started on port {flask_port}")
 
     main()
