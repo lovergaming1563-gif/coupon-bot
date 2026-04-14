@@ -1,0 +1,301 @@
+2026-04-14T09:33:27.247835437Z [inf]  Starting Container
+2026-04-14T09:33:27.644413175Z [err]  2026-04-14 09:33:27,146 - __main__ - INFO - 🤖 Bot fully started — all systems active!
+2026-04-14T09:33:27.644418696Z [err]  2026-04-14 09:33:26,694 - __main__ - INFO - Bot PID lock acquired: 1
+2026-04-14T09:33:27.644421821Z [err]  2026-04-14 09:33:27,396 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8674459880:AAFvcaWp0XdOy_Dzad4TUjmeZ1fKkhtvo7s/getMe "HTTP/1.1 200 OK"
+2026-04-14T09:33:27.644425209Z [err]  2026-04-14 09:33:26,694 - __main__ - INFO - 🌐 Keep-alive server started on port 3000
+2026-04-14T09:33:27.644429849Z [inf]   * Serving Flask app 'bot'
+2026-04-14T09:33:27.644430549Z [err]  2026-04-14 09:33:26,993 - __main__ - INFO - ✅ Backed up /app/telegram-bot/data/users.json to Replit DB (112 entries)
+2026-04-14T09:33:27.644434311Z [inf]   * Debug mode: off
+2026-04-14T09:33:27.644439375Z [err]  2026-04-14 09:33:27,058 - __main__ - INFO - ✅ Backed up /app/telegram-bot/data/coupons.json to Replit DB (12 entries)
+2026-04-14T09:33:27.644440661Z [err]  2026-04-14 09:33:26,695 - __main__ - INFO - Seed file: 112 users loaded
+2026-04-14T09:33:27.644445688Z [err]  2026-04-14 09:33:27,145 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-14T09:33:27.644445836Z [err]  2026-04-14 09:33:26,779 - __main__ - INFO - Replit DB: 112 users merged
+2026-04-14T09:33:27.644451473Z [err]  2026-04-14 09:33:27,146 - __main__ - INFO - ✅ Periodic referral validity check job registered (every 6 min)
+2026-04-14T09:33:27.644451840Z [err]  2026-04-14 09:33:26,779 - __main__ - INFO - Local file: 18 users merged (total now 112)
+2026-04-14T09:33:27.644455927Z [err]  2026-04-14 09:33:26,786 - __main__ - INFO - ✅ users.json final: 112 users
+2026-04-14T09:33:27.644459967Z [err]  2026-04-14 09:33:26,839 - __main__ - ERROR - Replit DB get error [bot_orders_json]: HTTP Error 404: Not Found
+2026-04-14T09:33:27.644463062Z [err]  2026-04-14 09:33:26,895 - __main__ - ERROR - Replit DB get error [bot_pending_json]: HTTP Error 404: Not Found
+2026-04-14T09:33:27.816066668Z [err]  2026-04-14 09:33:27,811 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8674459880:AAFvcaWp0XdOy_Dzad4TUjmeZ1fKkhtvo7s/deleteWebhook "HTTP/1.1 200 OK"
+2026-04-14T09:33:27.816070225Z [err]  2026-04-14 09:33:27,813 - apscheduler.scheduler - INFO - Added job "referral_validity_check" to job store "default"
+2026-04-14T09:33:27.816073328Z [err]  2026-04-14 09:33:27,813 - apscheduler.scheduler - INFO - Scheduler started
+2026-04-14T09:33:27.816076235Z [err]  2026-04-14 09:33:27,813 - telegram.ext.Application - INFO - Application started
+2026-04-14T09:33:32.156660464Z [err]  2026-04-14 09:33:32,155 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8674459880:AAFvcaWp0XdOy_Dzad4TUjmeZ1fKkhtvo7s/getUpdates "HTTP/1.1 409 Conflict"
+2026-04-14T09:33:32.161213402Z [err]  2026-04-14 09:33:32,156 - __main__ - ERROR - Unhandled exception in handler
+2026-04-14T09:33:32.161219128Z [err]  Traceback (most recent call last):
+2026-04-14T09:33:32.161225567Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_updater.py", line 750, in _network_loop_retry
+2026-04-14T09:33:32.161229317Z [err]      if not await do_action():
+2026-04-14T09:33:32.161234893Z [err]             ^^^^^^^^^^^^^^^^^
+2026-04-14T09:33:32.161251646Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_updater.py", line 744, in do_action
+2026-04-14T09:33:32.161266158Z [err]      return action_cb_task.result()
+2026-04-14T09:33:32.161277843Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:33:32.161285970Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_updater.py", line 371, in polling_action_cb
+2026-04-14T09:33:32.161295391Z [err]      updates = await self.bot.get_updates(
+2026-04-14T09:33:32.161301142Z [err]                ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:33:32.161309479Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_extbot.py", line 650, in get_updates
+2026-04-14T09:33:32.161318478Z [err]      updates = await super().get_updates(
+2026-04-14T09:33:32.161329481Z [err]                ^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:33:32.161337937Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/_bot.py", line 4480, in get_updates
+2026-04-14T09:33:32.161348573Z [err]      await self._post(
+2026-04-14T09:33:32.161356043Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/_bot.py", line 619, in _post
+2026-04-14T09:33:32.161363212Z [err]      return await self._do_post(
+2026-04-14T09:33:32.161370471Z [err]             ^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:33:32.161377976Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_extbot.py", line 354, in _do_post
+2026-04-14T09:33:32.162383087Z [err]      return await super()._do_post(
+2026-04-14T09:33:32.162392463Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:33:32.162397164Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/_bot.py", line 648, in _do_post
+2026-04-14T09:33:32.162400459Z [err]      result = await request.post(
+2026-04-14T09:33:32.162403587Z [err]               ^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:33:32.162407823Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/request/_baserequest.py", line 202, in post
+2026-04-14T09:33:32.162412215Z [err]      result = await self._request_wrapper(
+2026-04-14T09:33:32.162427846Z [err]               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:33:32.162431384Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/request/_baserequest.py", line 385, in _request_wrapper
+2026-04-14T09:33:32.162434650Z [err]      raise Conflict(message)
+2026-04-14T09:33:32.162437552Z [err]  telegram.error.Conflict: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+2026-04-14T09:33:40.980710679Z [err]  2026-04-14 09:33:40,967 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8674459880:AAFvcaWp0XdOy_Dzad4TUjmeZ1fKkhtvo7s/getUpdates "HTTP/1.1 200 OK"
+2026-04-14T09:33:40.980714933Z [err]    File "/app/telegram-bot/bot.py", line 734, in get_stats
+2026-04-14T09:33:40.980718325Z [err]  2026-04-14 09:33:40,968 - __main__ - ERROR - Unhandled exception in handler
+2026-04-14T09:33:40.980722222Z [err]      completed = [o for o in orders.values() if o.get("status") == "approved"]
+2026-04-14T09:33:40.980725825Z [err]  Traceback (most recent call last):
+2026-04-14T09:33:40.980727959Z [err]                              ^^^^^^^^^^^^^
+2026-04-14T09:33:40.980730839Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_application.py", line 1325, in process_update
+2026-04-14T09:33:40.980733603Z [err]  AttributeError: 'list' object has no attribute 'values'
+2026-04-14T09:33:40.980735589Z [err]      await coroutine
+2026-04-14T09:33:40.980738315Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_handlers/basehandler.py", line 158, in handle_update
+2026-04-14T09:33:40.980741423Z [err]      return await self.callback(update, context)
+2026-04-14T09:33:40.980744157Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:33:40.980747030Z [err]    File "/app/telegram-bot/bot.py", line 2360, in admin_panel
+2026-04-14T09:33:40.980749802Z [err]      _admin_text(), reply_markup=_admin_kb(), parse_mode=ParseMode.MARKDOWN,
+2026-04-14T09:33:40.980752419Z [err]      ^^^^^^^^^^^^^
+2026-04-14T09:33:40.980755505Z [err]    File "/app/telegram-bot/bot.py", line 2315, in _admin_text
+2026-04-14T09:33:40.980758441Z [err]      stats = get_stats()
+2026-04-14T09:33:40.980761722Z [err]              ^^^^^^^^^^^
+2026-04-14T09:33:45.106587283Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:33:45.106597807Z [err]    File "/app/telegram-bot/bot.py", line 2360, in admin_panel
+2026-04-14T09:33:45.106603309Z [err]      _admin_text(), reply_markup=_admin_kb(), parse_mode=ParseMode.MARKDOWN,
+2026-04-14T09:33:45.106607749Z [err]      ^^^^^^^^^^^^^
+2026-04-14T09:33:45.106612424Z [err]    File "/app/telegram-bot/bot.py", line 2315, in _admin_text
+2026-04-14T09:33:45.106617955Z [err]      stats = get_stats()
+2026-04-14T09:33:45.106622167Z [err]              ^^^^^^^^^^^
+2026-04-14T09:33:45.106626430Z [err]    File "/app/telegram-bot/bot.py", line 734, in get_stats
+2026-04-14T09:33:45.106631619Z [err]      completed = [o for o in orders.values() if o.get("status") == "approved"]
+2026-04-14T09:33:45.106638524Z [err]                              ^^^^^^^^^^^^^
+2026-04-14T09:33:45.106643110Z [err]  AttributeError: 'list' object has no attribute 'values'
+2026-04-14T09:33:45.106655154Z [err]  2026-04-14 09:33:45,095 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8674459880:AAFvcaWp0XdOy_Dzad4TUjmeZ1fKkhtvo7s/getUpdates "HTTP/1.1 200 OK"
+2026-04-14T09:33:45.106659995Z [err]  2026-04-14 09:33:45,097 - __main__ - ERROR - Unhandled exception in handler
+2026-04-14T09:33:45.106664452Z [err]  Traceback (most recent call last):
+2026-04-14T09:33:45.106669461Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_application.py", line 1325, in process_update
+2026-04-14T09:33:45.106674001Z [err]      await coroutine
+2026-04-14T09:33:45.106678693Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_handlers/basehandler.py", line 158, in handle_update
+2026-04-14T09:33:45.106683361Z [err]      return await self.callback(update, context)
+2026-04-14T09:33:53.675819858Z [err]  2026-04-14 09:33:53,595 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8674459880:AAFvcaWp0XdOy_Dzad4TUjmeZ1fKkhtvo7s/getUpdates "HTTP/1.1 200 OK"
+2026-04-14T09:33:54.084978856Z [err]  2026-04-14 09:33:54,054 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8674459880:AAFvcaWp0XdOy_Dzad4TUjmeZ1fKkhtvo7s/sendMessage "HTTP/1.1 200 OK"
+2026-04-14T09:34:03.709890888Z [err]  2026-04-14 09:34:03,636 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8674459880:AAFvcaWp0XdOy_Dzad4TUjmeZ1fKkhtvo7s/getUpdates "HTTP/1.1 409 Conflict"
+2026-04-14T09:34:03.709894073Z [err]  2026-04-14 09:34:03,636 - __main__ - ERROR - Unhandled exception in handler
+2026-04-14T09:34:03.709897366Z [err]  Traceback (most recent call last):
+2026-04-14T09:34:03.709901027Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_updater.py", line 750, in _network_loop_retry
+2026-04-14T09:34:03.709904656Z [err]      if not await do_action():
+2026-04-14T09:34:03.709908441Z [err]             ^^^^^^^^^^^^^^^^^
+2026-04-14T09:34:03.709911401Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_updater.py", line 744, in do_action
+2026-04-14T09:34:03.709914784Z [err]      return action_cb_task.result()
+2026-04-14T09:34:03.709918211Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:34:03.709921978Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_updater.py", line 371, in polling_action_cb
+2026-04-14T09:34:03.709925707Z [err]      updates = await self.bot.get_updates(
+2026-04-14T09:34:03.709929619Z [err]                ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:34:03.709933187Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_extbot.py", line 650, in get_updates
+2026-04-14T09:34:03.709937273Z [err]      updates = await super().get_updates(
+2026-04-14T09:34:03.709940942Z [err]                ^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:34:03.709944068Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/_bot.py", line 4480, in get_updates
+2026-04-14T09:34:03.709947279Z [err]      await self._post(
+2026-04-14T09:34:03.709950686Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/_bot.py", line 619, in _post
+2026-04-14T09:34:03.709953846Z [err]      return await self._do_post(
+2026-04-14T09:34:03.711343588Z [err]             ^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:34:03.711347648Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_extbot.py", line 354, in _do_post
+2026-04-14T09:34:03.711351394Z [err]      return await super()._do_post(
+2026-04-14T09:34:03.711354509Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:34:03.711357501Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/_bot.py", line 648, in _do_post
+2026-04-14T09:34:03.711360413Z [err]      result = await request.post(
+2026-04-14T09:34:03.711363614Z [err]               ^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:34:03.711366380Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/request/_baserequest.py", line 202, in post
+2026-04-14T09:34:03.711369286Z [err]      result = await self._request_wrapper(
+2026-04-14T09:34:03.711371991Z [err]               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:34:03.711374812Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/request/_baserequest.py", line 385, in _request_wrapper
+2026-04-14T09:34:03.711378455Z [err]      raise Conflict(message)
+2026-04-14T09:34:03.711381094Z [err]  telegram.error.Conflict: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+2026-04-14T09:34:05.267271693Z [err]  2026-04-14 09:34:05,265 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8674459880:AAFvcaWp0XdOy_Dzad4TUjmeZ1fKkhtvo7s/getUpdates "HTTP/1.1 200 OK"
+2026-04-14T09:34:05.713074410Z [err]  2026-04-14 09:34:05,711 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8674459880:AAFvcaWp0XdOy_Dzad4TUjmeZ1fKkhtvo7s/answerCallbackQuery "HTTP/1.1 200 OK"
+2026-04-14T09:34:05.807823899Z [err]  2026-04-14 09:34:05,806 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8674459880:AAFvcaWp0XdOy_Dzad4TUjmeZ1fKkhtvo7s/getChatMember "HTTP/1.1 200 OK"
+2026-04-14T09:34:05.807835595Z [err]  2026-04-14 09:34:05,807 - __main__ - INFO - check_channel_membership: user=5720673756 status=creator
+2026-04-14T09:34:06.116066195Z [err]  2026-04-14 09:34:06,080 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8674459880:AAFvcaWp0XdOy_Dzad4TUjmeZ1fKkhtvo7s/editMessageText "HTTP/1.1 200 OK"
+2026-04-14T09:34:06.699890176Z [err]  2026-04-14 09:34:06,421 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8674459880:AAFvcaWp0XdOy_Dzad4TUjmeZ1fKkhtvo7s/sendMessage "HTTP/1.1 200 OK"
+2026-04-14T09:34:07.706719563Z [err]  2026-04-14 09:34:07,651 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8674459880:AAFvcaWp0XdOy_Dzad4TUjmeZ1fKkhtvo7s/getUpdates "HTTP/1.1 200 OK"
+2026-04-14T09:34:07.921747593Z [err]  2026-04-14 09:34:07,918 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8674459880:AAFvcaWp0XdOy_Dzad4TUjmeZ1fKkhtvo7s/answerCallbackQuery "HTTP/1.1 200 OK"
+2026-04-14T09:34:08.205971587Z [err]  2026-04-14 09:34:08,204 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8674459880:AAFvcaWp0XdOy_Dzad4TUjmeZ1fKkhtvo7s/editMessageText "HTTP/1.1 200 OK"
+2026-04-14T09:34:17.773688032Z [err]  2026-04-14 09:34:17,735 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8674459880:AAFvcaWp0XdOy_Dzad4TUjmeZ1fKkhtvo7s/getUpdates "HTTP/1.1 200 OK"
+2026-04-14T09:34:27.156735113Z [err]  2026-04-14 09:34:27,154 - apscheduler.executors.default - INFO - Running job "referral_validity_check (trigger: interval[0:06:00], next run at: 2026-04-14 09:40:27 UTC)" (scheduled at 2026-04-14 09:34:27.145491+00:00)
+2026-04-14T09:34:27.156742753Z [err]  2026-04-14 09:34:27,155 - apscheduler.executors.default - INFO - Job "referral_validity_check (trigger: interval[0:06:00], next run at: 2026-04-14 09:40:27 UTC)" executed successfully
+2026-04-14T09:34:27.913560051Z [err]  2026-04-14 09:34:27,818 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8674459880:AAFvcaWp0XdOy_Dzad4TUjmeZ1fKkhtvo7s/getUpdates "HTTP/1.1 200 OK"
+2026-04-14T09:34:47.758953348Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_updater.py", line 371, in polling_action_cb
+2026-04-14T09:34:47.758962281Z [err]      updates = await self.bot.get_updates(
+2026-04-14T09:34:47.758969529Z [err]                ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:34:47.758971420Z [err]  2026-04-14 09:34:37,899 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8674459880:AAFvcaWp0XdOy_Dzad4TUjmeZ1fKkhtvo7s/getUpdates "HTTP/1.1 200 OK"
+2026-04-14T09:34:47.758976588Z [err]  2026-04-14 09:34:38,106 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8674459880:AAFvcaWp0XdOy_Dzad4TUjmeZ1fKkhtvo7s/getUpdates "HTTP/1.1 409 Conflict"
+2026-04-14T09:34:47.758977927Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_extbot.py", line 650, in get_updates
+2026-04-14T09:34:47.758982193Z [err]  2026-04-14 09:34:38,107 - __main__ - ERROR - Unhandled exception in handler
+2026-04-14T09:34:47.758985458Z [err]      updates = await super().get_updates(
+2026-04-14T09:34:47.758986852Z [err]  Traceback (most recent call last):
+2026-04-14T09:34:47.758991712Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_updater.py", line 750, in _network_loop_retry
+2026-04-14T09:34:47.758994346Z [err]                ^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:34:47.758997426Z [err]      if not await do_action():
+2026-04-14T09:34:47.759003036Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/_bot.py", line 4480, in get_updates
+2026-04-14T09:34:47.759003095Z [err]             ^^^^^^^^^^^^^^^^^
+2026-04-14T09:34:47.759008160Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_updater.py", line 744, in do_action
+2026-04-14T09:34:47.759012623Z [err]      return action_cb_task.result()
+2026-04-14T09:34:47.759013228Z [err]      await self._post(
+2026-04-14T09:34:47.759017984Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:34:47.759974834Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/request/_baserequest.py", line 385, in _request_wrapper
+2026-04-14T09:34:47.759981395Z [err]      raise Conflict(message)
+2026-04-14T09:34:47.759985760Z [err]  telegram.error.Conflict: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+2026-04-14T09:34:47.760020405Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/_bot.py", line 619, in _post
+2026-04-14T09:34:47.760024549Z [err]      return await self._do_post(
+2026-04-14T09:34:47.760027505Z [err]             ^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:34:47.760030286Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_extbot.py", line 354, in _do_post
+2026-04-14T09:34:47.760033094Z [err]      return await super()._do_post(
+2026-04-14T09:34:47.760036539Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:34:47.760039604Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/_bot.py", line 648, in _do_post
+2026-04-14T09:34:47.760042342Z [err]      result = await request.post(
+2026-04-14T09:34:47.760045742Z [err]               ^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:34:47.760048697Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/request/_baserequest.py", line 202, in post
+2026-04-14T09:34:47.760051571Z [err]      result = await self._request_wrapper(
+2026-04-14T09:34:47.760054180Z [err]               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:34:49.204814889Z [err]  2026-04-14 09:34:49,190 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8674459880:AAFvcaWp0XdOy_Dzad4TUjmeZ1fKkhtvo7s/getUpdates "HTTP/1.1 200 OK"
+2026-04-14T09:35:09.003260667Z [err]  2026-04-14 09:34:59,273 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8674459880:AAFvcaWp0XdOy_Dzad4TUjmeZ1fKkhtvo7s/getUpdates "HTTP/1.1 200 OK"
+2026-04-14T09:35:09.371744204Z [err]  2026-04-14 09:35:09,356 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8674459880:AAFvcaWp0XdOy_Dzad4TUjmeZ1fKkhtvo7s/getUpdates "HTTP/1.1 200 OK"
+2026-04-14T09:35:12.591773806Z [err]  2026-04-14 09:35:12,589 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8674459880:AAFvcaWp0XdOy_Dzad4TUjmeZ1fKkhtvo7s/getUpdates "HTTP/1.1 409 Conflict"
+2026-04-14T09:35:12.591779730Z [err]  2026-04-14 09:35:12,590 - __main__ - ERROR - Unhandled exception in handler
+2026-04-14T09:35:12.591784778Z [err]  Traceback (most recent call last):
+2026-04-14T09:35:12.591789666Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_updater.py", line 750, in _network_loop_retry
+2026-04-14T09:35:12.591793390Z [err]      if not await do_action():
+2026-04-14T09:35:12.591797210Z [err]             ^^^^^^^^^^^^^^^^^
+2026-04-14T09:35:12.591801202Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_updater.py", line 744, in do_action
+2026-04-14T09:35:12.591804488Z [err]      return action_cb_task.result()
+2026-04-14T09:35:12.591807619Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:35:12.591810871Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_updater.py", line 371, in polling_action_cb
+2026-04-14T09:35:12.591814428Z [err]      updates = await self.bot.get_updates(
+2026-04-14T09:35:12.591817683Z [err]                ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:35:12.591820663Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_extbot.py", line 650, in get_updates
+2026-04-14T09:35:12.591823645Z [err]      updates = await super().get_updates(
+2026-04-14T09:35:12.591826786Z [err]                ^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:35:12.591830585Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/_bot.py", line 4480, in get_updates
+2026-04-14T09:35:12.591833505Z [err]      await self._post(
+2026-04-14T09:35:12.591836755Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/_bot.py", line 619, in _post
+2026-04-14T09:35:12.591839753Z [err]      return await self._do_post(
+2026-04-14T09:35:12.593527500Z [err]             ^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:35:12.593536024Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_extbot.py", line 354, in _do_post
+2026-04-14T09:35:12.593542486Z [err]      return await super()._do_post(
+2026-04-14T09:35:12.593548149Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:35:12.593555022Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/_bot.py", line 648, in _do_post
+2026-04-14T09:35:12.593561123Z [err]      result = await request.post(
+2026-04-14T09:35:12.593567631Z [err]               ^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:35:12.593573016Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/request/_baserequest.py", line 202, in post
+2026-04-14T09:35:12.593578470Z [err]      result = await self._request_wrapper(
+2026-04-14T09:35:12.593584448Z [err]               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:35:12.593589879Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/request/_baserequest.py", line 385, in _request_wrapper
+2026-04-14T09:35:12.593595038Z [err]      raise Conflict(message)
+2026-04-14T09:35:12.593600661Z [err]  telegram.error.Conflict: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+2026-04-14T09:35:32.593219428Z [err]  2026-04-14 09:35:23,673 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8674459880:AAFvcaWp0XdOy_Dzad4TUjmeZ1fKkhtvo7s/getUpdates "HTTP/1.1 200 OK"
+2026-04-14T09:35:33.756861397Z [err]  2026-04-14 09:35:33,755 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8674459880:AAFvcaWp0XdOy_Dzad4TUjmeZ1fKkhtvo7s/getUpdates "HTTP/1.1 200 OK"
+2026-04-14T09:35:53.772753923Z [err]  2026-04-14 09:35:43,944 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8674459880:AAFvcaWp0XdOy_Dzad4TUjmeZ1fKkhtvo7s/getUpdates "HTTP/1.1 200 OK"
+2026-04-14T09:35:53.772759399Z [err]  2026-04-14 09:35:47,077 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8674459880:AAFvcaWp0XdOy_Dzad4TUjmeZ1fKkhtvo7s/getUpdates "HTTP/1.1 409 Conflict"
+2026-04-14T09:35:53.772763162Z [err]  2026-04-14 09:35:47,078 - __main__ - ERROR - Unhandled exception in handler
+2026-04-14T09:35:53.772766471Z [err]  Traceback (most recent call last):
+2026-04-14T09:35:53.772769674Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_updater.py", line 750, in _network_loop_retry
+2026-04-14T09:35:53.772773108Z [err]      if not await do_action():
+2026-04-14T09:35:53.772777984Z [err]             ^^^^^^^^^^^^^^^^^
+2026-04-14T09:35:53.772781421Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_updater.py", line 744, in do_action
+2026-04-14T09:35:53.772784865Z [err]      return action_cb_task.result()
+2026-04-14T09:35:53.772789787Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:35:53.772793117Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_updater.py", line 371, in polling_action_cb
+2026-04-14T09:35:53.772797414Z [err]      updates = await self.bot.get_updates(
+2026-04-14T09:35:53.772801390Z [err]                ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:35:53.772804559Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_extbot.py", line 650, in get_updates
+2026-04-14T09:35:53.772807798Z [err]      updates = await super().get_updates(
+2026-04-14T09:35:53.772811310Z [err]                ^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:35:53.772814897Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/_bot.py", line 4480, in get_updates
+2026-04-14T09:35:53.772818154Z [err]      await self._post(
+2026-04-14T09:35:53.774393376Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/request/_baserequest.py", line 385, in _request_wrapper
+2026-04-14T09:35:53.774397629Z [err]      raise Conflict(message)
+2026-04-14T09:35:53.774400854Z [err]  telegram.error.Conflict: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+2026-04-14T09:35:53.774407996Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/_bot.py", line 619, in _post
+2026-04-14T09:35:53.774414512Z [err]      return await self._do_post(
+2026-04-14T09:35:53.774419519Z [err]             ^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:35:53.774423733Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_extbot.py", line 354, in _do_post
+2026-04-14T09:35:53.774427834Z [err]      return await super()._do_post(
+2026-04-14T09:35:53.774431968Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:35:53.774436131Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/_bot.py", line 648, in _do_post
+2026-04-14T09:35:53.774440199Z [err]      result = await request.post(
+2026-04-14T09:35:53.774443994Z [err]               ^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:35:53.774448353Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/request/_baserequest.py", line 202, in post
+2026-04-14T09:35:53.774452440Z [err]      result = await self._request_wrapper(
+2026-04-14T09:35:53.774456768Z [err]               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:35:58.162825896Z [err]  2026-04-14 09:35:58,162 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8674459880:AAFvcaWp0XdOy_Dzad4TUjmeZ1fKkhtvo7s/getUpdates "HTTP/1.1 200 OK"
+2026-04-14T09:36:18.163294741Z [err]  2026-04-14 09:36:08,246 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8674459880:AAFvcaWp0XdOy_Dzad4TUjmeZ1fKkhtvo7s/getUpdates "HTTP/1.1 200 OK"
+2026-04-14T09:36:18.163303870Z [err]                ^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:36:18.163317907Z [err]  2026-04-14 09:36:14,558 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8674459880:AAFvcaWp0XdOy_Dzad4TUjmeZ1fKkhtvo7s/getUpdates "HTTP/1.1 409 Conflict"
+2026-04-14T09:36:18.163327482Z [err]  2026-04-14 09:36:14,559 - __main__ - ERROR - Unhandled exception in handler
+2026-04-14T09:36:18.163335117Z [err]  Traceback (most recent call last):
+2026-04-14T09:36:18.163345314Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_updater.py", line 750, in _network_loop_retry
+2026-04-14T09:36:18.163354858Z [err]      if not await do_action():
+2026-04-14T09:36:18.163358659Z [err]             ^^^^^^^^^^^^^^^^^
+2026-04-14T09:36:18.163363975Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_updater.py", line 744, in do_action
+2026-04-14T09:36:18.163367684Z [err]      return action_cb_task.result()
+2026-04-14T09:36:18.163374193Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:36:18.163380596Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_updater.py", line 371, in polling_action_cb
+2026-04-14T09:36:18.163382629Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/_bot.py", line 4480, in get_updates
+2026-04-14T09:36:18.163391573Z [err]      await self._post(
+2026-04-14T09:36:18.163392335Z [err]      updates = await self.bot.get_updates(
+2026-04-14T09:36:18.163398836Z [err]                ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:36:18.163404208Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_extbot.py", line 650, in get_updates
+2026-04-14T09:36:18.163410823Z [err]      updates = await super().get_updates(
+2026-04-14T09:36:18.165177321Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/_bot.py", line 619, in _post
+2026-04-14T09:36:18.165186882Z [err]      return await self._do_post(
+2026-04-14T09:36:18.165194350Z [err]             ^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:36:18.165202545Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_extbot.py", line 354, in _do_post
+2026-04-14T09:36:18.165211352Z [err]      return await super()._do_post(
+2026-04-14T09:36:18.165217569Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:36:18.165224492Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/_bot.py", line 648, in _do_post
+2026-04-14T09:36:18.165231283Z [err]      result = await request.post(
+2026-04-14T09:36:18.165238014Z [err]               ^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:36:18.165256570Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/request/_baserequest.py", line 202, in post
+2026-04-14T09:36:18.165266645Z [err]      result = await self._request_wrapper(
+2026-04-14T09:36:18.165271765Z [err]               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:36:18.165280240Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/request/_baserequest.py", line 385, in _request_wrapper
+2026-04-14T09:36:18.165285959Z [err]      raise Conflict(message)
+2026-04-14T09:36:18.165295462Z [err]  telegram.error.Conflict: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+2026-04-14T09:36:22.740377847Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/_bot.py", line 619, in _post
+2026-04-14T09:36:22.740384099Z [err]      return await self._do_post(
+2026-04-14T09:36:22.740387571Z [err]             ^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:36:22.740391042Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_extbot.py", line 354, in _do_post
+2026-04-14T09:36:22.740394657Z [err]      return await super()._do_post(
+2026-04-14T09:36:22.740398916Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:36:22.740407472Z [err]  2026-04-14 09:36:22,737 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8674459880:AAFvcaWp0XdOy_Dzad4TUjmeZ1fKkhtvo7s/getUpdates "HTTP/1.1 409 Conflict"
+2026-04-14T09:36:22.740410986Z [err]  2026-04-14 09:36:22,737 - telegram.ext.Updater - ERROR - Error while calling `get_updates` one more time to mark all fetched updates as read: %s. Suppressing error to ensure graceful shutdown. When polling for updates is restarted, updates may be fetched again. Please adjust timeouts via `ApplicationBuilder` or the parameter `get_updates_request` of `Bot`.
+2026-04-14T09:36:22.740415094Z [err]  Traceback (most recent call last):
+2026-04-14T09:36:22.740416502Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/_bot.py", line 648, in _do_post
+2026-04-14T09:36:22.740418921Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_updater.py", line 432, in _get_updates_cleanup
+2026-04-14T09:36:22.740421821Z [err]      await self.bot.get_updates(
+2026-04-14T09:36:22.740424540Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/ext/_extbot.py", line 650, in get_updates
+2026-04-14T09:36:22.740427195Z [err]      updates = await super().get_updates(
+2026-04-14T09:36:22.740429838Z [err]                ^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:36:22.740432544Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/_bot.py", line 4480, in get_updates
+2026-04-14T09:36:22.740435772Z [err]      await self._post(
+2026-04-14T09:36:22.741965445Z [err]      result = await request.post(
+2026-04-14T09:36:22.741969472Z [err]               ^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:36:22.741973117Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/request/_baserequest.py", line 202, in post
+2026-04-14T09:36:22.741976723Z [err]      result = await self._request_wrapper(
+2026-04-14T09:36:22.741980193Z [err]               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-14T09:36:22.741983300Z [err]    File "/usr/local/lib/python3.11/site-packages/telegram/request/_baserequest.py", line 385, in _request_wrapper
+2026-04-14T09:36:22.741986831Z [err]      raise Conflict(message)
+2026-04-14T09:36:22.741989848Z [err]  telegram.error.Conflict: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+2026-04-14T09:36:22.741992777Z [err]  2026-04-14 09:36:22,738 - telegram.ext.Application - INFO - Application is stopping. This might take a moment.
+2026-04-14T09:36:22.741996250Z [err]  2026-04-14 09:36:22,738 - apscheduler.scheduler - INFO - Scheduler has been shut down
+2026-04-14T09:36:22.750517380Z [err]  2026-04-14 09:36:22,748 - telegram.ext.Application - INFO - Application.stop() complete
