@@ -48,9 +48,16 @@ Thumbs.db
 .cache/
 .local/
 
-# Bot runtime data — never commit these, they live in /home/runner/bot_data/ in production
+# Bot runtime data — never commit these
 telegram-bot/coupons.json
 telegram-bot/users.json
 telegram-bot/orders.json
 telegram-bot/pending_orders.json
 telegram-bot/bot.log
+telegram-bot/__pycache__/
+
+# Persistent data folder (real user data — never commit)
+telegram-bot/data/*.json
+telegram-bot/data/*.db
+telegram-bot/data/*.log
+telegram-bot/data/*.tmp
