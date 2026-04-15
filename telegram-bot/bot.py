@@ -441,10 +441,11 @@ def index():
 
 @flask_app.route("/api/ref/<uid>")
 def referral_redirect(uid):
-    """Track referral click IP and redirect to Telegram bot."""
+    """Track referral click IP and redirect to Telegram bot (token in URL)."""
     import secrets as _secrets
     ip = (
-        flask_request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+        flask_request.headers.get("X-Real-User-IP", "").strip()
+        or flask_request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
         or flask_request.remote_addr
         or "unknown"
     )
@@ -453,7 +454,30 @@ def referral_redirect(uid):
     data.setdefault("tokens", {})[token] = {"uid": uid, "ip": ip, "claimed": False}
     _save_ip_data(data)
     bot_uname = BOT_USERNAME or "MyntraCouponStores_bot"
-    return redirect(f"https://t.me/{bot_uname}?start=ref_{uid}", code=302)
+    return redirect(f"https://t.me/{bot_uname}?start=ref_{uid}_tk_{token}", code=302)
+
+
+@flask_app.route("/api/store_ref", methods=["POST"])
+def store_ref_ip():
+    """Called by Cloudflare Worker: stores IP+token, returns Telegram deep link."""
+    import secrets as _secrets
+    from flask import jsonify
+    try:
+        body = flask_request.get_json(force=True) or {}
+        uid  = str(body.get("uid", "")).strip()
+        ip   = str(body.get("ip", "unknown")).strip() or "unknown"
+        if not uid:
+            return jsonify({"error": "uid required"}), 400
+        token = f"{uid}_{_secrets.token_hex(8)}"
+        data  = _load_ip_data()
+        data.setdefault("tokens", {})[token] = {"uid": uid, "ip": ip, "claimed": False}
+        _save_ip_data(data)
+        bot_uname   = BOT_USERNAME or "MyntraCouponStores_bot"
+        redirect_url = f"https://t.me/{bot_uname}?start=ref_{uid}_tk_{token}"
+        return jsonify({"token": token, "redirect_url": redirect_url})
+    except Exception as e:
+        logger.error(f"store_ref_ip error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 def keep_alive():
     port = int(os.environ.get("PORT", 3000))
