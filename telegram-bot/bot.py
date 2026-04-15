@@ -381,11 +381,8 @@ _DEFAULT_PRODUCTS: dict = {
     "coupon_bigbasket_150": {"name": "₹150 BigBasket Cashback", "price": 30, "emoji": "🛒", "desc": "", "hidden": True},
 }
 
-# Order in which products appear in the store
-STORE_PRODUCT_ORDER = [
-    "bigbasket", "myntra_199", "myntra_399", "myntra_499",
-    "myntra_649", "combo", "combo2", "chatgpt", "youtube",
-]
+# Order in which products appear in the store (dynamic — loaded from file)
+STORE_PRODUCT_ORDER: list = []  # filled after _load_product_order_from_file() is defined
 
 # Combo product → sub-products whose stock it draws from
 COMBO_PARTS: dict = {
@@ -400,19 +397,36 @@ def _load_products_from_file() -> dict:
         data = json.load(open(PRODUCTS_FILE, encoding="utf-8"))
         if data:
             merged = dict(_DEFAULT_PRODUCTS)
-            merged.update(data)
+            merged.update({k: v for k, v in data.items() if k != "__order__"})
             return merged
     except Exception:
         pass
     return dict(_DEFAULT_PRODUCTS)
 
 
+def _load_product_order_from_file() -> list:
+    """Load STORE_PRODUCT_ORDER from file, fallback to default."""
+    try:
+        data = json.load(open(PRODUCTS_FILE, encoding="utf-8"))
+        if "__order__" in data:
+            return data["__order__"]
+    except Exception:
+        pass
+    return [
+        "bigbasket", "myntra_199", "myntra_399", "myntra_499",
+        "myntra_649", "combo", "combo2", "chatgpt", "youtube",
+    ]
+
+
 PRODUCTS: dict = _load_products_from_file()
+STORE_PRODUCT_ORDER = _load_product_order_from_file()
 
 
 def save_products_config() -> None:
-    """Persist current PRODUCTS dict to file."""
-    _save(PRODUCTS_FILE, PRODUCTS)
+    """Persist current PRODUCTS dict + order to file."""
+    data = dict(PRODUCTS)
+    data["__order__"] = list(STORE_PRODUCT_ORDER)
+    _save(PRODUCTS_FILE, data)
 
 
 def get_unit_price(product_key: str, quantity: int) -> int:
@@ -2414,14 +2428,23 @@ async def admin_products_panel(update: Update, context: ContextTypes.DEFAULT_TYP
     lines += [
         "",
         "━━━━━━━━━━━━━━━━━━━━",
-        "*Naam change karne ke liye:*",
-        "`/set_name myntra_199 Naya Naam`",
+        "*Naam change:*",
+        "`/set_name ID Naya Naam`",
         "",
-        "*Price change karne ke liye:*",
-        "`/set_price myntra_199 39`",
+        "*Price change:*",
+        "`/set_price ID 39`",
         "",
-        "*Description change karne ke liye:*",
-        "`/set_desc myntra_199 ₹100 off on ₹199+`",
+        "*Description change:*",
+        "`/set_desc ID description`",
+        "",
+        "━━━━━━━━━━━━━━━━━━━━",
+        "➕ *Nai service add karo:*",
+        "`/add_service ID PRICE EMOJI Naam`",
+        "_Example: /add_service amazon\\_100 20 🛍️ Amazon Gift Card_",
+        "",
+        "🗑️ *Service delete karo:*",
+        "`/del_service ID`",
+        "_Example: /del\\_service amazon\\_100_",
     ]
     await query.edit_message_text(
         "\n".join(lines),
@@ -2881,6 +2904,111 @@ async def set_desc_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     )
 
 
+async def add_service_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """/add_service ID PRICE EMOJI Name — add a new product to the store."""
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
+        return
+    args = context.args
+    if len(args) < 4:
+        await update.message.reply_text(
+            "❌ *Usage:*\n`/add_service ID PRICE EMOJI Name`\n\n"
+            "*Example:*\n`/add_service amazon_100 20 🛍️ Amazon ₹100 Gift Card`\n\n"
+            "• ID: letters/numbers/underscore only (e.g. `amazon_100`)\n"
+            "• PRICE: number in ₹\n"
+            "• EMOJI: single emoji\n"
+            "• Name: display name",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+    pk    = args[0].strip().lower()
+    price_str = args[1]
+    emoji = args[2]
+    name  = " ".join(args[3:])
+
+    import re as _re
+    if not _re.match(r'^[a-z0-9_]+$', pk):
+        await update.message.reply_text(
+            "❌ ID mein sirf *lowercase letters, numbers aur underscore* allowed hai.\n"
+            "Example: `amazon_100`", parse_mode=ParseMode.MARKDOWN
+        )
+        return
+    try:
+        price = int(price_str)
+        if price <= 0:
+            raise ValueError
+    except ValueError:
+        await update.message.reply_text("❌ Price ek positive number hona chahiye.", parse_mode=ParseMode.MARKDOWN)
+        return
+    if pk in PRODUCTS:
+        await update.message.reply_text(
+            f"⚠️ Service `{pk}` pehle se exist karti hai!\n"
+            f"Price/name change karne ke liye `/set_price` ya `/set_name` use karo.",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+
+    PRODUCTS[pk] = {"name": name, "price": price, "emoji": emoji, "desc": ""}
+    if pk not in STORE_PRODUCT_ORDER:
+        STORE_PRODUCT_ORDER.append(pk)
+
+    # Add empty coupon stock entry
+    coupons = _load(COUPONS_FILE) or {}
+    if pk not in coupons:
+        coupons[pk] = []
+        _save(COUPONS_FILE, coupons)
+
+    save_products_config()
+    await update.message.reply_text(
+        f"✅ *Nai service add ho gayi!*\n\n"
+        f"{emoji} `{pk}`\n"
+        f"*Naam:* {name}\n"
+        f"*Price:* ₹{price}\n\n"
+        f"Stock add karne ke liye:\n`/addcoupon {pk} CODE1 CODE2 ...`",
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+async def del_service_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """/del_service ID — remove a product from the store."""
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
+        return
+    args = context.args
+    if len(args) != 1:
+        await update.message.reply_text(
+            "❌ *Usage:* `/del_service ID`\n\nExample: `/del_service amazon_100`",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+    pk = args[0].strip().lower()
+    if pk not in PRODUCTS:
+        await update.message.reply_text(
+            f"❌ Service `{pk}` mil nahi rahi.\n\nSaari services dekhne ke liye `/products` use karo.",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+
+    default_keys = set(_DEFAULT_PRODUCTS.keys())
+    if pk in default_keys:
+        await update.message.reply_text(
+            f"⛔ Default service `{pk}` delete nahi ho sakti.\n"
+            "Agar store se hatani hai toh admin se manually edit karwao.",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+
+    del PRODUCTS[pk]
+    if pk in STORE_PRODUCT_ORDER:
+        STORE_PRODUCT_ORDER.remove(pk)
+
+    save_products_config()
+    await update.message.reply_text(
+        f"🗑️ *Service delete ho gayi!*\n\n`{pk}` ab store mein nahi dikhegi.",
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
 # ─────────────── Main ───────────────
 
 def main() -> None:
@@ -2921,9 +3049,11 @@ def main() -> None:
     app.add_handler(CommandHandler("broadcast",  broadcast_command))
     # Product management
     app.add_handler(CommandHandler("products",   products_command))
-    app.add_handler(CommandHandler("set_name",   set_name_command))
-    app.add_handler(CommandHandler("set_price",  set_price_command))
-    app.add_handler(CommandHandler("set_desc",   set_desc_command))
+    app.add_handler(CommandHandler("set_name",    set_name_command))
+    app.add_handler(CommandHandler("set_price",   set_price_command))
+    app.add_handler(CommandHandler("set_desc",    set_desc_command))
+    app.add_handler(CommandHandler("add_service", add_service_command))
+    app.add_handler(CommandHandler("del_service", del_service_command))
     # Rewards system (points-based referral)
     app.add_handler(CommandHandler("add_reward",    cmd_add_reward))
     app.add_handler(CommandHandler("add_coupon",    cmd_add_reward_coupon))
