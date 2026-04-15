@@ -430,13 +430,61 @@ def save_products_config() -> None:
 
 
 def get_unit_price(product_key: str, quantity: int) -> int:
-    """Returns unit price. Legacy coupon_100 has tiered discount."""
+    """Returns unit price. Uses flash sale price if active."""
     if product_key == "coupon_100":
         if quantity >= 20:
             return 30
         elif quantity >= 10:
             return 32
+    sale = _get_active_flash_sale(product_key)
+    if sale:
+        return sale["sale_price"]
     return PRODUCTS.get(product_key, {}).get("price", 0)
+
+
+# ─────────────── Flash Sale ───────────────
+
+import time as _time_mod
+
+FLASH_SALES: dict = {}   # {product_key: {sale_price, original_price, expires_at}}
+
+
+def _get_active_flash_sale(pk: str) -> dict | None:
+    """Return flash sale dict if active, else None."""
+    sale = FLASH_SALES.get(pk)
+    if sale and sale["expires_at"] > _time_mod.time():
+        return sale
+    if pk in FLASH_SALES:
+        del FLASH_SALES[pk]
+    return None
+
+
+def _parse_duration(s: str) -> int | None:
+    """Parse duration string like '30m','1h','2h30m' → seconds. Returns None on error."""
+    import re as _re
+    s = s.strip().lower()
+    m = _re.fullmatch(r'(?:(\d+)h)?(?:(\d+)m(?:in)?)?', s)
+    if not m or not m.group(0):
+        try:
+            return int(s) * 60
+        except ValueError:
+            return None
+    hours   = int(m.group(1) or 0)
+    minutes = int(m.group(2) or 0)
+    secs    = hours * 3600 + minutes * 60
+    return secs if secs > 0 else None
+
+
+def _flash_countdown(expires_at: float) -> str:
+    """Human-readable countdown string."""
+    left = max(0, int(expires_at - _time_mod.time()))
+    h, rem = divmod(left, 3600)
+    m, s   = divmod(rem, 60)
+    if h:
+        return f"{h}h {m}m baki"
+    if m:
+        return f"{m}m {s}s baki"
+    return f"{s}s baki"
 
 
 QTY_EMOJIS = {
@@ -891,15 +939,30 @@ def _store_menu_text_and_keyboard():
         p = PRODUCTS.get(pk)
         if not p:
             continue
-        s = get_stock(pk)
+        s    = get_stock(pk)
         desc = f" — {p['desc']}" if p.get("desc") else ""
-        lines.append(f"{p['emoji']} *{p['name']}*{desc} — *₹{p['price']}*")
-        label = (
-            f"{p['emoji']} {p['name']} – ₹{p['price']}  [{s} left]"
-            if s > 0 else
-            f"{p['emoji']} {p['name']} – Out of Stock"
-        )
-        keyboard.append([InlineKeyboardButton(label, callback_data=f"buy_{pk}")])
+        sale = _get_active_flash_sale(pk)
+        if sale:
+            countdown = _flash_countdown(sale["expires_at"])
+            lines.append(
+                f"⚡ *FLASH SALE!* {p['emoji']} *{p['name']}*{desc}\n"
+                f"   ~~₹{sale['original_price']}~~ → *₹{sale['sale_price']}*  ⏳ {countdown}"
+            )
+            btn_price = sale["sale_price"]
+            btn_label = (
+                f"⚡ {p['emoji']} {p['name']} – ₹{btn_price} SALE! [{s} left]"
+                if s > 0 else
+                f"{p['emoji']} {p['name']} – Out of Stock"
+            )
+        else:
+            lines.append(f"{p['emoji']} *{p['name']}*{desc} — *₹{p['price']}*")
+            btn_price = p['price']
+            btn_label = (
+                f"{p['emoji']} {p['name']} – ₹{btn_price}  [{s} left]"
+                if s > 0 else
+                f"{p['emoji']} {p['name']} – Out of Stock"
+            )
+        keyboard.append([InlineKeyboardButton(btn_label, callback_data=f"buy_{pk}")])
 
     lines.append("\n━━━━━━━━━━━━━━━━━━━━")
     lines.append("⚡ Instant Delivery  |  ✅ Trusted  |  💬 24/7 Support")
@@ -3009,6 +3072,165 @@ async def del_service_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     )
 
 
+# ─────────────── Flash Sale Commands ───────────────
+
+async def flash_sale_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """/flash_sale ID SALE_PRICE DURATION — start a flash sale. Duration: 30m, 1h, 2h30m"""
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
+        return
+    args = context.args
+    if len(args) != 3:
+        await update.message.reply_text(
+            "❌ *Usage:*\n`/flash_sale ID SALE_PRICE DURATION`\n\n"
+            "*Examples:*\n"
+            "`/flash_sale myntra_199 25 30m`\n"
+            "`/flash_sale chatgpt 39 1h`\n"
+            "`/flash_sale bigbasket 10 2h30m`",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+
+    pk         = args[0].strip().lower()
+    price_str  = args[1]
+    dur_str    = args[2]
+
+    if pk not in PRODUCTS:
+        await update.message.reply_text(
+            f"❌ Service `{pk}` nahi mili.\nSaari services: `/products`",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+    try:
+        sale_price = int(price_str)
+        if sale_price <= 0:
+            raise ValueError
+    except ValueError:
+        await update.message.reply_text("❌ Sale price ek positive number hona chahiye.", parse_mode=ParseMode.MARKDOWN)
+        return
+
+    secs = _parse_duration(dur_str)
+    if not secs:
+        await update.message.reply_text(
+            "❌ Duration format galat hai.\nExamples: `30m`, `1h`, `2h30m`",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+
+    original_price = PRODUCTS[pk]["price"]
+    if sale_price >= original_price:
+        await update.message.reply_text(
+            f"⚠️ Sale price (₹{sale_price}) original price (₹{original_price}) se kam honi chahiye!",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+
+    expires_at = _time_mod.time() + secs
+    FLASH_SALES[pk] = {
+        "sale_price":     sale_price,
+        "original_price": original_price,
+        "expires_at":     expires_at,
+    }
+
+    product_name = PRODUCTS[pk]["name"]
+    countdown    = _flash_countdown(expires_at)
+
+    # Schedule auto-end job
+    if context.job_queue:
+        context.job_queue.run_once(
+            _flash_sale_expire_job,
+            when=secs,
+            data={"pk": pk, "original_price": original_price},
+            name=f"flash_expire_{pk}",
+        )
+
+    # Broadcast to all users
+    users = _load(USERS_FILE) or {}
+    p = PRODUCTS[pk]
+    broadcast_text = (
+        f"⚡ *FLASH SALE SHURU!*\n\n"
+        f"{p['emoji']} *{product_name}*\n"
+        f"Normal Price: ₹{original_price}\n"
+        f"*SALE Price: ₹{sale_price}* 🔥\n\n"
+        f"⏳ Sirf *{countdown}* ke liye!\n\n"
+        f"Jaldi karo — /start"
+    )
+    sent = 0
+    for uid in list(users.keys()):
+        try:
+            await context.bot.send_message(chat_id=int(uid), text=broadcast_text, parse_mode=ParseMode.MARKDOWN)
+            sent += 1
+        except Exception:
+            pass
+
+    await update.message.reply_text(
+        f"✅ *Flash Sale Live!*\n\n"
+        f"{p['emoji']} *{product_name}*\n"
+        f"₹{original_price} → *₹{sale_price}*\n"
+        f"⏳ Duration: {countdown}\n\n"
+        f"📢 {sent} users ko notification bheja gaya!",
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+async def _flash_sale_expire_job(context) -> None:
+    """Called by job_queue when flash sale expires."""
+    data = context.job.data
+    pk   = data.get("pk")
+    if pk and pk in FLASH_SALES:
+        del FLASH_SALES[pk]
+    logger.info(f"Flash sale expired: {pk}")
+
+
+async def end_flash_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """/end_flash ID — end a running flash sale early."""
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
+        return
+    args = context.args
+    if len(args) != 1:
+        await update.message.reply_text(
+            "❌ *Usage:* `/end_flash SERVICE_ID`\nExample: `/end_flash myntra_199`",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+    pk = args[0].strip().lower()
+    if pk not in FLASH_SALES:
+        await update.message.reply_text(
+            f"⚠️ `{pk}` ka koi active flash sale nahi hai.",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+    del FLASH_SALES[pk]
+    # Remove pending expire job
+    if context.job_queue:
+        for job in context.job_queue.get_jobs_by_name(f"flash_expire_{pk}"):
+            job.schedule_removal()
+    await update.message.reply_text(
+        f"✅ *Flash sale khatam!*\n`{pk}` wapis normal price pe aa gaya.",
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+async def list_flash_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """/flash_list — show all active flash sales."""
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
+        return
+    active = {pk: s for pk, s in FLASH_SALES.items() if s["expires_at"] > _time_mod.time()}
+    if not active:
+        await update.message.reply_text("ℹ️ Abhi koi active flash sale nahi hai.", parse_mode=ParseMode.MARKDOWN)
+        return
+    lines = ["⚡ *Active Flash Sales:*\n"]
+    for pk, s in active.items():
+        p = PRODUCTS.get(pk, {})
+        lines.append(
+            f"{p.get('emoji','🔹')} `{pk}` — *{p.get('name', pk)}*\n"
+            f"   ₹{s['original_price']} → *₹{s['sale_price']}* | ⏳ {_flash_countdown(s['expires_at'])}"
+        )
+    await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN)
+
+
 # ─────────────── Main ───────────────
 
 def main() -> None:
@@ -3052,8 +3274,11 @@ def main() -> None:
     app.add_handler(CommandHandler("set_name",    set_name_command))
     app.add_handler(CommandHandler("set_price",   set_price_command))
     app.add_handler(CommandHandler("set_desc",    set_desc_command))
-    app.add_handler(CommandHandler("add_service", add_service_command))
-    app.add_handler(CommandHandler("del_service", del_service_command))
+    app.add_handler(CommandHandler("add_service",  add_service_command))
+    app.add_handler(CommandHandler("del_service",  del_service_command))
+    app.add_handler(CommandHandler("flash_sale",   flash_sale_command))
+    app.add_handler(CommandHandler("end_flash",    end_flash_command))
+    app.add_handler(CommandHandler("flash_list",   list_flash_command))
     # Rewards system (points-based referral)
     app.add_handler(CommandHandler("add_reward",    cmd_add_reward))
     app.add_handler(CommandHandler("add_coupon",    cmd_add_reward_coupon))
