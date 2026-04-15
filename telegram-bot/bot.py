@@ -38,7 +38,7 @@ ADMIN_ID   = int(os.environ.get("TELEGRAM_ADMIN_ID", "6724474397"))
 
 UPI_ID         = "BHARATPE.8B0L1T2H8C56136@fbpe"  # UPI ID
 SUPPORT_HANDLE = "@MyntraCouponsupport_bot"  # Support Telegram handle
-QR_IMAGE_PATH  = "qr_code.jpg"              # QR code image (already loaded)
+QR_IMAGE_PATH  = os.path.join(os.path.dirname(__file__), "qr_code.jpg")
 
 # ─────────────── Referral & Channel Config ───────────────
 CHANNEL_USERNAME    = "@withoutanyinvestmentwork"
@@ -2103,40 +2103,6 @@ async def _execute_approve(context, order_id: str) -> tuple:
             logger.info(f"Coupon delivered (plain fallback) to {order['user_id']}")
         except Exception as e2:
             logger.error(f"Coupon delivery fallback also failed: {e2}")
-
-    # ── Step 2: Gift message — only for Myntra products ──
-    is_myntra_product = pk.startswith("myntra") or pk in ("combo", "combo2")
-    if is_myntra_product:
-        gift_text = (
-            "🔥 𝗠𝗬𝗡𝗧𝗥𝗔 𝗡𝗘𝗪 𝗟𝗢𝗢𝗧 𝗢𝗙𝗙𝗘𝗥 💸\n\n"
-            "₹399+ ka product almost FREE 😱\n"
-            "ya sirf ₹10–₹50 me 🔥\n\n"
-            "🪄 𝗢𝗙𝗙𝗘𝗥 𝗧𝗥𝗜𝗖𝗞:\n\n"
-            "➡️ ₹100 OFF on ₹199\n"
-            "➡️ ₹100 OFF on ₹399\n"
-            "➡️ 30% OFF Code → FWDHALFPRICE\n"
-            "➡️ 10% Extra Discount\n\n"
-            "👉 Total discount se product almost FREE 😍\n\n"
-            "🔗 Product Link:\n"
-            "https://myntr.in/H0NN8Q\n\n"
-            "📊 Example:\n\n"
-            "Product ₹400\n"
-            "→ ₹300\n"
-            "→ ₹200\n"
-            "→ ₹160\n"
-            "→ ₹40 approx\n\n"
-            "⚡ Important:\n\n"
-            "✔️ Best on new account\n"
-            "✔️ Sometimes adjust karna pade\n\n"
-            "🚀 Try fast before it expires!"
-        )
-        try:
-            await context.bot.send_message(
-                chat_id=order["user_id"],
-                text=gift_text,
-            )
-        except Exception as e:
-            logger.error(f"Gift message failed for {order['user_id']}: {e}")
 
     return order, assigned
 
