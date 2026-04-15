@@ -1,0 +1,210 @@
+2026-04-15T17:25:45.827564476Z [inf]  
+2026-04-15T17:25:47.205676314Z [inf]  [35m[Region: us-east4][0m
+2026-04-15T17:25:47.222528261Z [inf]  [35m=========================
+2026-04-15T17:25:47.222566050Z [inf]  Using Detected Dockerfile
+2026-04-15T17:25:47.222572437Z [inf]  =========================
+2026-04-15T17:25:47.222576769Z [inf]  [0m
+2026-04-15T17:25:47.222591752Z [inf]  context: w3bf-uU8d
+2026-04-15T17:25:47.425904221Z [inf]  [internal] load build definition from Dockerfile
+2026-04-15T17:25:47.425965877Z [inf]  [internal] load build definition from Dockerfile
+2026-04-15T17:25:47.425998260Z [inf]  [internal] load build definition from Dockerfile
+2026-04-15T17:25:47.435942483Z [inf]  [internal] load build definition from Dockerfile
+2026-04-15T17:25:47.438030367Z [inf]  [internal] load metadata for docker.io/library/python:3.11-slim
+2026-04-15T17:25:47.441780619Z [inf]  [auth] library/python:pull token for registry-1.docker.io
+2026-04-15T17:25:47.441824293Z [inf]  [auth] library/python:pull token for registry-1.docker.io
+2026-04-15T17:25:47.847572317Z [inf]  [internal] load metadata for docker.io/library/python:3.11-slim
+2026-04-15T17:25:47.848076157Z [inf]  [internal] load .dockerignore
+2026-04-15T17:25:47.848132919Z [inf]  [internal] load .dockerignore
+2026-04-15T17:25:47.848313468Z [inf]  [internal] load .dockerignore
+2026-04-15T17:25:47.857637590Z [inf]  [internal] load .dockerignore
+2026-04-15T17:25:47.860763910Z [inf]  [5/5] COPY telegram-bot/ ./telegram-bot/
+2026-04-15T17:25:47.860794749Z [inf]  [4/5] RUN pip install --no-cache-dir -r requirements.txt
+2026-04-15T17:25:47.860804783Z [inf]  [3/5] COPY requirements.txt .
+2026-04-15T17:25:47.860815340Z [inf]  [internal] load build context
+2026-04-15T17:25:47.860826001Z [inf]  [2/5] WORKDIR /app
+2026-04-15T17:25:47.860835120Z [inf]  [1/5] FROM docker.io/library/python:3.11-slim@sha256:233de06753d30d120b1a3ce359d8d3be8bda78524cd8f520c99883bfe33964cf
+2026-04-15T17:25:47.860855243Z [inf]  [1/5] FROM docker.io/library/python:3.11-slim@sha256:233de06753d30d120b1a3ce359d8d3be8bda78524cd8f520c99883bfe33964cf
+2026-04-15T17:25:47.860863493Z [inf]  [internal] load build context
+2026-04-15T17:25:47.860875700Z [inf]  [internal] load build context
+2026-04-15T17:25:47.869876988Z [inf]  [1/5] FROM docker.io/library/python:3.11-slim@sha256:233de06753d30d120b1a3ce359d8d3be8bda78524cd8f520c99883bfe33964cf
+2026-04-15T17:25:47.869915846Z [inf]  [1/5] FROM docker.io/library/python:3.11-slim@sha256:233de06753d30d120b1a3ce359d8d3be8bda78524cd8f520c99883bfe33964cf
+2026-04-15T17:25:47.870156534Z [inf]  [1/5] FROM docker.io/library/python:3.11-slim@sha256:233de06753d30d120b1a3ce359d8d3be8bda78524cd8f520c99883bfe33964cf
+2026-04-15T17:25:47.870651143Z [inf]  [1/5] FROM docker.io/library/python:3.11-slim@sha256:233de06753d30d120b1a3ce359d8d3be8bda78524cd8f520c99883bfe33964cf
+2026-04-15T17:25:47.884696362Z [inf]  [internal] load build context
+2026-04-15T17:25:47.886136689Z [inf]  [1/5] FROM docker.io/library/python:3.11-slim@sha256:233de06753d30d120b1a3ce359d8d3be8bda78524cd8f520c99883bfe33964cf
+2026-04-15T17:25:47.888683555Z [inf]  [1/5] FROM docker.io/library/python:3.11-slim@sha256:233de06753d30d120b1a3ce359d8d3be8bda78524cd8f520c99883bfe33964cf
+2026-04-15T17:25:48.542050163Z [inf]  [1/5] FROM docker.io/library/python:3.11-slim@sha256:233de06753d30d120b1a3ce359d8d3be8bda78524cd8f520c99883bfe33964cf
+2026-04-15T17:25:49.035430962Z [inf]  [2/5] WORKDIR /app
+2026-04-15T17:25:49.298599945Z [inf]  [2/5] WORKDIR /app
+2026-04-15T17:25:49.301035822Z [inf]  [3/5] COPY requirements.txt .
+2026-04-15T17:25:49.324007582Z [inf]  [3/5] COPY requirements.txt .
+2026-04-15T17:25:49.327054824Z [inf]  [4/5] RUN pip install --no-cache-dir -r requirements.txt
+2026-04-15T17:25:50.965807556Z [inf]  Collecting python-telegram-bot==21.10 (from python-telegram-bot[job-queue]==21.10->-r requirements.txt (line 1))
+
+2026-04-15T17:25:50.990147751Z [inf]    Downloading python_telegram_bot-21.10-py3-none-any.whl.metadata (17 kB)
+
+2026-04-15T17:25:51.015721686Z [inf]  Collecting flask (from -r requirements.txt (line 2))
+
+2026-04-15T17:25:51.018787288Z [inf]    Downloading flask-3.1.3-py3-none-any.whl.metadata (3.2 kB)
+
+2026-04-15T17:25:51.063286336Z [inf]  Collecting httpx~=0.27 (from python-telegram-bot==21.10->python-telegram-bot[job-queue]==21.10->-r requirements.txt (line 1))
+
+2026-04-15T17:25:51.067361419Z [inf]    Downloading httpx-0.28.1-py3-none-any.whl.metadata (7.1 kB)
+
+2026-04-15T17:25:51.106472259Z [inf]  Collecting apscheduler<3.12.0,>=3.10.4 (from python-telegram-bot[job-queue]==21.10->-r requirements.txt (line 1))
+
+2026-04-15T17:25:51.109551503Z [inf]    Downloading apscheduler-3.11.2-py3-none-any.whl.metadata (6.4 kB)
+
+2026-04-15T17:25:51.129241236Z [inf]  Collecting blinker>=1.9.0 (from flask->-r requirements.txt (line 2))
+
+2026-04-15T17:25:51.132440156Z [inf]    Downloading blinker-1.9.0-py3-none-any.whl.metadata (1.6 kB)
+
+2026-04-15T17:25:51.156390034Z [inf]  Collecting click>=8.1.3 (from flask->-r requirements.txt (line 2))
+
+2026-04-15T17:25:51.160190719Z [inf]    Downloading click-8.3.2-py3-none-any.whl.metadata (2.6 kB)
+
+2026-04-15T17:25:51.174496737Z [inf]  Collecting itsdangerous>=2.2.0 (from flask->-r requirements.txt (line 2))
+
+2026-04-15T17:25:51.177422751Z [inf]    Downloading itsdangerous-2.2.0-py3-none-any.whl.metadata (1.9 kB)
+
+2026-04-15T17:25:51.197767616Z [inf]  Collecting jinja2>=3.1.2 (from flask->-r requirements.txt (line 2))
+
+2026-04-15T17:25:51.200598084Z [inf]    Downloading jinja2-3.1.6-py3-none-any.whl.metadata (2.9 kB)
+
+2026-04-15T17:25:51.261231314Z [inf]  Collecting markupsafe>=2.1.1 (from flask->-r requirements.txt (line 2))
+
+2026-04-15T17:25:51.264386831Z [inf]    Downloading markupsafe-3.0.3-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (2.7 kB)
+
+2026-04-15T17:25:51.297111557Z [inf]  Collecting werkzeug>=3.1.0 (from flask->-r requirements.txt (line 2))
+
+2026-04-15T17:25:51.300183798Z [inf]    Downloading werkzeug-3.1.8-py3-none-any.whl.metadata (4.0 kB)
+
+2026-04-15T17:25:51.334811307Z [inf]  Collecting tzlocal>=3.0 (from apscheduler<3.12.0,>=3.10.4->python-telegram-bot[job-queue]==21.10->-r requirements.txt (line 1))
+
+2026-04-15T17:25:51.339409904Z [inf]    Downloading tzlocal-5.3.1-py3-none-any.whl.metadata (7.6 kB)
+
+2026-04-15T17:25:51.376656025Z [inf]  Collecting anyio (from httpx~=0.27->python-telegram-bot==21.10->python-telegram-bot[job-queue]==21.10->-r requirements.txt (line 1))
+
+2026-04-15T17:25:51.37994551Z [inf]    Downloading anyio-4.13.0-py3-none-any.whl.metadata (4.5 kB)
+
+2026-04-15T17:25:51.423331294Z [inf]  Collecting certifi (from httpx~=0.27->python-telegram-bot==21.10->python-telegram-bot[job-queue]==21.10->-r requirements.txt (line 1))
+
+2026-04-15T17:25:51.426731168Z [inf]    Downloading certifi-2026.2.25-py3-none-any.whl.metadata (2.5 kB)
+
+2026-04-15T17:25:51.452427933Z [inf]  Collecting httpcore==1.* (from httpx~=0.27->python-telegram-bot==21.10->python-telegram-bot[job-queue]==21.10->-r requirements.txt (line 1))
+
+2026-04-15T17:25:51.455820126Z [inf]    Downloading httpcore-1.0.9-py3-none-any.whl.metadata (21 kB)
+
+2026-04-15T17:25:51.473697998Z [inf]  Collecting idna (from httpx~=0.27->python-telegram-bot==21.10->python-telegram-bot[job-queue]==21.10->-r requirements.txt (line 1))
+
+2026-04-15T17:25:51.476493888Z [inf]    Downloading idna-3.11-py3-none-any.whl.metadata (8.4 kB)
+
+2026-04-15T17:25:51.495224861Z [inf]  Collecting h11>=0.16 (from httpcore==1.*->httpx~=0.27->python-telegram-bot==21.10->python-telegram-bot[job-queue]==21.10->-r requirements.txt (line 1))
+
+2026-04-15T17:25:51.49822093Z [inf]    Downloading h11-0.16.0-py3-none-any.whl.metadata (8.3 kB)
+
+2026-04-15T17:25:51.544656562Z [inf]  Collecting typing_extensions>=4.5 (from anyio->httpx~=0.27->python-telegram-bot==21.10->python-telegram-bot[job-queue]==21.10->-r requirements.txt (line 1))
+
+2026-04-15T17:25:51.547570739Z [inf]    Downloading typing_extensions-4.15.0-py3-none-any.whl.metadata (3.3 kB)
+
+2026-04-15T17:25:51.566179905Z [inf]  Downloading python_telegram_bot-21.10-py3-none-any.whl (669 kB)
+
+2026-04-15T17:25:51.571931577Z [inf]     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 669.5/669.5 kB 205.2 MB/s eta 0:00:00
+2026-04-15T17:25:51.572113733Z [inf]  
+
+2026-04-15T17:25:51.575067877Z [inf]  Downloading flask-3.1.3-py3-none-any.whl (103 kB)
+
+2026-04-15T17:25:51.577556989Z [inf]     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 103.4/103.4 kB 309.3 MB/s eta 0:00:00
+2026-04-15T17:25:51.577762843Z [inf]  
+
+2026-04-15T17:25:51.58050484Z [inf]  Downloading apscheduler-3.11.2-py3-none-any.whl (64 kB)
+
+2026-04-15T17:25:51.582535524Z [inf]     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 64.4/64.4 kB 277.0 MB/s eta 0:00:00
+2026-04-15T17:25:51.582688866Z [inf]  
+
+2026-04-15T17:25:51.585875861Z [inf]  Downloading blinker-1.9.0-py3-none-any.whl (8.5 kB)
+
+2026-04-15T17:25:51.589058352Z [inf]  Downloading click-8.3.2-py3-none-any.whl (108 kB)
+
+2026-04-15T17:25:51.591678048Z [inf]     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 108.4/108.4 kB 148.1 MB/s eta 0:00:00
+2026-04-15T17:25:51.591862029Z [inf]  
+
+2026-04-15T17:25:51.594639555Z [inf]  Downloading httpx-0.28.1-py3-none-any.whl (73 kB)
+
+2026-04-15T17:25:51.596484089Z [inf]     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 73.5/73.5 kB 285.0 MB/s eta 0:00:00
+2026-04-15T17:25:51.596662561Z [inf]  
+
+2026-04-15T17:25:51.603541113Z [inf]  Downloading httpcore-1.0.9-py3-none-any.whl (78 kB)
+
+2026-04-15T17:25:51.605311619Z [inf]     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 78.8/78.8 kB 300.3 MB/s eta 0:00:00
+2026-04-15T17:25:51.605489537Z [inf]  
+
+2026-04-15T17:25:51.60850787Z [inf]  Downloading itsdangerous-2.2.0-py3-none-any.whl (16 kB)
+
+2026-04-15T17:25:51.612038517Z [inf]  Downloading jinja2-3.1.6-py3-none-any.whl (134 kB)
+
+2026-04-15T17:25:51.614210754Z [inf]     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 134.9/134.9 kB 302.7 MB/s eta 0:00:00
+2026-04-15T17:25:51.61437891Z [inf]  
+
+2026-04-15T17:25:51.618317799Z [inf]  Downloading markupsafe-3.0.3-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (22 kB)
+
+2026-04-15T17:25:51.621740245Z [inf]  Downloading werkzeug-3.1.8-py3-none-any.whl (226 kB)
+
+2026-04-15T17:25:51.625799033Z [inf]     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 226.5/226.5 kB 196.5 MB/s eta 0:00:00
+2026-04-15T17:25:51.625961397Z [inf]  
+
+2026-04-15T17:25:51.6287348Z [inf]  Downloading tzlocal-5.3.1-py3-none-any.whl (18 kB)
+
+2026-04-15T17:25:51.632633256Z [inf]  Downloading anyio-4.13.0-py3-none-any.whl (114 kB)
+
+2026-04-15T17:25:51.634732701Z [inf]     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 114.4/114.4 kB 301.6 MB/s eta 0:00:00
+2026-04-15T17:25:51.63489053Z [inf]  
+
+2026-04-15T17:25:51.637886398Z [inf]  Downloading idna-3.11-py3-none-any.whl (71 kB)
+
+2026-04-15T17:25:51.639693905Z [inf]     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 71.0/71.0 kB 294.8 MB/s eta 0:00:00
+2026-04-15T17:25:51.639982536Z [inf]  
+
+2026-04-15T17:25:51.644170591Z [inf]  Downloading certifi-2026.2.25-py3-none-any.whl (153 kB)
+
+2026-04-15T17:25:51.646684866Z [inf]     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 153.7/153.7 kB 190.7 MB/s eta 0:00:00
+2026-04-15T17:25:51.646847991Z [inf]  
+
+2026-04-15T17:25:51.649579696Z [inf]  Downloading h11-0.16.0-py3-none-any.whl (37 kB)
+
+2026-04-15T17:25:51.653380335Z [inf]  Downloading typing_extensions-4.15.0-py3-none-any.whl (44 kB)
+
+2026-04-15T17:25:51.655057575Z [inf]     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 44.6/44.6 kB 289.7 MB/s eta 0:00:00
+2026-04-15T17:25:51.655242205Z [inf]  
+
+2026-04-15T17:25:51.778207341Z [inf]  Installing collected packages: tzlocal, typing_extensions, markupsafe, itsdangerous, idna, h11, click, certifi, blinker, werkzeug, jinja2, httpcore, apscheduler, anyio, httpx, flask, python-telegram-bot
+
+2026-04-15T17:25:52.836574015Z [inf]  Successfully installed anyio-4.13.0 apscheduler-3.11.2 blinker-1.9.0 certifi-2026.2.25 click-8.3.2 flask-3.1.3 h11-0.16.0 httpcore-1.0.9 httpx-0.28.1 idna-3.11 itsdangerous-2.2.0 jinja2-3.1.6 markupsafe-3.0.3 python-telegram-bot-21.10 typing_extensions-4.15.0 tzlocal-5.3.1 werkzeug-3.1.8
+
+2026-04-15T17:25:52.836747742Z [inf]  WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
+
+2026-04-15T17:25:52.908731067Z [inf]  
+[notice] A new release of pip is available: 24.0 -> 26.0.1
+[notice] To update, run: pip install --upgrade pip
+
+2026-04-15T17:25:53.134612271Z [inf]  [4/5] RUN pip install --no-cache-dir -r requirements.txt
+2026-04-15T17:25:53.137492997Z [inf]  [5/5] COPY telegram-bot/ ./telegram-bot/
+2026-04-15T17:25:53.165958792Z [inf]  [5/5] COPY telegram-bot/ ./telegram-bot/
+2026-04-15T17:25:53.626442473Z [inf]  [auth] sharing credentials for production-us-east4-eqdc4a.railway-registry.com
+2026-04-15T17:25:53.626503189Z [inf]  [auth] sharing credentials for production-us-east4-eqdc4a.railway-registry.com
+2026-04-15T17:25:53.908668328Z [inf]  importing to docker
+2026-04-15T17:25:55.879306456Z [inf]  importing to docker
+2026-04-15T17:26:06.714972226Z [inf]  [92mBuild time: 19.49 seconds[0m
+2026-04-15T17:26:12.346887098Z [inf]  
+2026-04-15T17:26:12.346890360Z [inf]  [35m====================
+Starting Healthcheck
+====================
+[0m
+2026-04-15T17:26:12.346891008Z [inf]  [37mPath: /[0m
+2026-04-15T17:26:12.346891772Z [inf]  [37mRetry window: 30s[0m
+2026-04-15T17:26:12.346892363Z [inf]  
+2026-04-15T17:26:22.482913107Z [inf]  [93mAttempt #1 failed with service unavailable. Continuing to retry for 19s[0m
+2026-04-15T17:26:33.557527811Z [inf]  [93mAttempt #2 failed with service unavailable. Continuing to retry for 8s[0m
+2026-04-15T17:27:05.644041192Z [inf]  
+2026-04-15T17:27:05.644044682Z [inf]  [91m1/1 replicas never became healthy![0m
+2026-04-15T17:27:05.644045680Z [inf]  [91mHealthcheck failed![0m
