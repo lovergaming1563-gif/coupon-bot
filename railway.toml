@@ -5,3 +5,5 @@ dockerfilePath = "Dockerfile"
 startCommand = "python telegram-bot/bot.py"
 restartPolicyType = "always"
 restartPolicyMaxRetries = 10
+healthcheckPath = "/"
+healthcheckTimeout = 30

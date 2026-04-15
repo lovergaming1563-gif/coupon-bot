@@ -3027,7 +3027,10 @@ if __name__ == "__main__":
 
     # Always start Flask — handles health checks + referral redirects on all platforms
     flask_port = int(os.environ.get("PORT", os.environ.get("FLASK_PORT", 3000)))
-    threading.Thread(target=lambda: flask_app.run(host="0.0.0.0", port=flask_port), daemon=True).start()
+    threading.Thread(
+        target=lambda: flask_app.run(host="0.0.0.0", port=flask_port, threaded=True, use_reloader=False),
+        daemon=True
+    ).start()
     logger.info(f"🌐 Keep-alive server started on port {flask_port}")
 
     main()
