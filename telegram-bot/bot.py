@@ -3022,15 +3022,17 @@ def acquire_pid_lock():
 
 
 if __name__ == "__main__":
-    # Kill any duplicate instance first — prevents 409 Conflict
-    acquire_pid_lock()
-
-    # Always start Flask — handles health checks + referral redirects on all platforms
+    # Start Flask FIRST so Railway's port check passes immediately
     flask_port = int(os.environ.get("PORT", os.environ.get("FLASK_PORT", 3000)))
     threading.Thread(
         target=lambda: flask_app.run(host="0.0.0.0", port=flask_port, threaded=True, use_reloader=False),
         daemon=True
     ).start()
     logger.info(f"🌐 Keep-alive server started on port {flask_port}")
+
+    import time as _time; _time.sleep(1)  # Give Flask 1 sec to bind before bot starts
+
+    # Kill any duplicate instance first — prevents 409 Conflict
+    acquire_pid_lock()
 
     main()
