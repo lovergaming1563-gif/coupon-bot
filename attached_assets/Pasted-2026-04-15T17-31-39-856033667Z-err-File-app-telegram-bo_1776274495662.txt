@@ -1,0 +1,804 @@
+2026-04-15T17:31:39.856033667Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:31:39.856045487Z [err]      nahiimport os
+2026-04-15T17:31:39.856049827Z [err]                 ^^
+2026-04-15T17:31:39.856053627Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:31:40.050946375Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:31:40.050950675Z [err]      nahiimport os
+2026-04-15T17:31:40.050953314Z [err]                 ^^
+2026-04-15T17:31:40.050955794Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:31:40.203454601Z [inf]  Starting Container
+2026-04-15T17:31:40.920181122Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:31:40.920184682Z [err]      nahiimport os
+2026-04-15T17:31:40.920188692Z [err]                 ^^
+2026-04-15T17:31:40.920192141Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:31:41.384391755Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:31:41.384395496Z [err]      nahiimport os
+2026-04-15T17:31:41.384400856Z [err]                 ^^
+2026-04-15T17:31:41.384404416Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:31:42.086093479Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:31:42.086096999Z [err]      nahiimport os
+2026-04-15T17:31:42.086100379Z [err]                 ^^
+2026-04-15T17:31:42.086104339Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:31:42.997011166Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:31:42.997016546Z [err]      nahiimport os
+2026-04-15T17:31:42.997022066Z [err]                 ^^
+2026-04-15T17:31:42.997026936Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:31:43.436190379Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:31:43.436195058Z [err]      nahiimport os
+2026-04-15T17:31:43.436198238Z [err]                 ^^
+2026-04-15T17:31:43.436201148Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:31:44.129572428Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:31:44.129578698Z [err]      nahiimport os
+2026-04-15T17:31:44.129582588Z [err]                 ^^
+2026-04-15T17:31:44.129586098Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:31:44.906384176Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:31:44.906485254Z [err]      nahiimport os
+2026-04-15T17:31:44.906492794Z [err]                 ^^
+2026-04-15T17:31:44.906499894Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:31:45.502565231Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:31:45.502568541Z [err]      nahiimport os
+2026-04-15T17:31:45.502573831Z [err]                 ^^
+2026-04-15T17:31:45.502576581Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:31:46.172054367Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:31:46.172057257Z [err]      nahiimport os
+2026-04-15T17:31:46.172060267Z [err]                 ^^
+2026-04-15T17:31:46.172063087Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:31:46.941704047Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:31:46.941717487Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:31:46.941717617Z [err]      nahiimport os
+2026-04-15T17:31:46.941721917Z [err]                 ^^
+2026-04-15T17:31:47.582050883Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:31:47.582054783Z [err]      nahiimport os
+2026-04-15T17:31:47.582058893Z [err]                 ^^
+2026-04-15T17:31:47.582062933Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:31:48.241458559Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:31:48.241464289Z [err]      nahiimport os
+2026-04-15T17:31:48.241468179Z [err]                 ^^
+2026-04-15T17:31:48.241472359Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:31:49.367308545Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:31:49.367311395Z [err]      nahiimport os
+2026-04-15T17:31:49.367313825Z [err]                 ^^
+2026-04-15T17:31:49.367316255Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:31:51.723190450Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:31:51.723195000Z [err]      nahiimport os
+2026-04-15T17:31:51.723198790Z [err]                 ^^
+2026-04-15T17:31:51.723202080Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:31:51.726234300Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:31:51.726302479Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:31:51.726306879Z [err]      nahiimport os
+2026-04-15T17:31:51.726312129Z [err]                 ^^
+2026-04-15T17:31:51.979194671Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:31:51.979225620Z [err]                 ^^
+2026-04-15T17:31:51.979231640Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:31:51.979495436Z [err]      nahiimport os
+2026-04-15T17:31:53.342769842Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:31:53.342775532Z [err]      nahiimport os
+2026-04-15T17:31:53.342781822Z [err]                 ^^
+2026-04-15T17:31:53.342786562Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:31:53.345611995Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:31:53.345614635Z [err]      nahiimport os
+2026-04-15T17:31:53.345617605Z [err]                 ^^
+2026-04-15T17:31:53.345997688Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:31:53.615885322Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:31:53.615889122Z [err]      nahiimport os
+2026-04-15T17:31:53.615892552Z [err]                 ^^
+2026-04-15T17:31:53.615895752Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:31:54.309343330Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:31:54.309349960Z [err]      nahiimport os
+2026-04-15T17:31:54.309354489Z [err]                 ^^
+2026-04-15T17:31:54.309358839Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:31:55.003980294Z [err]                 ^^
+2026-04-15T17:31:55.003986624Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:31:55.004047873Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:31:55.004059223Z [err]      nahiimport os
+2026-04-15T17:31:55.552146066Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:31:55.552150315Z [err]      nahiimport os
+2026-04-15T17:31:55.552155295Z [err]                 ^^
+2026-04-15T17:31:55.552159935Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:31:56.223808738Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:31:56.223813808Z [err]      nahiimport os
+2026-04-15T17:31:56.223819757Z [err]                 ^^
+2026-04-15T17:31:56.223823347Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:31:56.998642445Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:31:56.998688754Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:31:56.998692444Z [err]      nahiimport os
+2026-04-15T17:31:56.998696474Z [err]                 ^^
+2026-04-15T17:31:57.561975744Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:31:57.561979204Z [err]      nahiimport os
+2026-04-15T17:31:57.561982144Z [err]                 ^^
+2026-04-15T17:31:57.561984444Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:31:58.283057012Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:31:58.283060782Z [err]      nahiimport os
+2026-04-15T17:31:58.283074451Z [err]                 ^^
+2026-04-15T17:31:58.283078151Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:31:59.000811715Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:31:59.000816615Z [err]      nahiimport os
+2026-04-15T17:31:59.000820605Z [err]                 ^^
+2026-04-15T17:31:59.000825695Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:31:59.985442374Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:31:59.985445974Z [err]      nahiimport os
+2026-04-15T17:31:59.985449584Z [err]                 ^^
+2026-04-15T17:31:59.985452624Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:00.996691141Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:00.996695371Z [err]      nahiimport os
+2026-04-15T17:32:00.996700471Z [err]                 ^^
+2026-04-15T17:32:00.996706111Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:01.537535939Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:01.537539559Z [err]      nahiimport os
+2026-04-15T17:32:01.537542859Z [err]                 ^^
+2026-04-15T17:32:01.537546299Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:03.008047379Z [err]      nahiimport os
+2026-04-15T17:32:03.008055079Z [err]                 ^^
+2026-04-15T17:32:03.008060119Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:03.008153887Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:03.582266202Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:03.582272212Z [err]      nahiimport os
+2026-04-15T17:32:03.582276282Z [err]                 ^^
+2026-04-15T17:32:03.582280012Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:04.234823585Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:04.234827505Z [err]      nahiimport os
+2026-04-15T17:32:04.234830925Z [err]                 ^^
+2026-04-15T17:32:04.234834195Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:05.041134934Z [err]                 ^^
+2026-04-15T17:32:05.041141744Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:05.041237812Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:05.041243592Z [err]      nahiimport os
+2026-04-15T17:32:05.524413259Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:05.524419839Z [err]      nahiimport os
+2026-04-15T17:32:05.524422679Z [err]                 ^^
+2026-04-15T17:32:05.524426429Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:06.222055423Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:06.222068753Z [err]      nahiimport os
+2026-04-15T17:32:06.222073403Z [err]                 ^^
+2026-04-15T17:32:06.222076073Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:06.956472275Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:06.956475145Z [err]      nahiimport os
+2026-04-15T17:32:06.956478125Z [err]                 ^^
+2026-04-15T17:32:06.956481745Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:07.539083110Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:07.539087120Z [err]      nahiimport os
+2026-04-15T17:32:07.539091529Z [err]                 ^^
+2026-04-15T17:32:07.539095299Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:08.210850080Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:08.210856780Z [err]      nahiimport os
+2026-04-15T17:32:08.210860990Z [err]                 ^^
+2026-04-15T17:32:08.210864760Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:09.045926317Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:09.045939986Z [err]      nahiimport os
+2026-04-15T17:32:09.045945766Z [err]                 ^^
+2026-04-15T17:32:09.045951336Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:09.598696007Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:09.598701817Z [err]      nahiimport os
+2026-04-15T17:32:09.598707537Z [err]                 ^^
+2026-04-15T17:32:09.598714536Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:10.285489897Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:10.285492527Z [err]      nahiimport os
+2026-04-15T17:32:10.285495307Z [err]                 ^^
+2026-04-15T17:32:10.285498157Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:11.196650229Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:11.196656948Z [err]      nahiimport os
+2026-04-15T17:32:11.196662498Z [err]                 ^^
+2026-04-15T17:32:11.196666778Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:12.009757273Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:12.009761923Z [err]      nahiimport os
+2026-04-15T17:32:12.009765473Z [err]                 ^^
+2026-04-15T17:32:12.009768932Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:12.626226773Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:12.626232673Z [err]      nahiimport os
+2026-04-15T17:32:12.626236453Z [err]                 ^^
+2026-04-15T17:32:12.626240193Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:13.310716720Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:13.310721520Z [err]      nahiimport os
+2026-04-15T17:32:13.310725820Z [err]                 ^^
+2026-04-15T17:32:13.310729550Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:14.017665489Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:14.017668369Z [err]      nahiimport os
+2026-04-15T17:32:14.017670879Z [err]                 ^^
+2026-04-15T17:32:14.017673329Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:15.038368249Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:15.038372559Z [err]      nahiimport os
+2026-04-15T17:32:15.038376728Z [err]                 ^^
+2026-04-15T17:32:15.038380518Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:15.344601249Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:15.344604489Z [err]      nahiimport os
+2026-04-15T17:32:15.344607489Z [err]                 ^^
+2026-04-15T17:32:15.344610358Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:16.026411419Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:16.026415548Z [err]      nahiimport os
+2026-04-15T17:32:16.026419358Z [err]                 ^^
+2026-04-15T17:32:16.026423138Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:16.657538287Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:16.657542447Z [err]      nahiimport os
+2026-04-15T17:32:16.657546487Z [err]                 ^^
+2026-04-15T17:32:16.657550537Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:17.343763719Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:17.343767399Z [err]      nahiimport os
+2026-04-15T17:32:17.343771329Z [err]                 ^^
+2026-04-15T17:32:17.343775299Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:18.055053161Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:18.055057051Z [err]      nahiimport os
+2026-04-15T17:32:18.055060921Z [err]                 ^^
+2026-04-15T17:32:18.055066671Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:18.666958883Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:18.666963772Z [err]      nahiimport os
+2026-04-15T17:32:18.666966392Z [err]                 ^^
+2026-04-15T17:32:18.666969352Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:19.298555723Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:19.298559692Z [err]      nahiimport os
+2026-04-15T17:32:19.298563252Z [err]                 ^^
+2026-04-15T17:32:19.298566562Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:20.085132935Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:20.085137715Z [err]      nahiimport os
+2026-04-15T17:32:20.085142775Z [err]                 ^^
+2026-04-15T17:32:20.085146985Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:21.030406327Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:21.030411037Z [err]      nahiimport os
+2026-04-15T17:32:21.030415687Z [err]                 ^^
+2026-04-15T17:32:21.030420467Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:21.423462198Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:21.423467298Z [err]      nahiimport os
+2026-04-15T17:32:21.423472468Z [err]                 ^^
+2026-04-15T17:32:21.423477848Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:22.145848010Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:22.145857470Z [err]      nahiimport os
+2026-04-15T17:32:22.145862600Z [err]                 ^^
+2026-04-15T17:32:22.145865629Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:23.284472709Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:23.284476009Z [err]      nahiimport os
+2026-04-15T17:32:23.284479439Z [err]                 ^^
+2026-04-15T17:32:23.284482149Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:24.085368968Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:24.085373258Z [err]      nahiimport os
+2026-04-15T17:32:24.085376858Z [err]                 ^^
+2026-04-15T17:32:24.085380608Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:24.673260257Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:24.673264427Z [err]      nahiimport os
+2026-04-15T17:32:24.673267397Z [err]                 ^^
+2026-04-15T17:32:24.673270337Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:25.380160128Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:25.380164437Z [err]      nahiimport os
+2026-04-15T17:32:25.380169007Z [err]                 ^^
+2026-04-15T17:32:25.380173197Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:26.069650404Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:26.069652843Z [err]      nahiimport os
+2026-04-15T17:32:26.069655343Z [err]                 ^^
+2026-04-15T17:32:26.069657633Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:26.720777164Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:26.720780574Z [err]      nahiimport os
+2026-04-15T17:32:26.720783904Z [err]                 ^^
+2026-04-15T17:32:26.720788443Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:27.507149101Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:27.507151701Z [err]      nahiimport os
+2026-04-15T17:32:27.507155711Z [err]                 ^^
+2026-04-15T17:32:27.507158071Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:28.209900873Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:28.209908023Z [err]      nahiimport os
+2026-04-15T17:32:28.209912593Z [err]                 ^^
+2026-04-15T17:32:28.209916733Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:29.092096521Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:29.092101341Z [err]      nahiimport os
+2026-04-15T17:32:29.092105671Z [err]                 ^^
+2026-04-15T17:32:29.092111851Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:29.571007572Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:29.571013432Z [err]      nahiimport os
+2026-04-15T17:32:29.571020592Z [err]                 ^^
+2026-04-15T17:32:29.571024752Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:31.115723664Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:31.115730364Z [err]      nahiimport os
+2026-04-15T17:32:31.115734304Z [err]                 ^^
+2026-04-15T17:32:32.113304894Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:32.113309414Z [err]      nahiimport os
+2026-04-15T17:32:32.113312514Z [err]                 ^^
+2026-04-15T17:32:32.113315133Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:32.570889859Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:32.570895989Z [err]      nahiimport os
+2026-04-15T17:32:32.570900059Z [err]                 ^^
+2026-04-15T17:32:32.570904029Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:33.286059094Z [err]      nahiimport os
+2026-04-15T17:32:33.286062484Z [err]                 ^^
+2026-04-15T17:32:33.286065934Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:34.064299563Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:34.673040747Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:35.306156077Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:35.306158907Z [err]      nahiimport os
+2026-04-15T17:32:35.306161586Z [err]                 ^^
+2026-04-15T17:32:35.306165576Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:36.168573688Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:36.168579498Z [err]      nahiimport os
+2026-04-15T17:32:36.168583028Z [err]                 ^^
+2026-04-15T17:32:36.168586068Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:37.075557382Z [err]      nahiimport os
+2026-04-15T17:32:37.075563782Z [err]                 ^^
+2026-04-15T17:32:37.075568762Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:37.075729039Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:37.412936402Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:37.412941402Z [err]      nahiimport os
+2026-04-15T17:32:37.412946672Z [err]                 ^^
+2026-04-15T17:32:37.412949932Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:38.167635060Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:38.167640280Z [err]      nahiimport os
+2026-04-15T17:32:38.167645470Z [err]                 ^^
+2026-04-15T17:32:38.167649760Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:39.147006512Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:39.147011722Z [err]                 ^^
+2026-04-15T17:32:39.147014322Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:39.477233755Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:39.477236875Z [err]      nahiimport os
+2026-04-15T17:32:39.477239655Z [err]                 ^^
+2026-04-15T17:32:39.477242374Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:40.189784161Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:40.189793531Z [err]      nahiimport os
+2026-04-15T17:32:40.189797341Z [err]                 ^^
+2026-04-15T17:32:41.134197960Z [err]      nahiimport os
+2026-04-15T17:32:41.482240877Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:41.482245497Z [err]      nahiimport os
+2026-04-15T17:32:41.482248517Z [err]                 ^^
+2026-04-15T17:32:42.169606335Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:42.169611935Z [err]                 ^^
+2026-04-15T17:32:42.169614495Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:43.183813084Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:43.183815323Z [err]      nahiimport os
+2026-04-15T17:32:43.183817713Z [err]                 ^^
+2026-04-15T17:32:43.183820073Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:43.532954249Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:43.532958269Z [err]      nahiimport os
+2026-04-15T17:32:43.532961669Z [err]                 ^^
+2026-04-15T17:32:43.532964999Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:44.254787641Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:44.254791721Z [err]      nahiimport os
+2026-04-15T17:32:44.254796111Z [err]                 ^^
+2026-04-15T17:32:44.254799661Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:45.154870643Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:45.154875783Z [err]      nahiimport os
+2026-04-15T17:32:45.154881953Z [err]                 ^^
+2026-04-15T17:32:45.154886343Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:45.659700317Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:45.659713437Z [err]                 ^^
+2026-04-15T17:32:45.659719367Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:46.331712082Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:46.331715512Z [err]      nahiimport os
+2026-04-15T17:32:46.331718682Z [err]                 ^^
+2026-04-15T17:32:46.331722742Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:47.153019902Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:47.153025632Z [err]      nahiimport os
+2026-04-15T17:32:47.153030192Z [err]                 ^^
+2026-04-15T17:32:47.153033962Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:47.669027284Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:47.669032694Z [err]      nahiimport os
+2026-04-15T17:32:47.669041494Z [err]                 ^^
+2026-04-15T17:32:48.320138145Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:48.320143164Z [err]      nahiimport os
+2026-04-15T17:32:48.320146434Z [err]                 ^^
+2026-04-15T17:32:48.320149184Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:49.165568225Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:49.165573525Z [err]      nahiimport os
+2026-04-15T17:32:49.672632295Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:49.672635305Z [err]      nahiimport os
+2026-04-15T17:32:49.672638635Z [err]                 ^^
+2026-04-15T17:32:49.672642055Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:50.373198950Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:50.373202730Z [err]      nahiimport os
+2026-04-15T17:32:50.373206490Z [err]                 ^^
+2026-04-15T17:32:50.373210400Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:51.170078088Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:51.170081898Z [err]      nahiimport os
+2026-04-15T17:32:51.170084968Z [err]                 ^^
+2026-04-15T17:32:51.170088238Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:52.155249444Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:52.155262133Z [err]      nahiimport os
+2026-04-15T17:32:52.155268393Z [err]                 ^^
+2026-04-15T17:32:52.155274553Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:52.518762703Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:52.518770123Z [err]                 ^^
+2026-04-15T17:32:52.518774263Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:53.250113316Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:53.250116836Z [err]      nahiimport os
+2026-04-15T17:32:53.250120896Z [err]                 ^^
+2026-04-15T17:32:53.250125466Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:54.136895902Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:54.136903112Z [err]                 ^^
+2026-04-15T17:32:54.136903952Z [err]      nahiimport os
+2026-04-15T17:32:54.136908762Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:54.594661904Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:54.594665664Z [err]      nahiimport os
+2026-04-15T17:32:54.594669273Z [err]                 ^^
+2026-04-15T17:32:54.594672503Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:55.233339352Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:55.233341932Z [err]      nahiimport os
+2026-04-15T17:32:55.233344432Z [err]                 ^^
+2026-04-15T17:32:55.233347202Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:56.135384234Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:56.135388094Z [err]      nahiimport os
+2026-04-15T17:32:56.135391374Z [err]                 ^^
+2026-04-15T17:32:56.135394894Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:56.616450122Z [err]      nahiimport os
+2026-04-15T17:32:56.616453882Z [err]                 ^^
+2026-04-15T17:32:56.616456642Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:57.286428616Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:57.286431066Z [err]      nahiimport os
+2026-04-15T17:32:57.286433436Z [err]                 ^^
+2026-04-15T17:32:57.286435896Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:58.193489339Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:58.193492819Z [err]      nahiimport os
+2026-04-15T17:32:58.193499199Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:58.692996009Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:58.693000739Z [err]      nahiimport os
+2026-04-15T17:32:58.693003549Z [err]                 ^^
+2026-04-15T17:32:58.693006819Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:32:59.378506905Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:32:59.378512444Z [err]      nahiimport os
+2026-04-15T17:32:59.378517964Z [err]                 ^^
+2026-04-15T17:32:59.378524234Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:00.225935145Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:00.225939565Z [err]      nahiimport os
+2026-04-15T17:33:00.225943615Z [err]                 ^^
+2026-04-15T17:33:00.225947325Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:01.151191244Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:01.151204814Z [err]      nahiimport os
+2026-04-15T17:33:01.151211073Z [err]                 ^^
+2026-04-15T17:33:01.582830536Z [err]      nahiimport os
+2026-04-15T17:33:01.582850446Z [err]                 ^^
+2026-04-15T17:33:01.582853925Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:02.252105306Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:02.252108905Z [err]      nahiimport os
+2026-04-15T17:33:02.252113125Z [err]                 ^^
+2026-04-15T17:33:02.252116695Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:03.177452943Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:03.177476063Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:03.177481242Z [err]      nahiimport os
+2026-04-15T17:33:03.177486302Z [err]                 ^^
+2026-04-15T17:33:03.574176421Z [err]                 ^^
+2026-04-15T17:33:04.274022481Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:04.274027021Z [err]      nahiimport os
+2026-04-15T17:33:04.274036551Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:05.221589726Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:05.221592426Z [err]      nahiimport os
+2026-04-15T17:33:05.221595456Z [err]                 ^^
+2026-04-15T17:33:05.221598916Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:05.584676054Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:05.584686404Z [err]      nahiimport os
+2026-04-15T17:33:05.584693013Z [err]                 ^^
+2026-04-15T17:33:06.273662790Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:06.273668530Z [err]      nahiimport os
+2026-04-15T17:33:06.273672500Z [err]                 ^^
+2026-04-15T17:33:06.273676630Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:07.210705995Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:07.210754184Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:07.210760593Z [err]      nahiimport os
+2026-04-15T17:33:07.210767763Z [err]                 ^^
+2026-04-15T17:33:07.625247028Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:07.625259528Z [err]      nahiimport os
+2026-04-15T17:33:07.625265828Z [err]                 ^^
+2026-04-15T17:33:07.625271047Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:08.283520055Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:08.283523805Z [err]      nahiimport os
+2026-04-15T17:33:08.283528925Z [err]                 ^^
+2026-04-15T17:33:08.283532565Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:09.163563946Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:09.163571836Z [err]      nahiimport os
+2026-04-15T17:33:09.163576115Z [err]                 ^^
+2026-04-15T17:33:09.163580425Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:09.808942700Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:09.808948950Z [err]      nahiimport os
+2026-04-15T17:33:09.808952660Z [err]                 ^^
+2026-04-15T17:33:09.808956780Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:10.472684249Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:10.472690129Z [err]      nahiimport os
+2026-04-15T17:33:10.472693369Z [err]                 ^^
+2026-04-15T17:33:10.472696009Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:11.203107550Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:11.203112769Z [err]      nahiimport os
+2026-04-15T17:33:11.203116769Z [err]                 ^^
+2026-04-15T17:33:11.203119979Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:11.786165206Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:11.786168786Z [err]      nahiimport os
+2026-04-15T17:33:11.786172256Z [err]                 ^^
+2026-04-15T17:33:11.786176016Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:12.521673304Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:12.521677524Z [err]      nahiimport os
+2026-04-15T17:33:12.521682244Z [err]                 ^^
+2026-04-15T17:33:13.257234483Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:13.257239473Z [err]      nahiimport os
+2026-04-15T17:33:13.257244483Z [err]                 ^^
+2026-04-15T17:33:13.257248042Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:13.882903640Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:13.882907080Z [err]      nahiimport os
+2026-04-15T17:33:13.882910980Z [err]                 ^^
+2026-04-15T17:33:14.534278396Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:14.534282526Z [err]      nahiimport os
+2026-04-15T17:33:14.534285156Z [err]                 ^^
+2026-04-15T17:33:15.241831241Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:15.241837861Z [err]      nahiimport os
+2026-04-15T17:33:15.241842391Z [err]                 ^^
+2026-04-15T17:33:15.241846891Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:16.221600296Z [err]                 ^^
+2026-04-15T17:33:16.221607046Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:16.221626455Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:16.221630255Z [err]      nahiimport os
+2026-04-15T17:33:17.206191133Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:17.206196063Z [err]      nahiimport os
+2026-04-15T17:33:17.206201953Z [err]                 ^^
+2026-04-15T17:33:17.206207043Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:17.574693273Z [err]      nahiimport os
+2026-04-15T17:33:17.574697032Z [err]                 ^^
+2026-04-15T17:33:17.574701042Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:18.658713520Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:18.658736420Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:18.658740819Z [err]      nahiimport os
+2026-04-15T17:33:18.658745499Z [err]                 ^^
+2026-04-15T17:33:19.592685285Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:19.592691075Z [err]      nahiimport os
+2026-04-15T17:33:19.592694805Z [err]                 ^^
+2026-04-15T17:33:19.592698515Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:20.272504184Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:20.272510294Z [err]      nahiimport os
+2026-04-15T17:33:20.272515704Z [err]                 ^^
+2026-04-15T17:33:20.272520154Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:21.175700833Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:21.175708343Z [err]                 ^^
+2026-04-15T17:33:21.619395985Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:21.619399745Z [err]      nahiimport os
+2026-04-15T17:33:21.619402505Z [err]                 ^^
+2026-04-15T17:33:22.454586459Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:22.454590699Z [err]      nahiimport os
+2026-04-15T17:33:22.454601289Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:23.287769362Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:23.287774102Z [err]      nahiimport os
+2026-04-15T17:33:23.287778332Z [err]                 ^^
+2026-04-15T17:33:23.287792942Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:24.270943247Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:24.270946987Z [err]      nahiimport os
+2026-04-15T17:33:24.270950767Z [err]                 ^^
+2026-04-15T17:33:24.270954407Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:24.704344234Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:24.704370534Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:25.421638917Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:25.421642237Z [err]      nahiimport os
+2026-04-15T17:33:25.421645787Z [err]                 ^^
+2026-04-15T17:33:25.421648836Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:26.250757001Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:26.250761931Z [err]      nahiimport os
+2026-04-15T17:33:26.250766441Z [err]                 ^^
+2026-04-15T17:33:26.250770491Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:26.739768540Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:26.739774160Z [err]      nahiimport os
+2026-04-15T17:33:26.739821019Z [err]                 ^^
+2026-04-15T17:33:26.739824749Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:27.488142634Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:27.488146404Z [err]      nahiimport os
+2026-04-15T17:33:27.488150044Z [err]                 ^^
+2026-04-15T17:33:27.488153824Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:28.399826404Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:28.399831494Z [err]      nahiimport os
+2026-04-15T17:33:28.399835184Z [err]                 ^^
+2026-04-15T17:33:28.399839464Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:29.573785959Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:29.573789199Z [err]      nahiimport os
+2026-04-15T17:33:29.573791778Z [err]                 ^^
+2026-04-15T17:33:29.573794738Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:30.358162004Z [err]                 ^^
+2026-04-15T17:33:30.358168764Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:30.358225713Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:30.358230112Z [err]      nahiimport os
+2026-04-15T17:33:30.888522730Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:30.888527430Z [err]      nahiimport os
+2026-04-15T17:33:30.888530390Z [err]                 ^^
+2026-04-15T17:33:30.888533990Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:31.669962844Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:31.669968194Z [err]      nahiimport os
+2026-04-15T17:33:31.669972374Z [err]                 ^^
+2026-04-15T17:33:31.669976164Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:32.419136641Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:32.419141460Z [err]      nahiimport os
+2026-04-15T17:33:32.419145990Z [err]                 ^^
+2026-04-15T17:33:32.419151330Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:34.533793827Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:34.533797477Z [err]      nahiimport os
+2026-04-15T17:33:34.533803277Z [err]                 ^^
+2026-04-15T17:33:34.533806317Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:36.292273719Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:36.292276709Z [err]      nahiimport os
+2026-04-15T17:33:36.292286559Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:36.951060796Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:36.951063646Z [err]      nahiimport os
+2026-04-15T17:33:36.951066496Z [err]                 ^^
+2026-04-15T17:33:36.951069276Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:37.623498932Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:37.623502562Z [err]      nahiimport os
+2026-04-15T17:33:37.623506101Z [err]                 ^^
+2026-04-15T17:33:37.623510051Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:38.451223574Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:38.451227284Z [err]      nahiimport os
+2026-04-15T17:33:38.451230784Z [err]                 ^^
+2026-04-15T17:33:38.451234393Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:38.947581447Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:38.947588947Z [err]      nahiimport os
+2026-04-15T17:33:38.947593527Z [err]                 ^^
+2026-04-15T17:33:38.947597387Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:39.647680511Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:39.647684091Z [err]      nahiimport os
+2026-04-15T17:33:39.647687961Z [err]                 ^^
+2026-04-15T17:33:39.647691941Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:40.415166744Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:40.415174194Z [err]      nahiimport os
+2026-04-15T17:33:40.415178324Z [err]                 ^^
+2026-04-15T17:33:40.415182414Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:41.433188184Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:41.433233544Z [err]      nahiimport os
+2026-04-15T17:33:41.433236823Z [err]                 ^^
+2026-04-15T17:33:41.847475572Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:41.847480162Z [err]      nahiimport os
+2026-04-15T17:33:41.847484602Z [err]                 ^^
+2026-04-15T17:33:41.847488882Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:42.496567773Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:42.496572092Z [err]      nahiimport os
+2026-04-15T17:33:42.496574862Z [err]                 ^^
+2026-04-15T17:33:42.496579262Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:43.417445649Z [err]                 ^^
+2026-04-15T17:33:43.417455789Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:43.417486469Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:43.417494828Z [err]      nahiimport os
+2026-04-15T17:33:43.822971552Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:43.822976311Z [err]      nahiimport os
+2026-04-15T17:33:43.822980101Z [err]                 ^^
+2026-04-15T17:33:43.822983751Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:44.506375468Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:44.506379087Z [err]      nahiimport os
+2026-04-15T17:33:44.506384177Z [err]                 ^^
+2026-04-15T17:33:44.506388167Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:45.381921608Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:45.381926448Z [err]      nahiimport os
+2026-04-15T17:33:45.381931068Z [err]                 ^^
+2026-04-15T17:33:45.381935538Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:45.883701511Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:45.883704001Z [err]      nahiimport os
+2026-04-15T17:33:45.883706532Z [err]                 ^^
+2026-04-15T17:33:45.883709182Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:46.560844074Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:46.560850794Z [err]      nahiimport os
+2026-04-15T17:33:46.560858183Z [err]                 ^^
+2026-04-15T17:33:46.560861783Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:47.368840708Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:47.368845288Z [err]      nahiimport os
+2026-04-15T17:33:47.368850508Z [err]                 ^^
+2026-04-15T17:33:47.368855568Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:48.480534454Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:48.480539404Z [err]      nahiimport os
+2026-04-15T17:33:48.480544044Z [err]                 ^^
+2026-04-15T17:33:48.480548314Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:48.759677384Z [err]      nahiimport os
+2026-04-15T17:33:48.759680214Z [err]                 ^^
+2026-04-15T17:33:48.759682884Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:49.441100639Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:49.441105089Z [err]      nahiimport os
+2026-04-15T17:33:49.441109779Z [err]                 ^^
+2026-04-15T17:33:50.090432505Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:50.090435915Z [err]      nahiimport os
+2026-04-15T17:33:50.090443215Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:50.747571596Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:50.747574356Z [err]      nahiimport os
+2026-04-15T17:33:51.502413449Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:51.502418309Z [err]      nahiimport os
+2026-04-15T17:33:51.502424439Z [err]                 ^^
+2026-04-15T17:33:51.502430819Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:52.454691350Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:52.454694760Z [err]      nahiimport os
+2026-04-15T17:33:52.454698060Z [err]                 ^^
+2026-04-15T17:33:52.454701130Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:52.732953077Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:52.732958157Z [err]      nahiimport os
+2026-04-15T17:33:52.732960887Z [err]                 ^^
+2026-04-15T17:33:52.732963207Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:53.470770350Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:53.470775800Z [err]      nahiimport os
+2026-04-15T17:33:53.470780600Z [err]                 ^^
+2026-04-15T17:33:53.470786639Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:54.080167060Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:54.080170290Z [err]      nahiimport os
+2026-04-15T17:33:54.080173070Z [err]                 ^^
+2026-04-15T17:33:54.080175980Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:54.725725041Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:54.725735321Z [err]      nahiimport os
+2026-04-15T17:33:54.725740891Z [err]                 ^^
+2026-04-15T17:33:54.725745381Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:55.477685093Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:55.477688833Z [err]      nahiimport os
+2026-04-15T17:33:55.477692533Z [err]                 ^^
+2026-04-15T17:33:55.477695782Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:58.863098185Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:58.863104065Z [err]      nahiimport os
+2026-04-15T17:33:58.863107545Z [err]                 ^^
+2026-04-15T17:33:58.863111815Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:58.870562557Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:58.870567207Z [err]      nahiimport os
+2026-04-15T17:33:58.870570677Z [err]                 ^^
+2026-04-15T17:33:58.870575457Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:59.858094105Z [err]      nahiimport os
+2026-04-15T17:33:59.858099785Z [err]                 ^^
+2026-04-15T17:33:59.858104085Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:59.858107765Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:59.862083216Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:59.862087356Z [err]      nahiimport os
+2026-04-15T17:33:59.862091996Z [err]                 ^^
+2026-04-15T17:33:59.862095426Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:33:59.879990609Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:33:59.879995129Z [err]      nahiimport os
+2026-04-15T17:33:59.879999528Z [err]                 ^^
+2026-04-15T17:33:59.880003518Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:34:01.917235437Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:34:01.917240127Z [err]      nahiimport os
+2026-04-15T17:34:01.917244367Z [err]                 ^^
+2026-04-15T17:34:01.917248567Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:34:01.918104900Z [err]                 ^^
+2026-04-15T17:34:01.918111700Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:34:01.918431433Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:34:01.918434643Z [err]      nahiimport os
+2026-04-15T17:34:01.919667949Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:34:01.919670909Z [err]      nahiimport os
+2026-04-15T17:34:01.919673799Z [err]                 ^^
+2026-04-15T17:34:01.919677259Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:34:02.545823905Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:34:02.545827595Z [err]      nahiimport os
+2026-04-15T17:34:02.545831715Z [err]                 ^^
+2026-04-15T17:34:02.545834865Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:34:03.522352823Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:34:03.522357393Z [err]      nahiimport os
+2026-04-15T17:34:03.522362303Z [err]                 ^^
+2026-04-15T17:34:03.522367503Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:34:03.861675944Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:34:03.861678774Z [err]      nahiimport os
+2026-04-15T17:34:03.861682374Z [err]                 ^^
+2026-04-15T17:34:03.861684634Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:34:04.496163485Z [err]      nahiimport os
+2026-04-15T17:34:04.496171515Z [err]                 ^^
+2026-04-15T17:34:04.496177285Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:34:04.496209194Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:34:05.429123630Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:34:05.429129410Z [err]      nahiimport os
+2026-04-15T17:34:05.429133390Z [err]                 ^^
+2026-04-15T17:34:05.429136680Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:34:06.650270695Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:34:06.650275395Z [err]      nahiimport os
+2026-04-15T17:34:06.650279475Z [err]                 ^^
+2026-04-15T17:34:06.650283905Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:34:06.653518611Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:34:06.653523481Z [err]      nahiimport os
+2026-04-15T17:34:06.653528020Z [err]                 ^^
+2026-04-15T17:34:06.653536620Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:34:07.515101518Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:34:07.515114317Z [err]      nahiimport os
+2026-04-15T17:34:07.515119187Z [err]                 ^^
+2026-04-15T17:34:07.935589742Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:34:07.935596141Z [err]      nahiimport os
+2026-04-15T17:34:07.935755429Z [err]                 ^^
+2026-04-15T17:34:08.605853030Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:34:08.605860700Z [err]      nahiimport os
+2026-04-15T17:34:08.605865890Z [err]                 ^^
+2026-04-15T17:34:08.605869470Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:34:09.520419442Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:34:09.520423462Z [err]      nahiimport os
+2026-04-15T17:34:09.520431302Z [err]                 ^^
+2026-04-15T17:34:09.520435512Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:34:09.939596732Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:34:09.939601602Z [err]      nahiimport os
+2026-04-15T17:34:09.939605422Z [err]                 ^^
+2026-04-15T17:34:09.939608452Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:34:10.654607389Z [err]      nahiimport os
+2026-04-15T17:34:10.654610839Z [err]                 ^^
+2026-04-15T17:34:10.654614999Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:34:12.422218858Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:34:12.665246807Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:34:12.665254267Z [err]                 ^^
+2026-04-15T17:34:13.534629839Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:34:13.534633089Z [err]      nahiimport os
+2026-04-15T17:34:13.534639349Z [err]                 ^^
+2026-04-15T17:34:13.534644009Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:34:14.024690926Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:34:14.024693906Z [err]      nahiimport os
+2026-04-15T17:34:14.024696776Z [err]                 ^^
+2026-04-15T17:34:14.024699606Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:34:14.938927225Z [err]      nahiimport os
+2026-04-15T17:34:15.579562233Z [err]    File "/app/telegram-bot/bot.py", line 1
+2026-04-15T17:34:15.579569563Z [err]                 ^^
+2026-04-15T17:34:15.579573852Z [err]  SyntaxError: invalid syntax
+2026-04-15T17:34:16.476342629Z [err]    File "/app/telegram-bot/bot.py", line 1
