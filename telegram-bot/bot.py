@@ -1735,11 +1735,20 @@ async def buy_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     keyboard.append([InlineKeyboardButton("✏️ Custom Quantity", callback_data="qty_custom")])
     keyboard.append([InlineKeyboardButton("◀️ Back", callback_data="back_to_start")])
 
+    display_price = get_unit_price(product_key, 1)
+    sale          = _get_active_flash_sale(product_key)
+    if sale:
+        price_line = (
+            f"💰 Price per unit: ~~₹{sale['original_price']}~~ → *₹{display_price}* ⚡ FLASH SALE! ({_flash_countdown(sale['expires_at'])})\n"
+        )
+    else:
+        price_line = f"💰 Price per unit: *₹{display_price}*\n"
+
     await query.edit_message_text(
         f"📦 *Select Quantity*\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"{product['emoji']} *{product['name']}*\n"
-        f"💰 Price per unit: *₹{product['price']}*\n"
+        + price_line
         + (
             f"🏷 *Bulk Discount:* 10+ = ₹32/each | 20+ = ₹30/each\n"
             if product_key == "coupon_100" else ""
