@@ -253,9 +253,46 @@ def claim_referral_ip(token: str, ip: str) -> None:
         data["tokens"][token]["claimed"] = True
     _save_ip_data(data)
 
-# ── Points = verified referral count (1 referral = 1 point) ──
+# ── Points = earned referrals MINUS spent points ──
 def db_get_points(user_id: str) -> int:
-    return db_successful_referral_count(user_id)
+    earned = db_successful_referral_count(user_id)
+    try:
+        con = sqlite3.connect(REFERRAL_DB)
+        con.execute("""CREATE TABLE IF NOT EXISTS points_spent (
+            user_id TEXT, points INTEGER, reward_name TEXT, spent_at TEXT
+        )""")
+        spent = con.execute(
+            "SELECT COALESCE(SUM(points),0) FROM points_spent WHERE user_id=?", (user_id,)
+        ).fetchone()[0] or 0
+        con.close()
+    except Exception:
+        spent = 0
+    return max(0, earned - spent)
+
+
+def db_deduct_points(user_id: str, points: int, reason: str = "admin_deduction") -> None:
+    """Admin: manually deduct points from a user."""
+    con = sqlite3.connect(REFERRAL_DB)
+    con.execute("""CREATE TABLE IF NOT EXISTS points_spent (
+        user_id TEXT, points INTEGER, reward_name TEXT, spent_at TEXT
+    )""")
+    con.execute(
+        "INSERT INTO points_spent (user_id, points, reward_name, spent_at) VALUES (?,?,?,?)",
+        (user_id, points, reason, datetime.now().isoformat())
+    )
+    con.commit()
+    con.close()
+
+
+def db_delete_reward(reward_name: str) -> bool:
+    """Admin: delete a reward and all its unclaimed coupons."""
+    con = sqlite3.connect(REFERRAL_DB)
+    con.execute("DELETE FROM rewards WHERE reward_name=?", (reward_name,))
+    con.execute("DELETE FROM reward_coupons WHERE reward_name=? AND used=0", (reward_name,))
+    con.commit()
+    deleted = con.total_changes > 0
+    con.close()
+    return deleted
 
 # ── Rewards CRUD ──
 def db_add_reward(reward_name: str, points_required: int) -> bool:
@@ -769,47 +806,54 @@ async def check_channel_membership(bot, user_id: int) -> bool:
 
 
 async def send_referral_reward(context, referrer_id: str, referrer_name: str, total_verified: int) -> None:
-    """Send a free coupon to the referrer. Called after every REFERRAL_GOAL verifications."""
-    coupons = get_coupons()
-    stock   = coupons.get(REFERRAL_REWARD_KEY, [])
-    product = PRODUCTS[REFERRAL_REWARD_KEY]
+    """Auto-deliver rewards from rewards DB when user has enough points."""
+    net_points = db_get_points(referrer_id)
+    rewards    = db_list_rewards()
 
-    if stock:
-        code = stock.pop(0)
-        save_coupons(coupons)
+    # Find cheapest eligible reward
+    eligible = [r for r in sorted(rewards, key=lambda x: x["points"]) if net_points >= x["points"]]
+    if not eligible:
+        return   # not enough points for any reward yet
+
+    reward = eligible[0]
+    code   = db_redeem_reward(referrer_id, reward["name"])
+
+    if code:
+        # Record points spent
+        db_deduct_points(referrer_id, reward["points"], reward["name"])
         try:
             await context.bot.send_message(
                 chat_id=int(referrer_id),
                 text=(
-                    f"🎁 *Congratulations\\! Free Coupon Earned\\!*\n"
+                    f"🎁 *Reward Mila! Free Coupon!*\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n\n"
-                    f"You completed *{total_verified} verified referrals*\\! 🔥\n\n"
-                    f"🎟 *{product['name']}*\n"
-                    f"🔑 Your free coupon code:\n\n"
+                    f"*{reward['name']}*\n\n"
+                    f"🔑 *Tumhara free coupon code:*\n\n"
                     f"`{code}`\n\n"
-                    f"Keep referring to earn more\\! 🚀"
+                    f"*{total_verified} verified referrals* complete! 🔥\n"
+                    f"Aur refer karo, aur rewards pao! 🚀"
                 ),
-                parse_mode=ParseMode.MARKDOWN_V2,
+                parse_mode=ParseMode.MARKDOWN,
             )
         except Exception as e:
             logger.error(f"Referral reward send failed: {e}")
         try:
             await context.bot.send_message(
                 chat_id=ADMIN_ID,
-                text=f"🎁 Referral reward sent!\nUser: {referrer_id} ({referrer_name})\nCoupon: {code}\nVerified referrals: {total_verified}",
+                text=f"🎁 Reward auto-delivered!\nUser: {referrer_id} ({referrer_name})\nReward: {reward['name']}\nCode: {code}\nPoints used: {reward['points']}",
             )
         except Exception:
             pass
     else:
+        # No stock — notify admin
         try:
             await context.bot.send_message(
                 chat_id=int(referrer_id),
                 text=(
-                    f"🎁 *Congratulations! Free Coupon Earned!*\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n\n"
-                    f"You completed *{total_verified} verified referrals*! 🔥\n\n"
-                    f"⏳ Your free *{product['name']}* is being prepared.\n"
-                    f"You'll receive it shortly from admin!"
+                    f"🎁 *Badhai ho! Reward earn kiya!*\n\n"
+                    f"🎟 *{reward['name']}*\n\n"
+                    f"⏳ Stock abhi khatam hai — admin jaldi bhej dega!\n"
+                    f"Support: {SUPPORT_HANDLE}"
                 ),
                 parse_mode=ParseMode.MARKDOWN,
             )
@@ -818,7 +862,7 @@ async def send_referral_reward(context, referrer_id: str, referrer_name: str, to
         try:
             await context.bot.send_message(
                 chat_id=ADMIN_ID,
-                text=f"⚠️ Referral reward PENDING (stock empty)!\nUser: {referrer_id} ({referrer_name}) earned free {product['name']} after {total_verified} referrals.\nPlease add coupon stock & send manually!",
+                text=f"⚠️ Referral reward PENDING (stock empty)!\nUser: {referrer_id} ({referrer_name}) earned {reward['name']} after {total_verified} referrals.\nPlease add coupon stock: /add_coupon {reward['name']} CODE",
             )
         except Exception:
             pass
@@ -2442,6 +2486,7 @@ def _admin_kb():
         ],
         [
             InlineKeyboardButton("🔗 Referral Tracker", callback_data="admin_referrals"),
+            InlineKeyboardButton("🎁 Rewards",          callback_data="admin_rewards"),
         ],
     ])
 
@@ -2662,6 +2707,102 @@ async def admin_ref_detail(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         ]),
         parse_mode=ParseMode.HTML,
     )
+
+
+async def admin_rewards_panel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Admin: Show all rewards with stock + manage buttons."""
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id != ADMIN_ID:
+        return
+    rewards = db_list_rewards()
+    if not rewards:
+        await query.edit_message_text(
+            "🎁 *Rewards Panel*\n\nAbhi koi reward set nahi hai.\n\n"
+            "Reward banane ke liye:\n"
+            "`/add_reward POINTS NAAM`\n"
+            "Example: `/add_reward 1 Bigbasket_Free`\n\n"
+            "Phir codes add karo:\n"
+            "`/add_coupon Bigbasket_Free CODE1 CODE2`",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back", callback_data="admin_back")]]),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+    lines = ["🎁 *Rewards Panel*", "━━━━━━━━━━━━━━━━━━━━", ""]
+    buttons = []
+    for r in rewards:
+        stock_emoji = "✅" if r["stock"] > 0 else "❌"
+        lines.append(f"{stock_emoji} *{r['name']}*\n   🎯 Points required: *{r['points']}* | 📦 Stock: *{r['stock']}*")
+        buttons.append([
+            InlineKeyboardButton(f"✏️ {r['name'][:20]} ({r['stock']} codes)", callback_data=f"admin_rwd_{r['name']}"),
+        ])
+    lines += [
+        "",
+        "━━━━━━━━━━━━━━━━━━━━",
+        "➕ *Naya reward add:*",
+        "`/add_reward POINTS NAAM`",
+        "",
+        "📦 *Stock add:*",
+        "`/add_coupon NAAM CODE1 CODE2`",
+    ]
+    buttons.append([InlineKeyboardButton("◀️ Back", callback_data="admin_back")])
+    await query.edit_message_text(
+        "\n".join(lines),
+        reply_markup=InlineKeyboardMarkup(buttons),
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+async def admin_reward_detail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Admin: Detail of one reward — edit points + delete."""
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id != ADMIN_ID:
+        return
+    reward_name = query.data.replace("admin_rwd_", "")
+    rewards     = db_list_rewards()
+    r = next((x for x in rewards if x["name"] == reward_name), None)
+    if not r:
+        await query.answer("Reward nahi mila!", show_alert=True)
+        return
+    codes = db_list_reward_coupons(reward_name)
+    code_preview = "\n".join(f"• `{c}`" for c in codes[:10])
+    if len(codes) > 10:
+        code_preview += f"\n... aur {len(codes)-10} codes hain"
+    await query.edit_message_text(
+        f"🎁 *{reward_name}*\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"🎯 Points required: *{r['points']}*\n"
+        f"📦 Stock: *{r['stock']} codes*\n\n"
+        f"*Unused Codes:*\n{code_preview if code_preview else 'Koi code nahi hai!'}\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"Points change: `/add_reward {r['points']} {reward_name}`\n"
+        f"Code add: `/add_coupon {reward_name} CODE1 CODE2`\n"
+        f"Code delete: `/del_coupon {reward_name} CODE`",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton(f"🗑️ Delete Reward '{reward_name}'", callback_data=f"admin_rwd_del_{reward_name}")],
+            [InlineKeyboardButton("◀️ Back to Rewards", callback_data="admin_rewards")],
+        ]),
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+async def admin_reward_delete(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Admin: Confirm delete a reward."""
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id != ADMIN_ID:
+        return
+    reward_name = query.data.replace("admin_rwd_del_", "")
+    ok = db_delete_reward(reward_name)
+    if ok:
+        await query.edit_message_text(
+            f"🗑️ *Reward delete ho gaya!*\n\n`{reward_name}` aur uske saare unused codes hata diye gaye.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back to Rewards", callback_data="admin_rewards")]]),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+    else:
+        await query.answer("Delete fail hua!", show_alert=True)
 
 
 async def admin_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -3081,6 +3222,67 @@ async def del_service_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     )
 
 
+# ─────────────── Reward & Points Admin Commands ───────────────
+
+async def del_reward_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """/del_reward NAAM — delete entire reward + all unclaimed codes."""
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
+        return
+    args = context.args
+    if not args:
+        await update.message.reply_text(
+            "❌ *Usage:* `/del_reward REWARD_NAAM`\nExample: `/del_reward Bigbasket_Free`",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+    name = args[0]
+    ok   = db_delete_reward(name)
+    if ok:
+        await update.message.reply_text(
+            f"🗑️ *Reward delete ho gaya!*\n\n`{name}` aur uske saare unused codes hata diye gaye.",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+    else:
+        await update.message.reply_text(
+            f"❌ Reward `{name}` nahi mila.\nSaare rewards: `/admin` → 🎁 Rewards",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+
+
+async def deduct_points_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """/deduct_points USER_ID POINTS — admin manually deduct points from a user."""
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
+        return
+    args = context.args
+    if len(args) != 2:
+        await update.message.reply_text(
+            "❌ *Usage:* `/deduct_points USER_ID POINTS`\n"
+            "Example: `/deduct_points 6724474397 3`",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+    uid = args[0]
+    try:
+        pts = int(args[1])
+        if pts <= 0:
+            raise ValueError
+    except ValueError:
+        await update.message.reply_text("❌ Points ek positive number hona chahiye.", parse_mode=ParseMode.MARKDOWN)
+        return
+    before = db_get_points(uid)
+    db_deduct_points(uid, pts)
+    after = db_get_points(uid)
+    await update.message.reply_text(
+        f"✅ *Points deduct ho gaye!*\n\n"
+        f"User: `{uid}`\n"
+        f"Before: *{before} pts* → After: *{after} pts*\n"
+        f"Deducted: *{pts} pts*",
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
 # ─────────────── Flash Sale Commands ───────────────
 
 async def flash_sale_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -3289,10 +3491,12 @@ def main() -> None:
     app.add_handler(CommandHandler("end_flash",    end_flash_command))
     app.add_handler(CommandHandler("flash_list",   list_flash_command))
     # Rewards system (points-based referral)
-    app.add_handler(CommandHandler("add_reward",    cmd_add_reward))
-    app.add_handler(CommandHandler("add_coupon",    cmd_add_reward_coupon))
-    app.add_handler(CommandHandler("del_coupon",    cmd_del_reward_coupon))
-    app.add_handler(CommandHandler("list_coupons",  cmd_list_reward_coupons))
+    app.add_handler(CommandHandler("add_reward",     cmd_add_reward))
+    app.add_handler(CommandHandler("del_reward",     del_reward_command))
+    app.add_handler(CommandHandler("deduct_points",  deduct_points_command))
+    app.add_handler(CommandHandler("add_coupon",     cmd_add_reward_coupon))
+    app.add_handler(CommandHandler("del_coupon",     cmd_del_reward_coupon))
+    app.add_handler(CommandHandler("list_coupons",   cmd_list_reward_coupons))
 
     # Inline buttons — buy & quantity
     app.add_handler(CallbackQueryHandler(support,              pattern="^support$"))
@@ -3325,6 +3529,9 @@ def main() -> None:
     app.add_handler(CallbackQueryHandler(admin_products_panel,   pattern="^admin_products$"))
     app.add_handler(CallbackQueryHandler(admin_broadcast_prompt, pattern="^admin_broadcast$"))
     app.add_handler(CallbackQueryHandler(admin_back,             pattern="^admin_back"))
+    app.add_handler(CallbackQueryHandler(admin_rewards_panel,    pattern="^admin_rewards$"))
+    app.add_handler(CallbackQueryHandler(admin_reward_delete,    pattern="^admin_rwd_del_"))
+    app.add_handler(CallbackQueryHandler(admin_reward_detail,    pattern="^admin_rwd_"))
 
     # Media & text
     app.add_handler(MessageHandler(filters.PHOTO | filters.Document.ALL, handle_screenshot))
