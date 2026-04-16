@@ -1661,45 +1661,44 @@ async def do_redeem(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await query.answer(f"Not enough points! You have {points}, need {reward_row['points']}.", show_alert=True)
         return
 
-    # Deduct points — we use a separate table to track deductions
-    code = db_redeem_reward(uid, reward_name)
-    if not code:
+    # Redeem — get (code_id, code) tuple
+    result = db_redeem_reward(uid, reward_name)
+    if not result:
         await query.answer("No stock available for this reward!", show_alert=True)
         return
+    code_id, code = result
 
-    # Record points spent in DB
-    con = sqlite3.connect(REFERRAL_DB)
-    con.execute("""
-        CREATE TABLE IF NOT EXISTS points_spent (
-            user_id TEXT, points INTEGER, reward_name TEXT, spent_at TEXT
-        )
-    """)
-    con.execute(
-        "INSERT INTO points_spent (user_id, points, reward_name, spent_at) VALUES (?,?,?,?)",
-        (uid, reward_row["points"], reward_name, datetime.now().isoformat())
-    )
-    con.commit()
-    con.close()
-
-    await query.edit_message_text(
-        f"🎉 *Redemption Successful!*\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"🎁 *{reward_name}*\n\n"
-        f"🔑 *Your Code:*\n\n"
-        f"`{code}`\n\n"
-        f"✅ {reward_row['points']} points used.\n"
-        f"📊 Remaining Points: {max(0, points - reward_row['points'])}\n\n"
-        f"💬 Help: {SUPPORT_HANDLE}",
-        parse_mode=ParseMode.MARKDOWN,
-    )
-    # Notify admin
+    # Send code to user FIRST
+    delivered = False
     try:
-        await context.bot.send_message(
-            chat_id=ADMIN_ID,
-            text=f"🎁 Reward Redeemed!\nUser: {user.id} ({user.first_name})\nReward: {reward_name}\nCode: {code}",
+        await query.edit_message_text(
+            f"🎉 *Redemption Successful!*\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"🎁 *{reward_name}*\n\n"
+            f"🔑 *Your Code:*\n\n"
+            f"`{code}`\n\n"
+            f"✅ {reward_row['points']} points used.\n"
+            f"📊 Remaining Points: {max(0, points - reward_row['points'])}\n\n"
+            f"💬 Help: {SUPPORT_HANDLE}",
+            parse_mode=ParseMode.MARKDOWN,
         )
-    except Exception:
-        pass
+        delivered = True
+    except Exception as e:
+        logger.error(f"do_redeem send failed: {e}")
+        db_rollback_redeem(code_id)
+        await query.answer("Delivery failed, try again!", show_alert=True)
+        return
+
+    # Deduct points ONLY after successful delivery
+    if delivered:
+        db_deduct_points(uid, reward_row["points"], reward_name)
+        try:
+            await context.bot.send_message(
+                chat_id=ADMIN_ID,
+                text=f"🎁 Reward Redeemed!\nUser: {user.id} ({user.first_name})\nReward: {reward_name}\nCode: {code}",
+            )
+        except Exception:
+            pass
 
 
 # ─────────────── Admin: /add_reward ───────────────
