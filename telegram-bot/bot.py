@@ -3239,6 +3239,73 @@ async def del_service_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 # ─────────────── Reward & Points Admin Commands ───────────────
 
+async def debug_ref_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """/debug_ref USER_ID — show full referral + points + rewards state for a user."""
+    if update.effective_user.id != ADMIN_ID:
+        return
+    args = context.args
+    uid  = args[0] if args else str(update.effective_user.id)
+
+    earned  = db_successful_referral_count(uid)
+    total   = db_total_referral_count(uid)
+    points  = db_get_points(uid)
+    rewards = db_list_rewards()
+
+    lines = [
+        f"🔍 *Debug: User `{uid}`*",
+        f"━━━━━━━━━━━━━━━━━━━━",
+        f"📨 Total referrals in DB: *{total}*",
+        f"✅ Active verified (= earned pts): *{earned}*",
+        f"💎 Points bacha (earned - spent): *{points}*",
+        f"",
+        f"🎁 *Rewards Table ({len(rewards)} entries):*",
+    ]
+    if not rewards:
+        lines.append("❌ `rewards` table EMPTY! Run `/add_reward N NAAM` pehle!")
+    else:
+        for r in rewards:
+            codes = db_list_reward_coupons(r["name"])
+            eligible = "✅ ELIGIBLE" if points >= r["points"] else "❌ Not enough pts"
+            lines.append(
+                f"• `{r['name']}` — needs *{r['points']}* pts | stock *{r['stock']}* | {eligible}"
+            )
+            if codes:
+                lines.append(f"  Codes: {', '.join(f'`{c}`' for c in codes[:3])}{'...' if len(codes)>3 else ''}")
+
+    # referrals detail
+    import sqlite3 as _sq
+    con = _sq.connect(REFERRAL_DB)
+    rows = con.execute(
+        "SELECT user_id, reward_given, referral_status FROM referrals WHERE referred_by=?", (uid,)
+    ).fetchall()
+    con.close()
+    lines += ["", f"👥 *Referred Users ({len(rows)}):*"]
+    for row_uid, rg, rs in rows[:10]:
+        lines.append(f"  • `{row_uid}` — reward_given={rg} status={rs}")
+
+    await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN)
+
+
+async def force_reward_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """/force_reward USER_ID — manually trigger referral reward for a user."""
+    if update.effective_user.id != ADMIN_ID:
+        return
+    args = context.args
+    if not args:
+        await update.message.reply_text("Usage: `/force_reward USER_ID`", parse_mode=ParseMode.MARKDOWN)
+        return
+    uid   = args[0]
+    users = get_users()
+    name  = users.get(uid, {}).get("first_name", "User")
+    pts   = db_get_points(uid)
+    await update.message.reply_text(
+        f"🔄 Triggering reward for `{uid}` ({name})... Points bacha: *{pts}*",
+        parse_mode=ParseMode.MARKDOWN,
+    )
+    await send_referral_reward(context, uid, name, db_successful_referral_count(uid))
+    await update.message.reply_text("✅ Done! Check user ke Telegram pe.", parse_mode=ParseMode.MARKDOWN)
+
+
 async def del_reward_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """/del_reward NAAM — delete entire reward + all unclaimed codes."""
     if update.effective_user.id != ADMIN_ID:
@@ -3509,6 +3576,8 @@ def main() -> None:
     app.add_handler(CommandHandler("add_reward",     cmd_add_reward))
     app.add_handler(CommandHandler("del_reward",     del_reward_command))
     app.add_handler(CommandHandler("deduct_points",  deduct_points_command))
+    app.add_handler(CommandHandler("debug_ref",      debug_ref_command))
+    app.add_handler(CommandHandler("force_reward",   force_reward_command))
     app.add_handler(CommandHandler("add_coupon",     cmd_add_reward_coupon))
     app.add_handler(CommandHandler("del_coupon",     cmd_del_reward_coupon))
     app.add_handler(CommandHandler("list_coupons",   cmd_list_reward_coupons))
