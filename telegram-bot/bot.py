@@ -3332,6 +3332,49 @@ async def del_reward_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
 
 
+async def give_points_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """/give_points USER_ID POINTS — admin manually add points to a user."""
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
+        return
+    args = context.args
+    if len(args) != 2:
+        await update.message.reply_text(
+            "❌ *Usage:* `/give_points USER_ID POINTS`\n"
+            "Example: `/give_points 6724474397 3`",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+    uid = args[0]
+    try:
+        pts = int(args[1])
+        if pts <= 0:
+            raise ValueError
+    except ValueError:
+        await update.message.reply_text("❌ Points ek positive number hona chahiye.", parse_mode=ParseMode.MARKDOWN)
+        return
+    before = db_get_points(uid)
+    # Points add = negative deduction (reverse)
+    con = sqlite3.connect(REFERRAL_DB)
+    con.execute("""CREATE TABLE IF NOT EXISTS points_spent (
+        user_id TEXT, points INTEGER, reward_name TEXT, spent_at TEXT
+    )""")
+    con.execute(
+        "INSERT INTO points_spent (user_id, points, reward_name, spent_at) VALUES (?,?,?,?)",
+        (uid, -pts, "admin_bonus", datetime.now().isoformat())
+    )
+    con.commit()
+    con.close()
+    after = db_get_points(uid)
+    await update.message.reply_text(
+        f"✅ *Points add ho gaye!*\n\n"
+        f"User: `{uid}`\n"
+        f"Before: *{before} pts* → After: *{after} pts*\n"
+        f"Added: *+{pts} pts*",
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
 async def deduct_points_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """/deduct_points USER_ID POINTS — admin manually deduct points from a user."""
     if update.effective_user.id != ADMIN_ID:
@@ -3578,6 +3621,7 @@ def main() -> None:
     app.add_handler(CommandHandler("deduct_points",  deduct_points_command))
     app.add_handler(CommandHandler("debug_ref",      debug_ref_command))
     app.add_handler(CommandHandler("force_reward",   force_reward_command))
+    app.add_handler(CommandHandler("give_points",    give_points_command))
     app.add_handler(CommandHandler("add_coupon",     cmd_add_reward_coupon))
     app.add_handler(CommandHandler("del_coupon",     cmd_del_reward_coupon))
     app.add_handler(CommandHandler("list_coupons",   cmd_list_reward_coupons))
