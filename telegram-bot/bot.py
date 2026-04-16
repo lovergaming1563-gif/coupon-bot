@@ -1645,60 +1645,78 @@ async def redeem_points(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 async def do_redeem(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle redeem button press — do_redeem_<reward_name>."""
     query = update.callback_query
-    await query.answer()
-    user        = update.effective_user
-    uid         = str(user.id)
+    user  = update.effective_user
+    uid   = str(user.id)
     reward_name = query.data[len("do_redeem_"):]
 
-    # Check points
+    logger.info(f"do_redeem triggered: user={uid} reward={reward_name}")
+
+    # Check reward exists
     reward_row = next((r for r in db_list_rewards() if r["name"] == reward_name), None)
     if not reward_row:
-        await query.answer("Reward not found!", show_alert=True)
+        await query.answer("Reward nahi mila!", show_alert=True)
         return
 
+    # Check points
     points = db_get_points(uid)
     if points < reward_row["points"]:
-        await query.answer(f"Not enough points! You have {points}, need {reward_row['points']}.", show_alert=True)
+        await query.answer(
+            f"Points kam hain! Tumhare paas {points} hain, chahiye {reward_row['points']}.",
+            show_alert=True
+        )
         return
 
-    # Redeem — get (code_id, code) tuple
+    # Reserve coupon
     result = db_redeem_reward(uid, reward_name)
     if not result:
-        await query.answer("No stock available for this reward!", show_alert=True)
+        await query.answer("Stock khatam! Admin se contact karo.", show_alert=True)
         return
     code_id, code = result
 
-    # Send code to user FIRST
-    delivered = False
-    try:
-        await query.edit_message_text(
-            f"🎉 *Redemption Successful!*\n"
-            f"━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"🎁 *{reward_name}*\n\n"
-            f"🔑 *Your Code:*\n\n"
-            f"`{code}`\n\n"
-            f"✅ {reward_row['points']} points used.\n"
-            f"📊 Remaining Points: {max(0, points - reward_row['points'])}\n\n"
-            f"💬 Help: {SUPPORT_HANDLE}",
-            parse_mode=ParseMode.MARKDOWN,
-        )
-        delivered = True
-    except Exception as e:
-        logger.error(f"do_redeem send failed: {e}")
-        db_rollback_redeem(code_id)
-        await query.answer("Delivery failed, try again!", show_alert=True)
-        return
+    logger.info(f"do_redeem: code reserved code_id={code_id} code={code} for user={uid}")
 
-    # Deduct points ONLY after successful delivery
-    if delivered:
-        db_deduct_points(uid, reward_row["points"], reward_name)
+    # Deduct points FIRST (before send, so we don't double-send on retry)
+    db_deduct_points(uid, reward_row["points"], reward_name)
+
+    # Answer callback query once
+    await query.answer("✅ Code mil gaya!")
+
+    # Send via new message (more reliable than edit)
+    remaining = max(0, points - reward_row["points"])
+    msg_text = (
+        f"🎉 Redemption Successful!\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"🎁 {reward_name}\n\n"
+        f"🔑 Your Code:\n\n"
+        f"{code}\n\n"
+        f"✅ {reward_row['points']} points use hue.\n"
+        f"📊 Bacha points: {remaining}\n\n"
+        f"💬 Help: {SUPPORT_HANDLE}"
+    )
+    try:
+        await context.bot.send_message(chat_id=int(uid), text=msg_text)
+        logger.info(f"do_redeem: delivered to user={uid}")
+    except Exception as e:
+        logger.error(f"do_redeem: send_message failed user={uid} err={e}")
+        # Rollback both code and points on failure
+        db_rollback_redeem(code_id)
+        db_deduct_points(uid, -reward_row["points"], f"rollback_{reward_name}")
         try:
             await context.bot.send_message(
-                chat_id=ADMIN_ID,
-                text=f"🎁 Reward Redeemed!\nUser: {user.id} ({user.first_name})\nReward: {reward_name}\nCode: {code}",
+                chat_id=int(uid),
+                text="❌ Code deliver nahi hua. Dobara try karo ya support se contact karo.",
             )
         except Exception:
             pass
+
+    # Admin notify
+    try:
+        await context.bot.send_message(
+            chat_id=ADMIN_ID,
+            text=f"🎁 Reward Redeemed!\nUser: {uid} ({user.first_name})\nReward: {reward_name}\nCode: {code}",
+        )
+    except Exception:
+        pass
 
 
 # ─────────────── Admin: /add_reward ───────────────
