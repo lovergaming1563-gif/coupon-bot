@@ -102,12 +102,44 @@ def init_referral_db():
         CREATE TABLE IF NOT EXISTS reward_coupons (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
             reward_name TEXT NOT NULL,
-            code        TEXT NOT NULL UNIQUE,
+            code        TEXT NOT NULL,
             used        INTEGER NOT NULL DEFAULT 0,
             used_by     TEXT,
-            used_at     TEXT
+            used_at     TEXT,
+            UNIQUE(reward_name, code)
         )
     """)
+    # Migration: if old table has global UNIQUE on code, recreate it
+    try:
+        cols = [r[1] for r in con.execute("PRAGMA table_info(reward_coupons)").fetchall()]
+        if cols:
+            # Check if UNIQUE(reward_name, code) index exists
+            indexes = con.execute("PRAGMA index_list(reward_coupons)").fetchall()
+            has_composite = any(
+                "reward_name" in str(con.execute(f"PRAGMA index_info('{idx[1]}')").fetchall())
+                for idx in indexes
+            )
+            if not has_composite:
+                # Old schema — migrate to new
+                con.execute("ALTER TABLE reward_coupons RENAME TO reward_coupons_old")
+                con.execute("""
+                    CREATE TABLE reward_coupons (
+                        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                        reward_name TEXT NOT NULL,
+                        code        TEXT NOT NULL,
+                        used        INTEGER NOT NULL DEFAULT 0,
+                        used_by     TEXT,
+                        used_at     TEXT,
+                        UNIQUE(reward_name, code)
+                    )
+                """)
+                con.execute("""
+                    INSERT OR IGNORE INTO reward_coupons (id, reward_name, code, used, used_by, used_at)
+                    SELECT id, reward_name, code, used, used_by, used_at FROM reward_coupons_old
+                """)
+                con.execute("DROP TABLE reward_coupons_old")
+    except Exception as _me:
+        logger.warning(f"reward_coupons migration skipped: {_me}")
     con.commit()
     con.close()
 
@@ -356,8 +388,8 @@ def db_list_reward_coupons(reward_name: str) -> list:
     con.close()
     return [r[0] for r in rows]
 
-def db_redeem_reward(user_id: str, reward_name: str) -> str | None:
-    """Redeem 1 coupon for the user. Returns the code or None if no stock."""
+def db_redeem_reward(user_id: str, reward_name: str) -> tuple | None:
+    """Reserve 1 coupon for the user. Returns (code_id, code) or None if no stock."""
     con = sqlite3.connect(REFERRAL_DB)
     row = con.execute(
         "SELECT id, code FROM reward_coupons WHERE reward_name=? AND used=0 ORDER BY id LIMIT 1",
@@ -372,7 +404,18 @@ def db_redeem_reward(user_id: str, reward_name: str) -> str | None:
     )
     con.commit()
     con.close()
-    return row[1]
+    return (row[0], row[1])   # (id, code)
+
+
+def db_rollback_redeem(code_id: int) -> None:
+    """Rollback a reserved coupon — mark it unused again."""
+    con = sqlite3.connect(REFERRAL_DB)
+    con.execute(
+        "UPDATE reward_coupons SET used=0, used_by=NULL, used_at=NULL WHERE id=?",
+        (code_id,)
+    )
+    con.commit()
+    con.close()
 
 # Data files stored inside workspace/telegram-bot/data/ — persists across restarts
 _DATA_DIR = os.environ.get("BOT_DATA_DIR", _DEFAULT_DATA_DIR)
@@ -815,12 +858,13 @@ async def send_referral_reward(context, referrer_id: str, referrer_name: str, to
     if not eligible:
         return   # not enough points for any reward yet
 
-    reward = eligible[0]
-    code   = db_redeem_reward(referrer_id, reward["name"])
+    reward  = eligible[0]
+    result  = db_redeem_reward(referrer_id, reward["name"])  # returns (code_id, code) or None
 
-    if code:
-        # Record points spent
-        db_deduct_points(referrer_id, reward["points"], reward["name"])
+    if result:
+        code_id, code = result
+        # Step 1: Send code to user FIRST
+        delivered = False
         try:
             await context.bot.send_message(
                 chat_id=int(referrer_id),
@@ -835,17 +879,44 @@ async def send_referral_reward(context, referrer_id: str, referrer_name: str, to
                 ),
                 parse_mode=ParseMode.MARKDOWN,
             )
+            delivered = True
         except Exception as e:
-            logger.error(f"Referral reward send failed: {e}")
-        try:
-            await context.bot.send_message(
-                chat_id=ADMIN_ID,
-                text=f"🎁 Reward auto-delivered!\nUser: {referrer_id} ({referrer_name})\nReward: {reward['name']}\nCode: {code}\nPoints used: {reward['points']}",
-            )
-        except Exception:
-            pass
+            logger.error(f"Referral reward send failed for {referrer_id}: {e}")
+            # Rollback — mark code as unused again so it can be sent later
+            db_rollback_redeem(code_id)
+            try:
+                await context.bot.send_message(
+                    chat_id=ADMIN_ID,
+                    text=(
+                        f"⚠️ Reward delivery FAILED!\n"
+                        f"User: {referrer_id} ({referrer_name})\n"
+                        f"Code: {code} — ROLLED BACK (not deducted)\n"
+                        f"Error: {e}\n\n"
+                        f"Use /force_reward {referrer_id} to retry."
+                    ),
+                )
+            except Exception:
+                pass
+            return
+
+        # Step 2: Only deduct points AFTER successful delivery
+        if delivered:
+            db_deduct_points(referrer_id, reward["points"], reward["name"])
+            try:
+                await context.bot.send_message(
+                    chat_id=ADMIN_ID,
+                    text=(
+                        f"🎁 Reward delivered!\n"
+                        f"User: {referrer_id} ({referrer_name})\n"
+                        f"Reward: {reward['name']}\n"
+                        f"Code: {code}\n"
+                        f"Points used: {reward['points']}"
+                    ),
+                )
+            except Exception:
+                pass
     else:
-        # No stock — notify admin
+        # No stock — notify both
         try:
             await context.bot.send_message(
                 chat_id=int(referrer_id),
@@ -862,7 +933,12 @@ async def send_referral_reward(context, referrer_id: str, referrer_name: str, to
         try:
             await context.bot.send_message(
                 chat_id=ADMIN_ID,
-                text=f"⚠️ Referral reward PENDING (stock empty)!\nUser: {referrer_id} ({referrer_name}) earned {reward['name']} after {total_verified} referrals.\nPlease add coupon stock: /add_coupon {reward['name']} CODE",
+                text=(
+                    f"⚠️ Reward PENDING — stock khatam!\n"
+                    f"User: {referrer_id} ({referrer_name})\n"
+                    f"Reward: {reward['name']}\n"
+                    f"Stock add karo: /add_coupon {reward['name']} CODE1 CODE2"
+                ),
             )
         except Exception:
             pass
