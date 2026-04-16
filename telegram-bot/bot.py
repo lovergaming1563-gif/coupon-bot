@@ -2609,7 +2609,7 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
 
 async def admin_referrals(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Admin: Referral Tracker — who referred whom, how many."""
+    """Admin: Referral Tracker — User ID | Points left | Total referrals."""
     query = update.callback_query
     await query.answer()
     if query.from_user.id != ADMIN_ID:
@@ -2627,30 +2627,40 @@ async def admin_referrals(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return
 
     import html as _html
-    lines = ["🔗 <b>Referral Tracker</b>", "━━━━━━━━━━━━━━━━━━━━",
-             f"Total referrers: <b>{len(leaderboard)}</b>\n"]
+
+    lines = [
+        "🔗 <b>Referral Tracker</b>",
+        "━━━━━━━━━━━━━━━━━━━━",
+        f"👥 Total referrers: <b>{len(leaderboard)}</b>",
+        "",
+    ]
 
     buttons = []
-    for referrer_id, active, total in leaderboard[:20]:   # top 20
-        u    = users.get(str(referrer_id), {})
-        name = _html.escape(u.get("first_name", "Unknown"))
-        uname = f"@{_html.escape(u['username'])}" if u.get("username") else f"ID:{referrer_id}"
+    for referrer_id, active, total in leaderboard[:20]:
+        u      = users.get(str(referrer_id), {})
+        name   = _html.escape(u.get("first_name", "Unknown"))
+        uname  = f"@{_html.escape(u['username'])}" if u.get("username") else ""
+        pts    = db_get_points(str(referrer_id))
+
+        # One clean block per user
         lines.append(
-            f"👤 <b>{name}</b> ({uname})\n"
-            f"   ✅ Active: <b>{active}</b>  |  📨 Total: <b>{total}</b>"
+            f"┌ 🆔 <code>{referrer_id}</code>  {('— ' + uname) if uname else ''}\n"
+            f"├ 👤 <b>{name}</b>\n"
+            f"├ 💎 Points bacha: <b>{pts}</b>\n"
+            f"└ 📨 Total refer: <b>{total}</b>  (✅ Active: <b>{active}</b>)"
         )
-        raw_name = u.get("first_name", "Unknown")
+
+        # Button label: ID + points + total
         buttons.append([InlineKeyboardButton(
-            f"👁 {raw_name[:20]} ({active}✅/{total}📨)",
+            f"🆔 {referrer_id}  |  💎{pts}pts  |  📨{total} refer",
             callback_data=f"admin_ref_detail_{referrer_id}"
         )])
 
     buttons.append([InlineKeyboardButton("◀️ Back", callback_data="admin_back")])
 
-    # Telegram 4096 char limit — trim if needed
     text = "\n".join(lines)
     if len(text) > 3900:
-        text = text[:3900] + "\n\n<i>(aur bhi hain, detail button se dekho)</i>"
+        text = text[:3900] + "\n\n<i>...aur bhi hain, scroll karo ya detail dekho</i>"
 
     await query.edit_message_text(
         text,
@@ -2674,12 +2684,17 @@ async def admin_ref_detail(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     uname       = f"@{_html.escape(u.get('username'))}" if u.get("username") else f"ID:{referrer_id}"
 
     referred = db_get_referred_users_detail(referrer_id)
+    pts      = db_get_points(referrer_id)
 
     lines = [
         f"🔗 <b>Referral Detail</b>",
         f"━━━━━━━━━━━━━━━━━━━━",
-        f"👤 Referrer: <b>{name}</b> ({uname})",
-        f"Total referred: <b>{len(referred)}</b>\n",
+        f"🆔 User ID: <code>{referrer_id}</code>",
+        f"👤 Name: <b>{name}</b>  {uname}",
+        f"💎 Points bacha: <b>{pts}</b>",
+        f"📨 Total referred: <b>{len(referred)}</b>",
+        f"",
+        f"<b>Referred Users:</b>",
     ]
 
     for uid, reward_given, status, joined_at in referred:
