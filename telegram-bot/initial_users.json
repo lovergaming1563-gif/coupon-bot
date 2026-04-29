@@ -1,4 +1,867 @@
 {
+  "363354831": {
+    "id": 363354831,
+    "username": null,
+    "first_name": "Unknown",
+    "joined": "2026-04-16T07:33:02.004796",
+    "channel_verified": false
+  },
+  "505981666": {
+    "id": 505981666,
+    "username": "ajayy111111",
+    "first_name": "Ajay",
+    "joined": "2026-04-19T07:57:46.208523",
+    "channel_verified": true
+  },
+  "528649550": {
+    "id": 528649550,
+    "username": null,
+    "first_name": "Vishal",
+    "joined": "2026-04-23T01:37:31.222654",
+    "channel_verified": true
+  },
+  "532403224": {
+    "id": 532403224,
+    "username": "Chiru420",
+    "first_name": "Cʜᴇʀʀʏ🐾",
+    "joined": "2026-04-16T07:38:15.844178",
+    "channel_verified": true
+  },
+  "571869676": {
+    "id": 571869676,
+    "username": "Rockingashishkumar",
+    "first_name": "Ashish",
+    "joined": "2026-04-10T09:09:31.334857",
+    "channel_verified": true
+  },
+  "603565564": {
+    "id": 603565564,
+    "username": "Error1212",
+    "first_name": "ㅤZ A I D",
+    "joined": "2026-04-21T08:42:34.504886",
+    "channel_verified": true
+  },
+  "605853712": {
+    "id": 605853712,
+    "username": "harishsahuu",
+    "first_name": "Harish",
+    "joined": "2026-04-06T07:31:58.978328",
+    "channel_verified": true
+  },
+  "633446935": {
+    "id": 633446935,
+    "username": "UTK4RSH",
+    "first_name": "Utkarsh",
+    "joined": "2026-04-05T10:54:09.226413",
+    "channel_verified": true
+  },
+  "642003550": {
+    "id": 642003550,
+    "username": "R12rqw",
+    "first_name": "Rakesh",
+    "joined": "2026-04-16T08:23:50.627701",
+    "channel_verified": true
+  },
+  "650792463": {
+    "id": 650792463,
+    "username": "Nitish0852147",
+    "first_name": "Nitish",
+    "joined": "2026-04-09T09:29:54.549066",
+    "channel_verified": false
+  },
+  "657516195": {
+    "id": 657516195,
+    "username": "yashx_211",
+    "first_name": "Shubh",
+    "joined": "2026-04-26T19:52:19.581779",
+    "channel_verified": false
+  },
+  "678015573": {
+    "id": 678015573,
+    "username": null,
+    "first_name": "Vin",
+    "joined": "2026-04-25T13:08:59.373480",
+    "channel_verified": true
+  },
+  "706219298": {
+    "id": 706219298,
+    "username": "Itssandeep1818",
+    "first_name": "Sandeep",
+    "joined": "2026-04-21T17:51:34.665291",
+    "channel_verified": true
+  },
+  "713690793": {
+    "id": 713690793,
+    "username": "Nihdhddg",
+    "first_name": "Gautam",
+    "joined": "2026-04-16T07:32:19.541436",
+    "channel_verified": false
+  },
+  "764783097": {
+    "id": 764783097,
+    "username": "vanshmehta123",
+    "first_name": "Vansh",
+    "joined": "2026-04-21T23:00:33.072974",
+    "channel_verified": true
+  },
+  "786443074": {
+    "id": 786443074,
+    "username": "deepak9938",
+    "first_name": "Sk Jha",
+    "joined": "2026-04-09T06:06:10.759579",
+    "channel_verified": true
+  },
+  "789443311": {
+    "id": 789443311,
+    "username": "Dm4funn",
+    "first_name": "See",
+    "joined": "2026-04-28T15:04:09.169101",
+    "channel_verified": false
+  },
+  "790448078": {
+    "id": 790448078,
+    "username": null,
+    "first_name": "somraj",
+    "joined": "2026-04-10T05:44:27.577952",
+    "channel_verified": true
+  },
+  "803129958": {
+    "id": 803129958,
+    "username": "kingofgodx",
+    "first_name": "Raghav",
+    "joined": "2026-04-21T10:33:10.901493",
+    "channel_verified": true
+  },
+  "809066680": {
+    "id": 809066680,
+    "username": "Monarchh10",
+    "first_name": ".1",
+    "joined": "2026-04-18T08:40:42.497698",
+    "channel_verified": true
+  },
+  "837084714": {
+    "id": 837084714,
+    "username": "Rkaa2i",
+    "first_name": "Rk",
+    "joined": "2026-04-16T07:38:22.667347",
+    "channel_verified": true
+  },
+  "859586113": {
+    "id": 859586113,
+    "username": null,
+    "first_name": "Tanish",
+    "joined": "2026-04-16T07:34:42.228706",
+    "channel_verified": true
+  },
+  "878420534": {
+    "id": 878420534,
+    "username": "Raosahab_up",
+    "first_name": "RAO",
+    "joined": "2026-04-09T04:22:35.695620",
+    "channel_verified": true
+  },
+  "908238738": {
+    "id": 908238738,
+    "username": "Shariqq",
+    "first_name": "Sharik",
+    "joined": "2026-04-18T18:38:35.458864",
+    "channel_verified": false
+  },
+  "923802594": {
+    "id": 923802594,
+    "username": "Shubhamkhapre99",
+    "first_name": ".",
+    "joined": "2026-04-18T08:07:51.376197",
+    "channel_verified": false
+  },
+  "925454665": {
+    "id": 925454665,
+    "username": "Ajayajju319",
+    "first_name": "Ajay",
+    "joined": "2026-03-30T06:15:38.330397",
+    "channel_verified": true
+  },
+  "936473530": {
+    "id": 936473530,
+    "username": "Pandey_xyz",
+    "first_name": "Pandey_Xd",
+    "joined": "2026-04-05T19:07:32.946583",
+    "channel_verified": true
+  },
+  "948011522": {
+    "id": 948011522,
+    "username": "Atulver",
+    "first_name": "Atul",
+    "joined": "2026-04-16T14:53:27.094810",
+    "channel_verified": true
+  },
+  "949225758": {
+    "id": 949225758,
+    "username": "Kamal7988",
+    "first_name": "A",
+    "joined": "2026-04-06T04:03:47.187724",
+    "channel_verified": true
+  },
+  "954015783": {
+    "id": 954015783,
+    "username": "prcc2",
+    "first_name": "PRCC",
+    "joined": "2026-04-16T07:56:30.902151",
+    "channel_verified": true
+  },
+  "956579110": {
+    "id": 956579110,
+    "username": "Kaushik_s23",
+    "first_name": "kaushik",
+    "joined": "2026-04-16T07:40:42.251246",
+    "channel_verified": false
+  },
+  "986563039": {
+    "id": 986563039,
+    "username": "im_rupeshji",
+    "first_name": "Rupesh (\"⁧;(\"",
+    "joined": "2026-04-16T08:26:11.400616",
+    "channel_verified": false
+  },
+  "989929160": {
+    "id": 989929160,
+    "username": "Ranjithpage13",
+    "first_name": "Mr.Ranjith",
+    "joined": "2026-04-06T17:00:43.069582",
+    "channel_verified": true
+  },
+  "1010980913": {
+    "id": 1010980913,
+    "username": "King18forever",
+    "first_name": "ㅤᴀƦ....𝐇𝐀𝐍",
+    "joined": "2026-04-20T12:23:10.535645",
+    "channel_verified": true
+  },
+  "1023044496": {
+    "id": 1023044496,
+    "username": null,
+    "first_name": "solo_021",
+    "joined": "2026-04-06T06:05:02.825604",
+    "channel_verified": true
+  },
+  "1031516553": {
+    "id": 1031516553,
+    "username": "a_arpit1",
+    "first_name": "Arpit",
+    "joined": "2026-04-21T10:07:30.865342",
+    "channel_verified": true
+  },
+  "1050524170": {
+    "id": 1050524170,
+    "username": "devil3593",
+    "first_name": "😎⎼⃡⃝⃨SOURBH SHARMA🖤⃝࿐",
+    "joined": "2026-04-24T08:38:32.637346",
+    "channel_verified": true
+  },
+  "1060492548": {
+    "id": 1060492548,
+    "username": "souvik79",
+    "first_name": "Souvik",
+    "joined": "2026-04-16T07:34:11.226855",
+    "channel_verified": true
+  },
+  "1061917625": {
+    "id": 1061917625,
+    "username": "ItsSam2618",
+    "first_name": "SAMBA",
+    "joined": "2026-04-21T10:02:24.427800",
+    "channel_verified": true
+  },
+  "1081310808": {
+    "id": 1081310808,
+    "username": null,
+    "first_name": "Aadil",
+    "joined": "2026-03-30T06:14:23.106462",
+    "channel_verified": true
+  },
+  "1095456055": {
+    "id": 1095456055,
+    "username": null,
+    "first_name": "Fateh",
+    "joined": "2026-04-14T10:23:48.386153",
+    "channel_verified": true
+  },
+  "1101783687": {
+    "id": 1101783687,
+    "username": "Devilll2815",
+    "first_name": "Prem",
+    "joined": "2026-04-07T08:45:29.498489",
+    "channel_verified": true
+  },
+  "1102701578": {
+    "id": 1102701578,
+    "username": "its_devraj17",
+    "first_name": "ᴅᴇᴠʀᴀᴊ",
+    "joined": "2026-04-20T02:56:10.985170",
+    "channel_verified": true
+  },
+  "1137808326": {
+    "id": 1137808326,
+    "username": "Codchamp156",
+    "first_name": "coderchamp",
+    "joined": "2026-04-17T06:51:57.677003",
+    "channel_verified": true
+  },
+  "1145325706": {
+    "id": 1145325706,
+    "username": "aleemrk021",
+    "first_name": "Pavel Durov",
+    "joined": "2026-04-28T12:47:24.704030",
+    "channel_verified": true
+  },
+  "1153849306": {
+    "id": 1153849306,
+    "username": "sahilgupta0",
+    "first_name": "Sahil",
+    "joined": "2026-03-30T04:52:03.353127"
+  },
+  "1159336055": {
+    "id": 1159336055,
+    "username": "Carcinogenix",
+    "first_name": "Herxeimer 🐾",
+    "joined": "2026-04-16T07:41:32.698882",
+    "channel_verified": true
+  },
+  "1166012914": {
+    "id": 1166012914,
+    "username": "Abhishekrajput777",
+    "first_name": "Abhishek",
+    "joined": "2026-04-21T12:33:55.867578",
+    "channel_verified": true
+  },
+  "1219255994": {
+    "id": 1219255994,
+    "username": "Nanipatel7",
+    "first_name": "Nani",
+    "joined": "2026-04-17T13:23:38.411741",
+    "channel_verified": true
+  },
+  "1219705621": {
+    "id": 1219705621,
+    "username": "utkarshh85",
+    "first_name": "Utkarsh",
+    "joined": "2026-04-16T11:42:41.835828",
+    "channel_verified": true
+  },
+  "1243268540": {
+    "id": 1243268540,
+    "username": "K_ZOD",
+    "first_name": "8man",
+    "joined": "2026-04-17T08:49:33.198454",
+    "channel_verified": true
+  },
+  "1250360870": {
+    "id": 1250360870,
+    "username": "HamsterAJ",
+    "first_name": "Hamster",
+    "joined": "2026-04-15T05:45:28.938710",
+    "channel_verified": true
+  },
+  "1261906223": {
+    "id": 1261906223,
+    "username": null,
+    "first_name": "Sachin",
+    "joined": "2026-04-14T17:30:45.282379",
+    "channel_verified": true
+  },
+  "1273619816": {
+    "id": 1273619816,
+    "username": "Sujeetkrme",
+    "first_name": "Sujeet",
+    "joined": "2026-04-16T07:34:45.409078",
+    "channel_verified": false
+  },
+  "1281617107": {
+    "id": 1281617107,
+    "username": "mr_prakhar0",
+    "first_name": "Ꮲяακнαя",
+    "joined": "2026-04-07T00:53:40.558842",
+    "channel_verified": true
+  },
+  "1281621957": {
+    "id": 1281621957,
+    "username": "Satyam011234",
+    "first_name": "Satyam🤝",
+    "joined": "2026-04-16T07:38:52.444832",
+    "channel_verified": true
+  },
+  "1306211743": {
+    "id": 1306211743,
+    "username": null,
+    "first_name": "Balram",
+    "joined": "2026-04-06T13:01:37.372979",
+    "channel_verified": true
+  },
+  "1307193101": {
+    "id": 1307193101,
+    "username": "R_singhx",
+    "first_name": "R",
+    "joined": "2026-04-15T19:43:46.107830",
+    "channel_verified": true
+  },
+  "1315090592": {
+    "id": 1315090592,
+    "username": "ParthRajput07",
+    "first_name": "Parth",
+    "joined": "2026-04-28T17:20:09.632781",
+    "channel_verified": false
+  },
+  "1319826629": {
+    "id": 1319826629,
+    "username": "Namanjalwal",
+    "first_name": "Naman",
+    "joined": "2026-04-14T13:48:38.786392",
+    "channel_verified": true
+  },
+  "1320929867": {
+    "id": 1320929867,
+    "username": "manish_ddy",
+    "first_name": "Node",
+    "joined": "2026-04-19T17:15:49.940903",
+    "channel_verified": false
+  },
+  "1321177895": {
+    "id": 1321177895,
+    "username": "heyyyBuddyy143",
+    "first_name": "Hey",
+    "joined": "2026-04-18T05:54:42.739637",
+    "channel_verified": true
+  },
+  "1323818585": {
+    "id": 1323818585,
+    "username": null,
+    "first_name": "Aakash",
+    "joined": "2026-04-05T02:03:29.623243",
+    "channel_verified": true
+  },
+  "1332648509": {
+    "id": 1332648509,
+    "username": "Mischievous9834",
+    "first_name": "Mischievous",
+    "joined": "2026-04-16T16:49:53.998490",
+    "channel_verified": false
+  },
+  "1333036212": {
+    "id": 1333036212,
+    "username": null,
+    "first_name": "Zehry",
+    "joined": "2026-04-05T08:01:10.107786"
+  },
+  "1341542323": {
+    "id": 1341542323,
+    "username": null,
+    "first_name": "..",
+    "joined": "2026-04-16T08:02:40.850833",
+    "channel_verified": true
+  },
+  "1344231540": {
+    "id": 1344231540,
+    "username": "AkhileshArora",
+    "first_name": "Akhilesh",
+    "joined": "2026-04-17T12:14:22.960257",
+    "channel_verified": false
+  },
+  "1346215867": {
+    "id": 1346215867,
+    "username": null,
+    "first_name": "Kàîfràñ ...Àñßàrî",
+    "joined": "2026-04-16T08:24:45.174676",
+    "channel_verified": true
+  },
+  "1351745415": {
+    "id": 1351745415,
+    "username": "FoodAt50",
+    "first_name": "FoodAt50",
+    "joined": "2026-04-21T11:13:18.000282",
+    "channel_verified": false
+  },
+  "1376019820": {
+    "id": 1376019820,
+    "username": "AnGeek99",
+    "first_name": "San",
+    "joined": "2026-04-16T10:50:17.788216",
+    "channel_verified": true
+  },
+  "1389240718": {
+    "id": 1389240718,
+    "username": "A4anasssb",
+    "first_name": "Anas",
+    "joined": "2026-04-16T07:47:38.685679",
+    "channel_verified": false
+  },
+  "1425434728": {
+    "id": 1425434728,
+    "username": "Denver666",
+    "first_name": "Ser",
+    "joined": "2026-04-04T20:19:50.935592",
+    "channel_verified": true
+  },
+  "1438347319": {
+    "id": 1438347319,
+    "username": "Abhishek_Halder",
+    "first_name": "Abhishek",
+    "joined": "2026-04-16T07:35:36.250833",
+    "channel_verified": true
+  },
+  "1439050175": {
+    "id": 1439050175,
+    "username": null,
+    "first_name": "Rahul",
+    "joined": "2026-04-16T13:16:56.176412",
+    "channel_verified": true
+  },
+  "1441057438": {
+    "id": 1441057438,
+    "username": "Saiteja8225",
+    "first_name": "Sai",
+    "joined": "2026-03-30T06:12:18.239702"
+  },
+  "1444445288": {
+    "id": 1444445288,
+    "username": "Delwar18",
+    "first_name": "Delwar",
+    "joined": "2026-04-16T07:37:05.172530",
+    "channel_verified": false
+  },
+  "1446585533": {
+    "id": 1446585533,
+    "username": null,
+    "first_name": "༆٭۝A к ค s н٭۝࿐",
+    "joined": "2026-04-16T08:22:18.369535",
+    "channel_verified": true
+  },
+  "1448899183": {
+    "id": 1448899183,
+    "username": "thesanu1",
+    "first_name": "Sanu",
+    "joined": "2026-04-06T15:03:36.736285",
+    "channel_verified": true
+  },
+  "1449311743": {
+    "id": 1449311743,
+    "username": null,
+    "first_name": "Panchal",
+    "joined": "2026-04-16T07:32:22.726155",
+    "channel_verified": false
+  },
+  "1455619072": {
+    "id": 1455619072,
+    "username": null,
+    "first_name": "Aalu",
+    "joined": "2026-04-16T07:38:30.714088",
+    "channel_verified": false
+  },
+  "1473957721": {
+    "id": 1473957721,
+    "username": "htchc6u7",
+    "first_name": "K A N H A",
+    "joined": "2026-04-09T03:50:41.722885",
+    "channel_verified": true
+  },
+  "1475526355": {
+    "id": 1475526355,
+    "username": "Pramodgehlotg",
+    "first_name": "Pramod",
+    "joined": "2026-04-21T16:47:11.816423",
+    "channel_verified": true
+  },
+  "1518515911": {
+    "id": 1518515911,
+    "username": "Aditya996609",
+    "first_name": "Aditya",
+    "joined": "2026-04-21T07:19:57.621830",
+    "channel_verified": true
+  },
+  "1584317417": {
+    "id": 1584317417,
+    "username": "chandram12",
+    "first_name": "Balachandar",
+    "joined": "2026-04-16T07:38:28.664209",
+    "channel_verified": true
+  },
+  "1612945832": {
+    "id": 1612945832,
+    "username": "Sahilsahu76",
+    "first_name": "SAHIL..",
+    "joined": "2026-04-19T06:39:02.214802",
+    "channel_verified": true
+  },
+  "1650728243": {
+    "id": 1650728243,
+    "username": null,
+    "first_name": "Manas",
+    "joined": "2026-04-16T10:42:57.852941",
+    "channel_verified": true
+  },
+  "1660263971": {
+    "id": 1660263971,
+    "username": "Wjwjwj27",
+    "first_name": "Keshav",
+    "joined": "2026-04-19T12:55:00.701182",
+    "channel_verified": false
+  },
+  "1668261621": {
+    "id": 1668261621,
+    "username": "SawaN_369",
+    "first_name": "Sawan",
+    "joined": "2026-04-06T15:33:40.688183",
+    "channel_verified": true
+  },
+  "1708034319": {
+    "id": 1708034319,
+    "username": "pritam0909",
+    "first_name": "Pritam",
+    "joined": "2026-04-16T07:45:04.339490",
+    "channel_verified": false
+  },
+  "1723553292": {
+    "id": 1723553292,
+    "username": null,
+    "first_name": "RENISH",
+    "joined": "2026-04-18T08:02:30.369557",
+    "channel_verified": true
+  },
+  "1748375798": {
+    "id": 1748375798,
+    "username": "ROHAN_RAJPUT_1",
+    "first_name": "Rohan",
+    "joined": "2026-04-06T20:30:31.359065",
+    "channel_verified": true
+  },
+  "1748473804": {
+    "id": 1748473804,
+    "username": "Vishujeetkumar",
+    "first_name": "⸙ꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋ🦋⃟⃟⃟⃟_Vishujeet💙🍁",
+    "joined": "2026-04-09T18:44:33.597088",
+    "channel_verified": true
+  },
+  "1748657370": {
+    "id": 1748657370,
+    "username": "ritik_mehta06",
+    "first_name": "Ritik",
+    "joined": "2026-04-06T10:24:26.850692",
+    "channel_verified": true
+  },
+  "1761902213": {
+    "id": 1761902213,
+    "username": "akhil616",
+    "first_name": "Mr. A®P|T",
+    "joined": "2026-03-30T06:20:18.996465"
+  },
+  "1773159759": {
+    "id": 1773159759,
+    "username": "spoofer0x",
+    "first_name": "Spoofer 🗿",
+    "joined": "2026-04-14T10:26:16.690331",
+    "channel_verified": true
+  },
+  "1796450197": {
+    "id": 1796450197,
+    "username": "JAYARAM7",
+    "first_name": "......",
+    "joined": "2026-03-30T06:16:43.083542"
+  },
+  "1805454107": {
+    "id": 1805454107,
+    "username": "SunnyxCric",
+    "first_name": "SxC",
+    "joined": "2026-04-06T09:09:40.152711",
+    "channel_verified": true
+  },
+  "1814428459": {
+    "id": 1814428459,
+    "username": "khushii_rajput",
+    "first_name": "Khushi",
+    "joined": "2026-04-27T02:58:00.924391",
+    "channel_verified": false
+  },
+  "1834178585": {
+    "id": 1834178585,
+    "username": "GhoshHarsh",
+    "first_name": "Harsh",
+    "joined": "2026-04-16T09:16:13.899654",
+    "channel_verified": true
+  },
+  "1848889374": {
+    "id": 1848889374,
+    "username": null,
+    "first_name": "Lz",
+    "joined": "2026-04-09T23:36:02.806265",
+    "channel_verified": true
+  },
+  "1870430217": {
+    "id": 1870430217,
+    "username": "Aadityamohan01",
+    "first_name": "Aaditya",
+    "joined": "2026-04-16T07:34:24.569255",
+    "channel_verified": true
+  },
+  "1885913051": {
+    "id": 1885913051,
+    "username": null,
+    "first_name": "Sooraj",
+    "joined": "2026-04-23T05:58:49.299735",
+    "channel_verified": true
+  },
+  "1888930126": {
+    "id": 1888930126,
+    "username": "Dinoshem",
+    "first_name": "Satish🌷",
+    "joined": "2026-04-09T18:50:45.418735",
+    "channel_verified": false
+  },
+  "1898563620": {
+    "id": 1898563620,
+    "username": "its_nitin_rose",
+    "first_name": "✨ Pookie ✨",
+    "joined": "2026-04-16T08:42:03.988942",
+    "channel_verified": true
+  },
+  "1941911533": {
+    "id": 1941911533,
+    "username": "Vaibhav_OO7",
+    "first_name": "Vaibhav",
+    "joined": "2026-04-18T12:43:20.121677",
+    "channel_verified": true
+  },
+  "1945593646": {
+    "id": 1945593646,
+    "username": "Ghhgggjsnsn",
+    "first_name": "🐶🦴",
+    "joined": "2026-04-16T15:59:13.890304",
+    "channel_verified": false
+  },
+  "1960197178": {
+    "id": 1960197178,
+    "username": "adityahackur",
+    "first_name": "ADITYA",
+    "joined": "2026-04-21T20:17:21.650141",
+    "channel_verified": false
+  },
+  "1960553203": {
+    "id": 1960553203,
+    "username": "Madhu_106",
+    "first_name": "M",
+    "joined": "2026-04-22T09:00:56.500537",
+    "channel_verified": true
+  },
+  "1961784677": {
+    "id": 1961784677,
+    "username": "amitesh2",
+    "first_name": "Amitesh",
+    "joined": "2026-04-21T21:14:33.784996",
+    "channel_verified": true
+  },
+  "2015697609": {
+    "id": 2015697609,
+    "username": "Sachin_sharma0041",
+    "first_name": "SACHIN",
+    "joined": "2026-04-17T13:52:11.494650",
+    "channel_verified": false
+  },
+  "2018125471": {
+    "id": 2018125471,
+    "username": "gagankumar2006",
+    "first_name": "Gagan",
+    "joined": "2026-04-09T03:55:20.626791",
+    "channel_verified": false
+  },
+  "2022848113": {
+    "id": 2022848113,
+    "username": null,
+    "first_name": "h.z sayyed",
+    "joined": "2026-04-25T02:41:25.398615",
+    "channel_verified": false
+  },
+  "2057560790": {
+    "id": 2057560790,
+    "username": "evita_i",
+    "first_name": "Merrill",
+    "joined": "2026-04-27T21:33:49.956483",
+    "channel_verified": true
+  },
+  "2061253900": {
+    "id": 2061253900,
+    "username": null,
+    "first_name": "Fox",
+    "joined": "2026-04-16T11:47:53.953203",
+    "channel_verified": false
+  },
+  "2088702524": {
+    "id": 2088702524,
+    "username": "MadMaxMadison24",
+    "first_name": "༺Leͥgeͣnͫd༻",
+    "joined": "2026-04-21T10:41:05.484627",
+    "channel_verified": false
+  },
+  "2096732081": {
+    "id": 2096732081,
+    "username": null,
+    "first_name": "Palkee",
+    "joined": "2026-04-28T04:19:44.910026",
+    "channel_verified": false
+  },
+  "2099617883": {
+    "id": 2099617883,
+    "username": "Ajay43078",
+    "first_name": "Ajay",
+    "joined": "2026-04-27T01:52:30.623236",
+    "channel_verified": false
+  },
+  "2102822193": {
+    "id": 2102822193,
+    "username": "sm1804",
+    "first_name": "श्रेयांशी... 🖤",
+    "joined": "2026-04-16T06:28:31.849171",
+    "channel_verified": true
+  },
+  "2117773876": {
+    "id": 2117773876,
+    "username": "ganeshe7",
+    "first_name": "Ganesh",
+    "joined": "2026-04-16T08:22:51.698876",
+    "channel_verified": true
+  },
+  "2118254642": {
+    "id": 2118254642,
+    "username": "P7nta",
+    "first_name": "Badal🐍",
+    "joined": "2026-04-27T21:35:55.781918",
+    "channel_verified": true
+  },
+  "2122787657": {
+    "id": 2122787657,
+    "username": "Chandankumarstaya",
+    "first_name": "Power gym",
+    "joined": "2026-04-09T10:01:09.147796",
+    "channel_verified": true
+  },
+  "2131199037": {
+    "id": 2131199037,
+    "username": "Pradeep5421",
+    "first_name": "Pradeep",
+    "joined": "2026-04-21T12:35:30.145925",
+    "channel_verified": false
+  },
+  "2135043839": {
+    "id": 2135043839,
+    "username": "ShivFatepuria",
+    "first_name": "Shivdevrashmi",
+    "joined": "2026-04-16T15:31:37.449255",
+    "channel_verified": true
+  },
+  "2143044202": {
+    "id": 2143044202,
+    "username": "dhairya56",
+    "first_name": "dhairya",
+    "joined": "2026-04-06T20:25:29.045005",
+    "channel_verified": true
+  },
   "5720673756": {
     "id": 5720673756,
     "username": "Earndaily_admin",
@@ -17,39 +880,27 @@
     "id": 6928507193,
     "username": "OtpServiceX",
     "first_name": "OTP Service X – Official",
-    "joined": "2026-03-29T16:14:33.511807"
+    "joined": "2026-03-29T16:14:33.511807",
+    "channel_verified": true
   },
   "7152818559": {
     "id": 7152818559,
     "username": "OfferFamilys",
     "first_name": "Unknown (HYPESZONEOFFER / Private loots)",
-    "joined": "2026-03-29T17:36:48.494746"
+    "joined": "2026-03-29T17:36:48.494746",
+    "channel_verified": true
   },
   "5675760075": {
     "id": 5675760075,
     "username": "ankurbhardwaj",
     "first_name": "𓍯𓂃𓏧♡ᏗᏁᏦᏬᏒ+ᏰᏂᏗᏒᎴᏇᏗᏠ❄️",
-    "joined": "2026-03-30T04:49:06.362913",
-    "channel_verified": true
-  },
-  "1153849306": {
-    "id": 1153849306,
-    "username": "sahilgupta0",
-    "first_name": "Sahil",
-    "joined": "2026-03-30T04:52:03.353127",
-    "channel_verified": true
+    "joined": "2026-03-30T04:49:06.362913"
   },
   "8549919482": {
     "id": 8549919482,
     "username": "EliasSir",
     "first_name": "Elias",
     "joined": "2026-03-30T06:10:50.847635"
-  },
-  "1441057438": {
-    "id": 1441057438,
-    "username": "Saiteja8225",
-    "first_name": "Sai",
-    "joined": "2026-03-30T06:12:18.239702"
   },
   "7336514189": {
     "id": 7336514189,
@@ -62,25 +913,6 @@
     "username": "arhaan038",
     "first_name": "Arhaan",
     "joined": "2026-03-30T06:13:27.729258"
-  },
-  "1081310808": {
-    "id": 1081310808,
-    "username": null,
-    "first_name": "Aadil",
-    "joined": "2026-03-30T06:14:23.106462"
-  },
-  "925454665": {
-    "id": 925454665,
-    "username": "Ajayajju319",
-    "first_name": "Ajay",
-    "joined": "2026-03-30T06:15:38.330397",
-    "channel_verified": true
-  },
-  "1796450197": {
-    "id": 1796450197,
-    "username": "JAYARAM7",
-    "first_name": "......",
-    "joined": "2026-03-30T06:16:43.083542"
   },
   "5106474617": {
     "id": 5106474617,
@@ -101,12 +933,6 @@
     "first_name": "Soumyaranjan",
     "joined": "2026-03-30T06:20:17.458863"
   },
-  "1761902213": {
-    "id": 1761902213,
-    "username": "akhil616",
-    "first_name": "Mr. A®P|T",
-    "joined": "2026-03-30T06:20:18.996465"
-  },
   "6825906917": {
     "id": 6825906917,
     "username": "mickle098",
@@ -123,13 +949,12 @@
     "id": 7015957756,
     "username": "Anish00_7",
     "first_name": "Anish__KushWahaa",
-    "joined": "2026-04-04T17:24:53.773753",
-    "channel_verified": true
+    "joined": "2026-04-04T17:24:53.773753"
   },
   "6245797536": {
     "id": 6245797536,
     "username": "Mnkesacche",
-    "first_name": "Miss_ Janvi🫶",
+    "first_name": "Miss_ Janvi",
     "joined": "2026-04-04T17:37:27.647601",
     "channel_verified": true
   },
@@ -137,27 +962,14 @@
     "id": 5162885109,
     "username": null,
     "first_name": "Sumaiya Fathima",
-    "joined": "2026-04-04T18:35:12.386161"
+    "joined": "2026-04-04T18:35:12.386161",
+    "channel_verified": true
   },
   "8481214559": {
     "id": 8481214559,
     "username": null,
     "first_name": "Au",
     "joined": "2026-04-04T19:00:33.569456",
-    "channel_verified": true
-  },
-  "1425434728": {
-    "id": 1425434728,
-    "username": "Denver666",
-    "first_name": "Ser",
-    "joined": "2026-04-04T20:19:50.935592",
-    "channel_verified": true
-  },
-  "1323818585": {
-    "id": 1323818585,
-    "username": null,
-    "first_name": "꧁☠︎A 𝖆 𝖐 𝖆 𝖘 𝖍☠꧂",
-    "joined": "2026-04-05T02:03:29.623243",
     "channel_verified": true
   },
   "6683564895": {
@@ -179,13 +991,6 @@
     "first_name": "Avanti Gawarle",
     "joined": "2026-04-05T06:45:28.521050"
   },
-  "1333036212": {
-    "id": 1333036212,
-    "username": null,
-    "first_name": "𝐙𝐞𝐡𝐫𝐲 ⚡",
-    "joined": "2026-04-05T08:01:10.107786",
-    "channel_verified": true
-  },
   "7425977449": {
     "id": 7425977449,
     "username": null,
@@ -196,8 +1001,7 @@
     "id": 5885854804,
     "username": null,
     "first_name": "Ozz",
-    "joined": "2026-04-05T08:13:59.921652",
-    "channel_verified": true
+    "joined": "2026-04-05T08:13:59.921652"
   },
   "5378691646": {
     "id": 5378691646,
@@ -216,28 +1020,13 @@
     "id": 8479782289,
     "username": null,
     "first_name": "Rhn",
-    "joined": "2026-04-05T10:22:56.638884",
-    "channel_verified": true
-  },
-  "633446935": {
-    "id": 633446935,
-    "username": "UTK4RSH",
-    "first_name": "Utkarsh🇮🇳",
-    "joined": "2026-04-05T10:54:09.226413",
-    "channel_verified": true
+    "joined": "2026-04-05T10:22:56.638884"
   },
   "5485925029": {
     "id": 5485925029,
     "username": "Satyam6522",
-    "first_name": "Rajput️️",
+    "first_name": "Rajput",
     "joined": "2026-04-05T14:26:04.553005"
-  },
-  "936473530": {
-    "id": 936473530,
-    "username": "Pandey_xyz",
-    "first_name": "Pandey_Xd",
-    "joined": "2026-04-05T19:07:32.946583",
-    "channel_verified": true
   },
   "8069058605": {
     "id": 8069058605,
@@ -251,13 +1040,6 @@
     "username": "Cpncode",
     "first_name": "Support",
     "joined": "2026-04-06T03:55:29.641869",
-    "channel_verified": true
-  },
-  "949225758": {
-    "id": 949225758,
-    "username": "Kamal7988",
-    "first_name": "A",
-    "joined": "2026-04-06T04:03:47.187724",
     "channel_verified": true
   },
   "7718489654": {
@@ -281,20 +1063,6 @@
     "joined": "2026-04-06T05:49:10.135493",
     "channel_verified": true
   },
-  "1023044496": {
-    "id": 1023044496,
-    "username": null,
-    "first_name": "solo_021",
-    "joined": "2026-04-06T06:05:02.825604",
-    "channel_verified": true
-  },
-  "605853712": {
-    "id": 605853712,
-    "username": "harishsahuu",
-    "first_name": "Harish",
-    "joined": "2026-04-06T07:31:58.978328",
-    "channel_verified": true
-  },
   "5288549994": {
     "id": 5288549994,
     "username": "avnishrawat207",
@@ -309,13 +1077,6 @@
     "joined": "2026-04-06T08:19:57.651273",
     "channel_verified": true
   },
-  "1805454107": {
-    "id": 1805454107,
-    "username": "SunnyxCric",
-    "first_name": "SxC",
-    "joined": "2026-04-06T09:09:40.152711",
-    "channel_verified": true
-  },
   "5893074881": {
     "id": 5893074881,
     "username": null,
@@ -328,13 +1089,6 @@
     "username": "Dogesh_7",
     "first_name": "DOGESH",
     "joined": "2026-04-06T10:19:26.373281",
-    "channel_verified": true
-  },
-  "1748657370": {
-    "id": 1748657370,
-    "username": "ritik_mehta06",
-    "first_name": "Ritik",
-    "joined": "2026-04-06T10:24:26.850692",
     "channel_verified": true
   },
   "7725330289": {
@@ -358,13 +1112,6 @@
     "joined": "2026-04-06T12:25:00.878218",
     "channel_verified": true
   },
-  "1306211743": {
-    "id": 1306211743,
-    "username": null,
-    "first_name": "Balram",
-    "joined": "2026-04-06T13:01:37.372979",
-    "channel_verified": true
-  },
   "7532631856": {
     "id": 7532631856,
     "username": null,
@@ -379,32 +1126,11 @@
     "joined": "2026-04-06T14:58:06.198956",
     "channel_verified": true
   },
-  "1448899183": {
-    "id": 1448899183,
-    "username": "thesanu1",
-    "first_name": "Sanu",
-    "joined": "2026-04-06T15:03:36.736285",
-    "channel_verified": true
-  },
-  "1668261621": {
-    "id": 1668261621,
-    "username": "SawaN_369",
-    "first_name": "Sawan",
-    "joined": "2026-04-06T15:33:40.688183",
-    "channel_verified": true
-  },
   "7722072034": {
     "id": 7722072034,
     "username": "Rahul43921",
     "first_name": "Rahul",
     "joined": "2026-04-06T16:08:38.947622",
-    "channel_verified": true
-  },
-  "989929160": {
-    "id": 989929160,
-    "username": "Ranjithpage13",
-    "first_name": "Mr.Ranjith",
-    "joined": "2026-04-06T17:00:43.069582",
     "channel_verified": true
   },
   "6277628757": {
@@ -414,13 +1140,6 @@
     "joined": "2026-04-06T17:56:04.706157",
     "channel_verified": true
   },
-  "2143044202": {
-    "id": 2143044202,
-    "username": "dhairya56",
-    "first_name": "dhairya",
-    "joined": "2026-04-06T20:25:29.045005",
-    "channel_verified": true
-  },
   "6093678928": {
     "id": 6093678928,
     "username": "aksh_papa",
@@ -428,25 +1147,11 @@
     "joined": "2026-04-06T20:27:26.760120",
     "channel_verified": true
   },
-  "1748375798": {
-    "id": 1748375798,
-    "username": "ROHAN_RAJPUT_1",
-    "first_name": "Rohan",
-    "joined": "2026-04-06T20:30:31.359065",
-    "channel_verified": true
-  },
   "8071042982": {
     "id": 8071042982,
     "username": null,
     "first_name": "Abdullah",
     "joined": "2026-04-06T21:53:44.135154",
-    "channel_verified": true
-  },
-  "1281617107": {
-    "id": 1281617107,
-    "username": "mr_prakhar0",
-    "first_name": "Ꮲяακнαя",
-    "joined": "2026-04-07T00:53:40.558842",
     "channel_verified": true
   },
   "5174956121": {
@@ -470,13 +1175,6 @@
     "joined": "2026-04-07T06:04:11.460219",
     "channel_verified": false
   },
-  "1101783687": {
-    "id": 1101783687,
-    "username": "Devilll2815",
-    "first_name": "Prem",
-    "joined": "2026-04-07T08:45:29.498489",
-    "channel_verified": true
-  },
   "6864402758": {
     "id": 6864402758,
     "username": "Rock7549",
@@ -498,20 +1196,6 @@
     "joined": "2026-04-09T03:49:43.670333",
     "channel_verified": true
   },
-  "1473957721": {
-    "id": 1473957721,
-    "username": "htchc6u7",
-    "first_name": "K A N H A",
-    "joined": "2026-04-09T03:50:41.722885",
-    "channel_verified": true
-  },
-  "2018125471": {
-    "id": 2018125471,
-    "username": "gagankumar2006",
-    "first_name": "Gagan",
-    "joined": "2026-04-09T03:55:20.626791",
-    "channel_verified": false
-  },
   "6188297079": {
     "id": 6188297079,
     "username": null,
@@ -526,39 +1210,11 @@
     "joined": "2026-04-09T04:21:20.650039",
     "channel_verified": true
   },
-  "878420534": {
-    "id": 878420534,
-    "username": "Raosahab_up",
-    "first_name": "RAO",
-    "joined": "2026-04-09T04:22:35.695620",
-    "channel_verified": true
-  },
-  "786443074": {
-    "id": 786443074,
-    "username": "deepak9938",
-    "first_name": "Sk Jha",
-    "joined": "2026-04-09T06:06:10.759579",
-    "channel_verified": true
-  },
   "5852070235": {
     "id": 5852070235,
     "username": null,
     "first_name": "D",
     "joined": "2026-04-09T08:03:49.176698",
-    "channel_verified": true
-  },
-  "650792463": {
-    "id": 650792463,
-    "username": "Nitish0852147",
-    "first_name": "Nitish",
-    "joined": "2026-04-09T09:29:54.549066",
-    "channel_verified": false
-  },
-  "2122787657": {
-    "id": 2122787657,
-    "username": "Chandankumarstaya",
-    "first_name": "Power gym",
-    "joined": "2026-04-09T10:01:09.147796",
     "channel_verified": true
   },
   "5694193761": {
@@ -624,26 +1280,12 @@
     "joined": "2026-04-09T18:43:50.003160",
     "channel_verified": true
   },
-  "1748473804": {
-    "id": 1748473804,
-    "username": "Vishujeetkumar",
-    "first_name": "⸙ꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋ🦋⃟⃟⃟⃟_Vishujeet💙🍁",
-    "joined": "2026-04-09T18:44:33.597088",
-    "channel_verified": true
-  },
   "8510148842": {
     "id": 8510148842,
     "username": null,
     "first_name": "Aman",
     "joined": "2026-04-09T18:45:32.907005",
     "channel_verified": true
-  },
-  "1888930126": {
-    "id": 1888930126,
-    "username": "Dinoshem",
-    "first_name": "Satish🌷",
-    "joined": "2026-04-09T18:50:45.418735",
-    "channel_verified": false
   },
   "5038959395": {
     "id": 5038959395,
@@ -659,19 +1301,12 @@
     "joined": "2026-04-09T19:15:32.277806",
     "channel_verified": true
   },
-  "1848889374": {
-    "id": 1848889374,
-    "username": null,
-    "first_name": "Lz",
-    "joined": "2026-04-09T23:36:02.806265",
-    "channel_verified": true
-  },
   "5550664635": {
     "id": 5550664635,
     "username": "shami062",
     "first_name": "Sam",
     "joined": "2026-04-10T01:12:38.080649",
-    "channel_verified": false
+    "channel_verified": true
   },
   "6555350313": {
     "id": 6555350313,
@@ -722,13 +1357,6 @@
     "joined": "2026-04-10T04:46:02.818413",
     "channel_verified": true
   },
-  "790448078": {
-    "id": 790448078,
-    "username": null,
-    "first_name": "somraj",
-    "joined": "2026-04-10T05:44:27.577952",
-    "channel_verified": true
-  },
   "6914452695": {
     "id": 6914452695,
     "username": "binay_raj",
@@ -743,25 +1371,1292 @@
     "joined": "2026-04-10T09:08:09.014726",
     "channel_verified": true
   },
-  "571869676": {
-    "id": 571869676,
-    "username": "Rockingashishkumar",
-    "first_name": "Ashish",
-    "joined": "2026-04-10T09:09:31.334857",
-    "channel_verified": true
-  },
   "7368676222": {
     "id": 7368676222,
     "username": "Dyinvsr",
     "first_name": "Amar「🚩」@raika",
     "joined": "2026-04-10T09:47:17.135475",
-    "channel_verified": false
+    "channel_verified": true
   },
   "6277169836": {
     "id": 6277169836,
     "username": "Paramprj",
     "first_name": "Puneet",
     "joined": "2026-04-10T15:49:02.549472",
+    "channel_verified": true
+  },
+  "6303455840": {
+    "id": 6303455840,
+    "username": null,
+    "first_name": "Harshvardhan",
+    "joined": "2026-04-14T11:38:39.306347",
+    "channel_verified": true
+  },
+  "7035781189": {
+    "id": 7035781189,
+    "username": "Godrishi0",
+    "first_name": "RISHiJoD",
+    "joined": "2026-04-14T17:23:23.560855",
+    "channel_verified": true
+  },
+  "8064478560": {
+    "id": 8064478560,
+    "username": null,
+    "first_name": "Shubham",
+    "joined": "2026-04-14T18:15:08.189369",
+    "channel_verified": true
+  },
+  "8121982341": {
+    "id": 8121982341,
+    "username": "Shivam_pandat_ji",
+    "first_name": "SHIVAM",
+    "joined": "2026-04-14T18:17:34.244355",
+    "channel_verified": true
+  },
+  "5770463617": {
+    "id": 5770463617,
+    "username": null,
+    "first_name": "Rahul",
+    "joined": "2026-04-14T19:21:34.237271",
+    "channel_verified": false
+  },
+  "6145689945": {
+    "id": 6145689945,
+    "username": null,
+    "first_name": "Mohit",
+    "joined": "2026-04-14T20:19:08.522968",
+    "channel_verified": true
+  },
+  "5473739912": {
+    "id": 5473739912,
+    "username": "manjunath_57",
+    "first_name": "Manjunath",
+    "joined": "2026-04-15T00:50:43.987408",
+    "channel_verified": true
+  },
+  "7301207338": {
+    "id": 7301207338,
+    "username": "rajaG35",
+    "first_name": "RAJA",
+    "joined": "2026-04-15T03:51:02.435176",
+    "channel_verified": true
+  },
+  "7060366778": {
+    "id": 7060366778,
+    "username": null,
+    "first_name": "Balu",
+    "joined": "2026-04-15T05:34:12.621775",
+    "channel_verified": true
+  },
+  "7963082315": {
+    "id": 7963082315,
+    "username": "jayanta_mahata",
+    "first_name": "𓏲𝆋། Jส¥αภtα །⸙ꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋꠋ ๏์์์์์์์์์์์์",
+    "joined": "2026-04-15T06:02:00.756687",
+    "channel_verified": true
+  },
+  "5671747595": {
+    "id": 5671747595,
+    "username": "fatimaj861",
+    "first_name": "fatima",
+    "joined": "2026-04-15T07:17:44.142115",
+    "channel_verified": true
+  },
+  "5907984672": {
+    "id": 5907984672,
+    "username": "arvi22558",
+    "first_name": "🔥🅐🅚🅐🅢🅗🔥",
+    "joined": "2026-04-15T07:17:48.453002",
+    "channel_verified": true
+  },
+  "8321181038": {
+    "id": 8321181038,
+    "username": null,
+    "first_name": "Hepzi",
+    "joined": "2026-04-15T08:11:18.075707",
+    "channel_verified": false
+  },
+  "5033378432": {
+    "id": 5033378432,
+    "username": null,
+    "first_name": "Ayush",
+    "joined": "2026-04-15T09:21:11.038212",
+    "channel_verified": true
+  },
+  "6846685126": {
+    "id": 6846685126,
+    "username": "Mehta798",
+    "first_name": "Gourav Mehta",
+    "joined": "2026-04-15T13:04:03.991835",
+    "channel_verified": true
+  },
+  "5687168168": {
+    "id": 5687168168,
+    "username": "Basit98y",
+    "first_name": "Arman",
+    "joined": "2026-04-15T18:29:38.175925",
+    "channel_verified": true
+  },
+  "7292068321": {
+    "id": 7292068321,
+    "username": null,
+    "first_name": "Salman",
+    "joined": "2026-04-15T18:30:19.832329",
+    "channel_verified": true
+  },
+  "7822167621": {
+    "id": 7822167621,
+    "username": null,
+    "first_name": "ARMAN",
+    "joined": "2026-04-15T18:31:50.342050",
+    "channel_verified": true
+  },
+  "8659286414": {
+    "id": 8659286414,
+    "username": "msk_zone",
+    "first_name": "MSK",
+    "joined": "2026-04-15T20:51:25.541762",
+    "channel_verified": false
+  },
+  "7976173070": {
+    "id": 7976173070,
+    "username": null,
+    "first_name": "Ahaan",
+    "joined": "2026-04-16T05:29:29.772147",
+    "channel_verified": true
+  },
+  "8767612786": {
+    "id": 8767612786,
+    "username": null,
+    "first_name": "Kumar",
+    "joined": "2026-04-16T05:53:02.501706",
+    "channel_verified": true
+  },
+  "6304687452": {
+    "id": 6304687452,
+    "username": "Jiomart_cpn",
+    "first_name": "Coupon Available",
+    "joined": "2026-04-16T05:57:38.072689",
+    "channel_verified": true
+  },
+  "6544438630": {
+    "id": 6544438630,
+    "username": "Jiomartsller",
+    "first_name": "Jiomart",
+    "joined": "2026-04-16T05:59:28.873788",
+    "channel_verified": true
+  },
+  "8736798039": {
+    "id": 8736798039,
+    "username": "Xydhfbtn",
+    "first_name": "Palak",
+    "joined": "2026-04-16T06:11:18.165067",
+    "channel_verified": true
+  },
+  "7606730935": {
+    "id": 7606730935,
+    "username": "BERLIN_00_11",
+    "first_name": "𝐁 𝐄 𝐑 𝐋 𝐈𝐍🕷",
+    "joined": "2026-04-16T06:57:19.758884",
+    "channel_verified": false
+  },
+  "6575723598": {
+    "id": 6575723598,
+    "username": "Rakesh200487",
+    "first_name": "Rakesh",
+    "joined": "2026-04-16T07:03:05.645549",
+    "channel_verified": true
+  },
+  "7722410363": {
+    "id": 7722410363,
+    "username": "kranthick",
+    "first_name": "Kranthi",
+    "joined": "2026-04-16T07:03:06.100351",
+    "channel_verified": true
+  },
+  "5308462120": {
+    "id": 5308462120,
+    "username": "Bvcxxy",
+    "first_name": "MELT ZX",
+    "joined": "2026-04-16T07:32:05.297782",
+    "channel_verified": false
+  },
+  "6693978096": {
+    "id": 6693978096,
+    "username": null,
+    "first_name": "Harry",
+    "joined": "2026-04-16T07:32:10.447608",
+    "channel_verified": true
+  },
+  "6917610081": {
+    "id": 6917610081,
+    "username": null,
+    "first_name": "Vivek",
+    "joined": "2026-04-16T07:32:41.450244",
+    "channel_verified": true
+  },
+  "5434685543": {
+    "id": 5434685543,
+    "username": null,
+    "first_name": "ㅤㅤㅤㅤㅤㅤㅤ",
+    "joined": "2026-04-16T07:34:03.567646",
+    "channel_verified": true
+  },
+  "5671429028": {
+    "id": 5671429028,
+    "username": "Iamvajahat",
+    "first_name": "Ali..",
+    "joined": "2026-04-16T07:34:27.736250",
+    "channel_verified": false
+  },
+  "5374210194": {
+    "id": 5374210194,
+    "username": "Farhan8368",
+    "first_name": "Farhan",
+    "joined": "2026-04-16T07:34:35.444684",
+    "channel_verified": true
+  },
+  "6224705769": {
+    "id": 6224705769,
+    "username": "Krishkumar082008",
+    "first_name": "Kk",
+    "joined": "2026-04-16T07:35:08.521298",
+    "channel_verified": true
+  },
+  "6894620524": {
+    "id": 6894620524,
+    "username": "freakexee",
+    "first_name": "✟𝘊𝘺𝘣𝘰𝘳𝘨꩜",
+    "joined": "2026-04-16T07:35:21.514821",
+    "channel_verified": true
+  },
+  "8496373123": {
+    "id": 8496373123,
+    "username": null,
+    "first_name": "Neeraj",
+    "joined": "2026-04-16T07:35:35.432805",
+    "channel_verified": true
+  },
+  "6840414261": {
+    "id": 6840414261,
+    "username": null,
+    "first_name": "Iqra",
+    "joined": "2026-04-16T07:35:45.993022",
+    "channel_verified": false
+  },
+  "8249474786": {
+    "id": 8249474786,
+    "username": "gujy67",
+    "first_name": "WP__NETWORK",
+    "joined": "2026-04-16T07:36:29.811787",
+    "channel_verified": true
+  },
+  "5370883964": {
+    "id": 5370883964,
+    "username": null,
+    "first_name": "Rv",
+    "joined": "2026-04-16T07:36:35.331057",
+    "channel_verified": true
+  },
+  "7016948166": {
+    "id": 7016948166,
+    "username": "Exeerooe",
+    "first_name": "...",
+    "joined": "2026-04-16T07:37:28.243006",
+    "channel_verified": true
+  },
+  "6210497874": {
+    "id": 6210497874,
+    "username": null,
+    "first_name": "Suresh",
+    "joined": "2026-04-16T07:37:38.725403",
+    "channel_verified": false
+  },
+  "6809941954": {
+    "id": 6809941954,
+    "username": "nonameohk",
+    "first_name": "＼(^o^)／",
+    "joined": "2026-04-16T07:37:58.186094",
+    "channel_verified": true
+  },
+  "5051251846": {
+    "id": 5051251846,
+    "username": null,
+    "first_name": "Rajesh",
+    "joined": "2026-04-16T07:38:20.685515",
+    "channel_verified": false
+  },
+  "5029833956": {
+    "id": 5029833956,
+    "username": null,
+    "first_name": "Raju",
+    "joined": "2026-04-16T07:38:28.007192",
+    "channel_verified": false
+  },
+  "7418789804": {
+    "id": 7418789804,
+    "username": "Intermiamixc",
+    "first_name": "Why me",
+    "joined": "2026-04-16T07:39:05.879819",
+    "channel_verified": true
+  },
+  "5833223563": {
+    "id": 5833223563,
+    "username": "krishna_jindal_1",
+    "first_name": "//2310991394",
+    "joined": "2026-04-16T07:39:38.397484",
+    "channel_verified": true
+  },
+  "5999577623": {
+    "id": 5999577623,
+    "username": "Aryan78956",
+    "first_name": "Aryan",
+    "joined": "2026-04-16T07:40:03.478201",
+    "channel_verified": true
+  },
+  "7206413773": {
+    "id": 7206413773,
+    "username": "Minshuraj07",
+    "first_name": "Minshu",
+    "joined": "2026-04-16T07:41:17.810245",
+    "channel_verified": true
+  },
+  "5736379974": {
+    "id": 5736379974,
+    "username": null,
+    "first_name": "S",
+    "joined": "2026-04-16T07:44:13.795258",
+    "channel_verified": false
+  },
+  "7414298329": {
+    "id": 7414298329,
+    "username": "Finallyugotme",
+    "first_name": "🤫",
+    "joined": "2026-04-16T07:45:32.909532",
+    "channel_verified": true
+  },
+  "6728403927": {
+    "id": 6728403927,
+    "username": "Ggoouurraavv",
+    "first_name": "Gourav Chanana",
+    "joined": "2026-04-16T07:47:20.658418",
+    "channel_verified": true
+  },
+  "5724354083": {
+    "id": 5724354083,
+    "username": "cyberhunt7",
+    "first_name": "Cyber",
+    "joined": "2026-04-16T07:52:49.629691",
+    "channel_verified": false
+  },
+  "5707834584": {
+    "id": 5707834584,
+    "username": null,
+    "first_name": "Games",
+    "joined": "2026-04-16T08:02:26.518505",
+    "channel_verified": false
+  },
+  "5195760106": {
+    "id": 5195760106,
+    "username": "Kat8800",
+    "first_name": "⫷ YT 〆 GLACIER BLUE ⫸",
+    "joined": "2026-04-16T08:09:11.352626",
+    "channel_verified": false
+  },
+  "5660388593": {
+    "id": 5660388593,
+    "username": null,
+    "first_name": "AakaXh",
+    "joined": "2026-04-16T08:10:43.098247",
+    "channel_verified": false
+  },
+  "7953035920": {
+    "id": 7953035920,
+    "username": null,
+    "first_name": "Susie",
+    "joined": "2026-04-16T08:11:38.390420",
+    "channel_verified": true
+  },
+  "5621667849": {
+    "id": 5621667849,
+    "username": null,
+    "first_name": "M",
+    "joined": "2026-04-16T08:12:49.651432",
+    "channel_verified": false
+  },
+  "5856351741": {
+    "id": 5856351741,
+    "username": null,
+    "first_name": "Sumit",
+    "joined": "2026-04-16T08:15:41.609576",
+    "channel_verified": true
+  },
+  "8417050575": {
+    "id": 8417050575,
+    "username": null,
+    "first_name": "HYPERZONE OFFERZ",
+    "joined": "2026-04-16T08:20:21.694248",
+    "channel_verified": true
+  },
+  "6413410900": {
+    "id": 6413410900,
+    "username": null,
+    "first_name": "Alfa⚔️",
+    "joined": "2026-04-16T08:20:29.358555",
+    "channel_verified": false
+  },
+  "6601129705": {
+    "id": 6601129705,
+    "username": "Couponnnseller",
+    "first_name": "Bigbasket",
+    "joined": "2026-04-16T08:25:34.269063",
+    "channel_verified": false
+  },
+  "6150253525": {
+    "id": 6150253525,
+    "username": null,
+    "first_name": ".",
+    "joined": "2026-04-16T08:29:42.555101",
+    "channel_verified": true
+  },
+  "8010089274": {
+    "id": 8010089274,
+    "username": "D0gesh_7",
+    "first_name": "D0GESH",
+    "joined": "2026-04-16T08:51:46.701648",
+    "channel_verified": true
+  },
+  "5957032709": {
+    "id": 5957032709,
+    "username": "Ece_ka_khauff",
+    "first_name": "Dispression",
+    "joined": "2026-04-16T08:51:54.973649",
+    "channel_verified": true
+  },
+  "8321854732": {
+    "id": 8321854732,
+    "username": "Hello_735",
+    "first_name": "Suraj",
+    "joined": "2026-04-16T08:55:32.513695",
+    "channel_verified": true
+  },
+  "5096447468": {
+    "id": 5096447468,
+    "username": "ItsAmanbro",
+    "first_name": "Aman (less active)",
+    "joined": "2026-04-16T09:07:44.101213",
+    "channel_verified": true
+  },
+  "6559655120": {
+    "id": 6559655120,
+    "username": "Chotadon20",
+    "first_name": "pepsin",
+    "joined": "2026-04-16T09:08:29.021179",
+    "channel_verified": false
+  },
+  "5874246742": {
+    "id": 5874246742,
+    "username": "umang3333",
+    "first_name": "umang",
+    "joined": "2026-04-16T09:11:58.121556",
+    "channel_verified": false
+  },
+  "7497249083": {
+    "id": 7497249083,
+    "username": "aliyamirza07",
+    "first_name": "Aina",
+    "joined": "2026-04-16T09:40:08.589205",
+    "channel_verified": true
+  },
+  "5558746147": {
+    "id": 5558746147,
+    "username": "ddxd098",
+    "first_name": "DDX",
+    "joined": "2026-04-16T09:47:49.273025",
+    "channel_verified": true
+  },
+  "7141682534": {
+    "id": 7141682534,
+    "username": "Noteligib",
+    "first_name": "Legend",
+    "joined": "2026-04-16T09:48:32.826616",
+    "channel_verified": true
+  },
+  "6900731324": {
+    "id": 6900731324,
+    "username": null,
+    "first_name": "Trading kicks",
+    "joined": "2026-04-16T09:54:16.001701",
+    "channel_verified": true
+  },
+  "7388122029": {
+    "id": 7388122029,
+    "username": null,
+    "first_name": "Mr Vishal",
+    "joined": "2026-04-16T10:32:53.862097",
+    "channel_verified": true
+  },
+  "7338890826": {
+    "id": 7338890826,
+    "username": "opnayakop",
+    "first_name": "Soumya",
+    "joined": "2026-04-16T10:35:10.479781",
+    "channel_verified": true
+  },
+  "6551133019": {
+    "id": 6551133019,
+    "username": "Sk01090",
+    "first_name": "Sanskar Rai",
+    "joined": "2026-04-16T11:59:58.920898",
+    "channel_verified": true
+  },
+  "7746336224": {
+    "id": 7746336224,
+    "username": null,
+    "first_name": "Kailash",
+    "joined": "2026-04-16T12:35:25.278501",
+    "channel_verified": true
+  },
+  "7554923490": {
+    "id": 7554923490,
+    "username": null,
+    "first_name": "RATUU CHUOHAN 🦅 🥷🏻 ❤️‍🔥 👑",
+    "joined": "2026-04-16T12:37:15.068711",
+    "channel_verified": true
+  },
+  "8206429232": {
+    "id": 8206429232,
+    "username": null,
+    "first_name": "Kailash",
+    "joined": "2026-04-16T12:45:14.400171",
+    "channel_verified": true
+  },
+  "8613796184": {
+    "id": 8613796184,
+    "username": null,
+    "first_name": "Narpat",
+    "joined": "2026-04-16T12:51:00.432814",
+    "channel_verified": true
+  },
+  "6812280474": {
+    "id": 6812280474,
+    "username": "Ash_win_99",
+    "first_name": "Ashwin",
+    "joined": "2026-04-16T13:01:41.809839",
+    "channel_verified": false
+  },
+  "8393375856": {
+    "id": 8393375856,
+    "username": null,
+    "first_name": "Raj Pawar",
+    "joined": "2026-04-16T13:07:23.556577",
+    "channel_verified": true
+  },
+  "7419019261": {
+    "id": 7419019261,
+    "username": null,
+    "first_name": "Dudul",
+    "joined": "2026-04-16T13:11:08.881577",
+    "channel_verified": true
+  },
+  "6657317049": {
+    "id": 6657317049,
+    "username": null,
+    "first_name": "Govind",
+    "joined": "2026-04-16T13:33:24.100808",
+    "channel_verified": true
+  },
+  "6265473551": {
+    "id": 6265473551,
+    "username": "nomu3e",
+    "first_name": "ym's blossom",
+    "joined": "2026-04-16T13:38:49.650298",
+    "channel_verified": false
+  },
+  "6515518648": {
+    "id": 6515518648,
+    "username": "shopping_help_desk",
+    "first_name": "Online Deals",
+    "joined": "2026-04-16T13:52:19.700386",
+    "channel_verified": true
+  },
+  "7433173565": {
+    "id": 7433173565,
+    "username": null,
+    "first_name": "Kamal",
+    "joined": "2026-04-16T14:30:45.928657",
+    "channel_verified": false
+  },
+  "6271226975": {
+    "id": 6271226975,
+    "username": null,
+    "first_name": "Star",
+    "joined": "2026-04-16T14:49:27.711299",
+    "channel_verified": true
+  },
+  "8761883333": {
+    "id": 8761883333,
+    "username": null,
+    "first_name": "Sagar",
+    "joined": "2026-04-16T17:12:18.180631",
+    "channel_verified": false
+  },
+  "6769723612": {
+    "id": 6769723612,
+    "username": null,
+    "first_name": "Suman",
+    "joined": "2026-04-16T17:41:12.116544",
+    "channel_verified": false
+  },
+  "6405955027": {
+    "id": 6405955027,
+    "username": null,
+    "first_name": "..",
+    "joined": "2026-04-16T17:53:44.949683",
+    "channel_verified": false
+  },
+  "7514367219": {
+    "id": 7514367219,
+    "username": null,
+    "first_name": "Dinkar",
+    "joined": "2026-04-16T19:18:16.552020",
+    "channel_verified": false
+  },
+  "7468293603": {
+    "id": 7468293603,
+    "username": null,
+    "first_name": "Hehehehe",
+    "joined": "2026-04-16T20:29:55.229280",
+    "channel_verified": true
+  },
+  "6751843127": {
+    "id": 6751843127,
+    "username": null,
+    "first_name": "Amit",
+    "joined": "2026-04-17T02:15:36.074389",
+    "channel_verified": false
+  },
+  "7422531244": {
+    "id": 7422531244,
+    "username": "shiddat700",
+    "first_name": "Rony",
+    "joined": "2026-04-17T02:32:39.724161",
+    "channel_verified": true
+  },
+  "7187455433": {
+    "id": 7187455433,
+    "username": "Aszad1",
+    "first_name": "Asjad",
+    "joined": "2026-04-17T02:57:51.895517",
+    "channel_verified": true
+  },
+  "5776493299": {
+    "id": 5776493299,
+    "username": "Mekrish09",
+    "first_name": "Krish",
+    "joined": "2026-04-17T03:51:57.409839",
+    "channel_verified": true
+  },
+  "5834390317": {
+    "id": 5834390317,
+    "username": "sakshiiiii1905",
+    "first_name": "Sakshi",
+    "joined": "2026-04-17T05:13:09.276433",
+    "channel_verified": true
+  },
+  "6837385194": {
+    "id": 6837385194,
+    "username": "Sarthak1612",
+    "first_name": "Sarthak",
+    "joined": "2026-04-17T06:24:45.596387",
+    "channel_verified": true
+  },
+  "6896655721": {
+    "id": 6896655721,
+    "username": "Arpan0106",
+    "first_name": "Daya Ben",
+    "joined": "2026-04-17T08:10:35.064786",
+    "channel_verified": true
+  },
+  "6261802543": {
+    "id": 6261802543,
+    "username": null,
+    "first_name": "Elite vip gamer",
+    "joined": "2026-04-17T09:39:08.328670",
+    "channel_verified": true
+  },
+  "5782641833": {
+    "id": 5782641833,
+    "username": "online_hero_sanatani",
+    "first_name": "Shashank",
+    "joined": "2026-04-17T10:01:34.738496",
+    "channel_verified": false
+  },
+  "8467158361": {
+    "id": 8467158361,
+    "username": null,
+    "first_name": "Divya",
+    "joined": "2026-04-17T18:16:09.626888",
+    "channel_verified": false
+  },
+  "7876689409": {
+    "id": 7876689409,
+    "username": "Swiggy8292",
+    "first_name": "Black",
+    "joined": "2026-04-17T18:47:21.698872",
+    "channel_verified": true
+  },
+  "8042706556": {
+    "id": 8042706556,
+    "username": null,
+    "first_name": "Ay",
+    "joined": "2026-04-17T18:57:07.318723",
+    "channel_verified": true
+  },
+  "6015525918": {
+    "id": 6015525918,
+    "username": null,
+    "first_name": "Harish",
+    "joined": "2026-04-18T07:06:07.253478",
+    "channel_verified": false
+  },
+  "8009252320": {
+    "id": 8009252320,
+    "username": "Ankit_sos",
+    "first_name": "🇦ɴᴋɪᴛ",
+    "joined": "2026-04-18T08:06:07.469445",
+    "channel_verified": true
+  },
+  "7316404796": {
+    "id": 7316404796,
+    "username": "Swathi07393",
+    "first_name": "Swathi",
+    "joined": "2026-04-18T12:26:57.685873",
+    "channel_verified": false
+  },
+  "7667893076": {
+    "id": 7667893076,
+    "username": "Samfxt",
+    "first_name": "SOMETHING IS COOKING 👁️",
+    "joined": "2026-04-18T14:29:58.433944",
+    "channel_verified": false
+  },
+  "5827829997": {
+    "id": 5827829997,
+    "username": "Bestpromoter18",
+    "first_name": "🩸 ʂɧąɖơῳ ῳąƖƙɛཞ 🩸",
+    "joined": "2026-04-18T16:13:21.797629",
+    "channel_verified": true
+  },
+  "8076386740": {
+    "id": 8076386740,
+    "username": "rxhheen",
+    "first_name": "raheen",
+    "joined": "2026-04-18T18:04:30.114244",
+    "channel_verified": true
+  },
+  "6271906015": {
+    "id": 6271906015,
+    "username": null,
+    "first_name": "Arushi",
+    "joined": "2026-04-19T02:31:34.202154",
+    "channel_verified": true
+  },
+  "6235501874": {
+    "id": 6235501874,
+    "username": "Jatin8269",
+    "first_name": "Jatin",
+    "joined": "2026-04-19T05:18:14.748354",
+    "channel_verified": true
+  },
+  "6595157419": {
+    "id": 6595157419,
+    "username": null,
+    "first_name": "Ardhya",
+    "joined": "2026-04-19T06:22:09.489877",
+    "channel_verified": false
+  },
+  "8557290576": {
+    "id": 8557290576,
+    "username": null,
+    "first_name": "SUMIT",
+    "joined": "2026-04-19T06:23:04.810334",
+    "channel_verified": false
+  },
+  "5508395774": {
+    "id": 5508395774,
+    "username": "Aman_4978",
+    "first_name": "Aman",
+    "joined": "2026-04-19T06:23:19.714457",
+    "channel_verified": true
+  },
+  "6807139503": {
+    "id": 6807139503,
+    "username": "Ramkumar5510",
+    "first_name": "Akash",
+    "joined": "2026-04-19T10:04:00.432863",
+    "channel_verified": true
+  },
+  "8534809357": {
+    "id": 8534809357,
+    "username": "Hehehrbhehhehe",
+    "first_name": "Mmmm",
+    "joined": "2026-04-19T10:45:45.690474",
+    "channel_verified": true
+  },
+  "8767095384": {
+    "id": 8767095384,
+    "username": "meow27441",
+    "first_name": "P",
+    "joined": "2026-04-19T20:14:25.499704",
+    "channel_verified": true
+  },
+  "8467540179": {
+    "id": 8467540179,
+    "username": null,
+    "first_name": "Parth",
+    "joined": "2026-04-20T07:19:05.984406",
+    "channel_verified": true
+  },
+  "7025952696": {
+    "id": 7025952696,
+    "username": "Misskhan726hd",
+    "first_name": "I R S H A D",
+    "joined": "2026-04-20T07:34:01.914998",
+    "channel_verified": true
+  },
+  "7497512950": {
+    "id": 7497512950,
+    "username": null,
+    "first_name": "Hriwtik",
+    "joined": "2026-04-20T12:09:18.861306",
+    "channel_verified": false
+  },
+  "7137420366": {
+    "id": 7137420366,
+    "username": null,
+    "first_name": "Kishore",
+    "joined": "2026-04-20T12:17:40.744446",
+    "channel_verified": true
+  },
+  "5953062328": {
+    "id": 5953062328,
+    "username": "Agentlooterzs",
+    "first_name": "Aman",
+    "joined": "2026-04-20T12:36:10.373116",
+    "channel_verified": true
+  },
+  "8520820493": {
+    "id": 8520820493,
+    "username": null,
+    "first_name": "Guess 🌙",
+    "joined": "2026-04-20T16:34:51.266304",
+    "channel_verified": false
+  },
+  "5215433910": {
+    "id": 5215433910,
+    "username": "Omkarsindam",
+    "first_name": "..",
+    "joined": "2026-04-21T01:47:32.701259",
+    "channel_verified": true
+  },
+  "8623006981": {
+    "id": 8623006981,
+    "username": null,
+    "first_name": "Free fire player",
+    "joined": "2026-04-21T03:21:25.840907",
+    "channel_verified": true
+  },
+  "8120209423": {
+    "id": 8120209423,
+    "username": null,
+    "first_name": "Hiraram",
+    "joined": "2026-04-21T05:42:33.514303",
+    "channel_verified": true
+  },
+  "5049985342": {
+    "id": 5049985342,
+    "username": "Spider_man436",
+    "first_name": "SPIDER 🕸️ 🕷️ $X 🍅 🐾",
+    "joined": "2026-04-21T05:47:25.007320",
+    "channel_verified": true
+  },
+  "6540895525": {
+    "id": 6540895525,
+    "username": "Harshit765423",
+    "first_name": "Harshit",
+    "joined": "2026-04-21T08:48:58.410290",
+    "channel_verified": false
+  },
+  "6979607539": {
+    "id": 6979607539,
+    "username": "Sachin637873",
+    "first_name": "Sachin",
+    "joined": "2026-04-21T09:25:08.604135",
+    "channel_verified": true
+  },
+  "8196766797": {
+    "id": 8196766797,
+    "username": "MR_SONI_Jl_BOL",
+    "first_name": "MR SONI",
+    "joined": "2026-04-21T10:12:28.955521",
+    "channel_verified": true
+  },
+  "6359035333": {
+    "id": 6359035333,
+    "username": "ehtisham8090",
+    "first_name": "Ehtisham",
+    "joined": "2026-04-21T10:19:49.491530",
+    "channel_verified": false
+  },
+  "5148967695": {
+    "id": 5148967695,
+    "username": "ammy1225",
+    "first_name": "ammy",
+    "joined": "2026-04-21T11:00:51.325251",
+    "channel_verified": true
+  },
+  "6633733498": {
+    "id": 6633733498,
+    "username": null,
+    "first_name": "Deleted Account",
+    "joined": "2026-04-21T11:07:33.713229",
+    "channel_verified": true
+  },
+  "6112208775": {
+    "id": 6112208775,
+    "username": "fastx_admin",
+    "first_name": "𝖒𝖘𝖉𝖎𝖆𝖓",
+    "joined": "2026-04-21T11:08:54.659484",
+    "channel_verified": false
+  },
+  "6387688667": {
+    "id": 6387688667,
+    "username": null,
+    "first_name": "Viku",
+    "joined": "2026-04-21T11:30:37.500972",
+    "channel_verified": true
+  },
+  "8722256752": {
+    "id": 8722256752,
+    "username": null,
+    "first_name": "Hitesh",
+    "joined": "2026-04-21T11:47:11.493249",
+    "channel_verified": true
+  },
+  "5406248620": {
+    "id": 5406248620,
+    "username": "Court221",
+    "first_name": "Night",
+    "joined": "2026-04-21T13:45:53.810866",
+    "channel_verified": false
+  },
+  "8302721783": {
+    "id": 8302721783,
+    "username": "adi000000101",
+    "first_name": "ㅤㅤㅤㅤㅤㅤㅤㅤADI",
+    "joined": "2026-04-21T20:18:59.888065",
+    "channel_verified": true
+  },
+  "6325701997": {
+    "id": 6325701997,
+    "username": "Starsss2k",
+    "first_name": "Milo",
+    "joined": "2026-04-22T04:14:24.935204",
+    "channel_verified": true
+  },
+  "5653955670": {
+    "id": 5653955670,
+    "username": "Thephysics_lover95",
+    "first_name": "♡♡𝓓ˢ༒ᴹᴿ°᭄𝙋𝙞𝙮𝙪𝙨𝙝࿐♡♡",
+    "joined": "2026-04-22T04:52:25.858954",
+    "channel_verified": false
+  },
+  "6832050815": {
+    "id": 6832050815,
+    "username": "HappySharma687",
+    "first_name": "Happy",
+    "joined": "2026-04-22T05:40:59.275192",
+    "channel_verified": true
+  },
+  "7540827721": {
+    "id": 7540827721,
+    "username": "jxst_rehan",
+    "first_name": "𝐑ᴇʜᴀɴ",
+    "joined": "2026-04-22T11:19:09.784655",
+    "channel_verified": true
+  },
+  "5931122488": {
+    "id": 5931122488,
+    "username": "Just_Rehxn",
+    "first_name": "Rehan",
+    "joined": "2026-04-22T11:37:16.320163",
+    "channel_verified": true
+  },
+  "5621934024": {
+    "id": 5621934024,
+    "username": null,
+    "first_name": "Krishna",
+    "joined": "2026-04-22T11:39:21.459274",
+    "channel_verified": true
+  },
+  "6517659663": {
+    "id": 6517659663,
+    "username": null,
+    "first_name": "Mustard grey",
+    "joined": "2026-04-22T11:49:56.356958",
+    "channel_verified": true
+  },
+  "6771642420": {
+    "id": 6771642420,
+    "username": "GRANDFFSTORE",
+    "first_name": "𝙂𝙍𝘼𝙉𝘿 𝙁𝙁 𝙎𝙏𝙊𝙍𝙀 !!",
+    "joined": "2026-04-22T12:15:08.878457",
+    "channel_verified": true
+  },
+  "5474431380": {
+    "id": 5474431380,
+    "username": "AdityaGGG",
+    "first_name": "ADI",
+    "joined": "2026-04-22T16:19:13.293334",
+    "channel_verified": true
+  },
+  "7654036249": {
+    "id": 7654036249,
+    "username": "Aryannnn1313",
+    "first_name": "Aariyan",
+    "joined": "2026-04-23T01:42:41.714852",
+    "channel_verified": true
+  },
+  "7551258942": {
+    "id": 7551258942,
+    "username": "Leakking00009",
+    "first_name": "PROFESSOR",
+    "joined": "2026-04-23T03:54:05.888845",
+    "channel_verified": true
+  },
+  "8178469442": {
+    "id": 8178469442,
+    "username": "Venice1235",
+    "first_name": "V",
+    "joined": "2026-04-23T08:20:31.779258",
+    "channel_verified": true
+  },
+  "5372306775": {
+    "id": 5372306775,
+    "username": "Maliadityaa",
+    "first_name": "Aditya",
+    "joined": "2026-04-23T10:24:57.564760",
+    "channel_verified": false
+  },
+  "8718761418": {
+    "id": 8718761418,
+    "username": null,
+    "first_name": "+12408074808",
+    "joined": "2026-04-23T13:08:44.694100",
+    "channel_verified": true
+  },
+  "8616135891": {
+    "id": 8616135891,
+    "username": null,
+    "first_name": "Dinesh",
+    "joined": "2026-04-23T13:13:41.199549",
+    "channel_verified": true
+  },
+  "6982872149": {
+    "id": 6982872149,
+    "username": null,
+    "first_name": "BharatChouhan",
+    "joined": "2026-04-23T13:34:39.629708",
+    "channel_verified": true
+  },
+  "5365013090": {
+    "id": 5365013090,
+    "username": "erhjjv",
+    "first_name": "Ubk",
+    "joined": "2026-04-23T16:54:59.008861",
+    "channel_verified": true
+  },
+  "5876585771": {
+    "id": 5876585771,
+    "username": "survivor143u",
+    "first_name": "Vijay",
+    "joined": "2026-04-23T19:00:18.985159",
+    "channel_verified": true
+  },
+  "5243047792": {
+    "id": 5243047792,
+    "username": "Dipsa_Jalore",
+    "first_name": "Dilip",
+    "joined": "2026-04-24T02:20:52.204473",
+    "channel_verified": true
+  },
+  "5348343634": {
+    "id": 5348343634,
+    "username": null,
+    "first_name": "Thomas shellby",
+    "joined": "2026-04-24T02:56:20.815771",
+    "channel_verified": true
+  },
+  "8635805281": {
+    "id": 8635805281,
+    "username": null,
+    "first_name": "✨",
+    "joined": "2026-04-24T02:57:50.436491",
+    "channel_verified": true
+  },
+  "8430411097": {
+    "id": 8430411097,
+    "username": null,
+    "first_name": "Mohd",
+    "joined": "2026-04-24T04:13:51.928061",
+    "channel_verified": true
+  },
+  "6573444432": {
+    "id": 6573444432,
+    "username": null,
+    "first_name": "Mr.",
+    "joined": "2026-04-24T04:56:55.042133",
+    "channel_verified": true
+  },
+  "5602653801": {
+    "id": 5602653801,
+    "username": "vinayppppp",
+    "first_name": "Vinay",
+    "joined": "2026-04-24T07:33:17.321065",
+    "channel_verified": true
+  },
+  "5939943635": {
+    "id": 5939943635,
+    "username": "harshsingh7048",
+    "first_name": "Harsh",
+    "joined": "2026-04-24T08:20:07.311141",
+    "channel_verified": true
+  },
+  "5982385299": {
+    "id": 5982385299,
+    "username": "tshyer",
+    "first_name": "R'",
+    "joined": "2026-04-24T17:15:03.362057",
+    "channel_verified": true
+  },
+  "5655912787": {
+    "id": 5655912787,
+    "username": "Ahadkhaan77",
+    "first_name": "Ahad",
+    "joined": "2026-04-25T15:11:44.719788",
+    "channel_verified": true
+  },
+  "8229194594": {
+    "id": 8229194594,
+    "username": null,
+    "first_name": "FLEX",
+    "joined": "2026-04-25T17:12:29.233574",
+    "channel_verified": true
+  },
+  "5869186876": {
+    "id": 5869186876,
+    "username": "ResellerCode",
+    "first_name": "Pavan",
+    "joined": "2026-04-25T17:29:12.020909",
+    "channel_verified": true
+  },
+  "8685307474": {
+    "id": 8685307474,
+    "username": "Priyu0105",
+    "first_name": "Priyanshi",
+    "joined": "2026-04-25T17:36:06.210245",
+    "channel_verified": true
+  },
+  "5869733330": {
+    "id": 5869733330,
+    "username": "AmbitiousButLazy2007",
+    "first_name": "He",
+    "joined": "2026-04-26T04:28:32.284294",
+    "channel_verified": true
+  },
+  "6314569839": {
+    "id": 6314569839,
+    "username": null,
+    "first_name": "𝘼𝙧𝙩𝙚𝙭 ⚡",
+    "joined": "2026-04-26T05:27:44.242168",
+    "channel_verified": true
+  },
+  "8379338393": {
+    "id": 8379338393,
+    "username": "Rajput0045",
+    "first_name": "Raushan",
+    "joined": "2026-04-26T05:39:10.262741",
+    "channel_verified": true
+  },
+  "6655591450": {
+    "id": 6655591450,
+    "username": "Ro36ni",
+    "first_name": "Bikarna🦴🐤▪️",
+    "joined": "2026-04-26T06:21:39.410121",
+    "channel_verified": true
+  },
+  "6175655060": {
+    "id": 6175655060,
+    "username": "durgesh846",
+    "first_name": "Durgesh",
+    "joined": "2026-04-26T16:35:27.061498",
+    "channel_verified": true
+  },
+  "5463653761": {
+    "id": 5463653761,
+    "username": "Ravi1215",
+    "first_name": "Ranveer",
+    "joined": "2026-04-27T12:36:41.839677",
+    "channel_verified": true
+  },
+  "7818761994": {
+    "id": 7818761994,
+    "username": "Wuwusffgfdssgfsdfgdsfd",
+    "first_name": "₹40= 60UC ₹200 = 325UC ₹400 = 660UC ₹1000 = 1900UC ₹1700 = 3800",
+    "joined": "2026-04-27T16:01:08.351742",
+    "channel_verified": true
+  },
+  "5887665578": {
+    "id": 5887665578,
+    "username": null,
+    "first_name": "Dinosour",
+    "joined": "2026-04-27T23:23:04.170052",
+    "channel_verified": true
+  },
+  "5074771548": {
+    "id": 5074771548,
+    "username": "Shhhh1982128",
+    "first_name": "Alone",
+    "joined": "2026-04-28T06:18:21.195242",
+    "channel_verified": true
+  },
+  "6596808129": {
+    "id": 6596808129,
+    "username": "Karthiikarth",
+    "first_name": "Karthik",
+    "joined": "2026-04-28T09:47:54.665396",
+    "channel_verified": false
+  },
+  "7583829323": {
+    "id": 7583829323,
+    "username": null,
+    "first_name": "I am king",
+    "joined": "2026-04-28T14:07:56.164328",
+    "channel_verified": true
+  },
+  "8739125415": {
+    "id": 8739125415,
+    "username": null,
+    "first_name": "Karan",
+    "joined": "2026-04-28T14:46:52.694871",
+    "channel_verified": true
+  },
+  "7323365630": {
+    "id": 7323365630,
+    "username": null,
+    "first_name": "ANANYA",
+    "joined": "2026-04-28T16:32:43.578196",
     "channel_verified": true
   }
 }
