@@ -530,6 +530,19 @@ def get_unit_price(product_key: str, quantity: int) -> int:
     return PRODUCTS.get(product_key, {}).get("price", 0)
 
 
+def get_min_qty(product_key: str) -> int:
+    """Returns minimum order quantity for a product. Default = 1.
+
+    Admin can override per-product via the Min Quantity admin panel.
+    Stored in PRODUCTS[product_key]["min_qty"].
+    """
+    try:
+        v = int(PRODUCTS.get(product_key, {}).get("min_qty", 1) or 1)
+        return max(1, v)
+    except (TypeError, ValueError):
+        return 1
+
+
 # ─────────────── Flash Sale ───────────────
 
 import time as _time_mod
@@ -1865,14 +1878,17 @@ async def buy_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     context.user_data["selected_product"] = product_key
 
-    # Build 1–10 grid in two rows of 5, then Custom Quantity
+    min_qty = get_min_qty(product_key)
+
+    # Build quantity grid. Skip buttons below min_qty so user can't tap an
+    # invalid amount. If min_qty > 10, show only the Custom Quantity button.
     row1 = [
         InlineKeyboardButton(QTY_EMOJIS[q], callback_data=f"qty_{q}")
-        for q in range(1, 6) if q <= stock
+        for q in range(max(1, min_qty), 6) if q <= stock
     ]
     row2 = [
         InlineKeyboardButton(QTY_EMOJIS[q], callback_data=f"qty_{q}")
-        for q in range(6, 11) if q <= stock
+        for q in range(max(6, min_qty), 11) if q <= stock
     ]
     keyboard = []
     if row1: keyboard.append(row1)
@@ -1889,6 +1905,8 @@ async def buy_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     else:
         price_line = f"💰 Price per unit: *₹{display_price}*\n"
 
+    min_line = f"📐 Min order: *{min_qty}*\n" if min_qty > 1 else ""
+
     await query.edit_message_text(
         f"📦 *Select Quantity*\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
@@ -1897,8 +1915,9 @@ async def buy_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         + (
             f"🏷 *Bulk Discount:* 10+ = ₹32/each | 20+ = ₹30/each\n"
             if product_key == "coupon_100" else ""
-        ) +
-        f"📊 Stock available: *{stock}*\n\n"
+        )
+        + min_line
+        + f"📊 Stock available: *{stock}*\n\n"
         f"How many do you want?",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode=ParseMode.MARKDOWN,
@@ -1917,13 +1936,17 @@ async def custom_qty_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         return
 
     stock = get_stock(product_key)
+    min_qty = get_min_qty(product_key)
     context.user_data["awaiting_custom_qty"] = True
+
+    min_line = f"📐 Min order: *{min_qty}*\n" if min_qty > 1 else ""
 
     await query.edit_message_text(
         f"✏️ *Enter Custom Quantity*\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"{product['emoji']} *{product['name']}*\n"
-        f"📊 Max available: *{stock}*\n\n"
+        + min_line
+        + f"📊 Max available: *{stock}*\n\n"
         f"👇 *Type the number of coupons you want:*",
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="cancel_order")]]),
         parse_mode=ParseMode.MARKDOWN,
@@ -1944,6 +1967,19 @@ async def _confirm_quantity(
 
     if quantity <= 0:
         msg = "❌ Quantity must be greater than 0. Please try again."
+        if update.callback_query:
+            await update.callback_query.edit_message_text(msg, parse_mode=ParseMode.MARKDOWN)
+        else:
+            await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
+        return
+
+    min_qty = get_min_qty(product_key)
+    if quantity < min_qty:
+        msg = (
+            f"⚠️ *Minimum order is {min_qty}*\n\n"
+            f"Is product ke liye kam se kam *{min_qty}* coupons lene padenge.\n"
+            f"Use /start to choose again."
+        )
         if update.callback_query:
             await update.callback_query.edit_message_text(msg, parse_mode=ParseMode.MARKDOWN)
         else:
@@ -2657,6 +2693,7 @@ def _admin_kb():
             InlineKeyboardButton("🔍 Search UTR",      callback_data="admin_search_utr"),
         ],
         [InlineKeyboardButton("⏱ Set Timeout (min)", callback_data="admin_set_timeout")],
+        [InlineKeyboardButton("📐 Min Quantity",     callback_data="admin_min_qty")],
     ])
 
 
@@ -3208,6 +3245,37 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
             await update.message.reply_text(f"✅ Timeout set: *{m} minutes*", parse_mode=ParseMode.MARKDOWN)
             return
 
+        # ── Min Quantity edit (per-product) ──
+        edit_key = context.user_data.pop("awaiting_min_qty_edit", None)
+        if edit_key:
+            try:
+                v = int(text)
+                if v < 1 or v > 1000:
+                    raise ValueError
+            except ValueError:
+                await update.message.reply_text(
+                    "❌ Number 1-1000 ke beech do (1 = no limit).",
+                )
+                # Re-arm so admin can retry without re-clicking
+                context.user_data["awaiting_min_qty_edit"] = edit_key
+                return
+            if edit_key not in PRODUCTS:
+                await update.message.reply_text("❌ Product nahi mila.")
+                return
+            PRODUCTS[edit_key]["min_qty"] = v
+            save_products_config()
+            pname = PRODUCTS[edit_key].get("name", edit_key)
+            await update.message.reply_text(
+                f"✅ *Min quantity updated*\n\n"
+                f"{PRODUCTS[edit_key].get('emoji', '📦')} {pname}\n"
+                f"📐 New min: *{v}*",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("◀️ Back to Min Qty Panel", callback_data="admin_min_qty"),
+                ]]),
+            )
+            return
+
         if context.user_data.pop("awaiting_search_utr", False):
             await _do_search_utr(update, context, text)
             return
@@ -3267,8 +3335,19 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
             )
             return
 
+        qty_val = int(text)
+        min_qty = get_min_qty(product_key)
+        if qty_val < min_qty:
+            await update.message.reply_text(
+                f"⚠️ *Minimum order: {min_qty}*\n\n"
+                f"Is product ke liye kam se kam *{min_qty}* coupons lene padenge.\n"
+                f"Phir se number bhejo ya ❌ Cancel dabao.",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            return
+
         context.user_data.pop("awaiting_custom_qty", None)
-        await _confirm_quantity(update, context, product_key, int(text))
+        await _confirm_quantity(update, context, product_key, qty_val)
         return
 
     # User has a pending order but sent text instead of a photo
@@ -4556,6 +4635,82 @@ async def admin_set_timeout(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     )
 
 
+# ─────────────── Min Quantity admin panel ───────────────
+
+async def admin_min_qty_panel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Show list of products with their current min_qty + per-product Edit buttons."""
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id != ADMIN_ID:
+        return
+
+    # Drop any stale awaiting flag
+    context.user_data.pop("awaiting_min_qty_edit", None)
+
+    lines = [
+        "📐 *Minimum Quantity Settings*",
+        "━━━━━━━━━━━━━━━━━━━━",
+        "Default: *1* (sab products ke liye)",
+        "Kisi product ka minimum badhana ho toh niche button dabao.",
+        "",
+    ]
+    rows = []
+    # Use STORE_PRODUCT_ORDER so admin sees them in store order; skip hidden.
+    keys = [k for k in STORE_PRODUCT_ORDER if k in PRODUCTS]
+    for k in keys:
+        p = PRODUCTS[k]
+        if p.get("hidden"):
+            continue
+        m = get_min_qty(k)
+        marker = "" if m == 1 else "  ⚙️"
+        lines.append(f"{p.get('emoji','📦')} *{p.get('name', k)}* — min: *{m}*{marker}")
+        # Truncate label so button doesn't overflow on mobile
+        lbl = p.get("name", k)
+        if len(lbl) > 22:
+            lbl = lbl[:21] + "…"
+        rows.append([InlineKeyboardButton(
+            f"✏️ {lbl} (now: {m})",
+            callback_data=f"admin_min_qty_edit_{k}",
+        )])
+
+    rows.append([InlineKeyboardButton("◀️ Back to Admin", callback_data="admin_back")])
+
+    await query.edit_message_text(
+        "\n".join(lines),
+        reply_markup=InlineKeyboardMarkup(rows),
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+async def admin_min_qty_edit(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Prompt admin to type the new min quantity for a specific product."""
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id != ADMIN_ID:
+        return
+
+    key = query.data.replace("admin_min_qty_edit_", "", 1)
+    if key not in PRODUCTS:
+        await query.edit_message_text("❌ Product nahi mila.", reply_markup=_back_to_admin_kb())
+        return
+
+    cur = get_min_qty(key)
+    p = PRODUCTS[key]
+    context.user_data["awaiting_min_qty_edit"] = key
+
+    await query.edit_message_text(
+        f"📐 *Set Min Quantity*\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"{p.get('emoji','📦')} *{p.get('name', key)}*\n"
+        f"Current min: *{cur}*\n\n"
+        f"👇 New min number bhejo (1 = no limit, max 1000).",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("◀️ Back", callback_data="admin_min_qty")],
+        ]),
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # END AUTO-PAYMENT SYSTEM
 # ═══════════════════════════════════════════════════════════════════════════
@@ -4662,6 +4817,8 @@ def main() -> None:
     app.add_handler(CallbackQueryHandler(admin_recent_deposits,  pattern="^admin_recent_deposits$"))
     app.add_handler(CallbackQueryHandler(admin_search_utr,       pattern="^admin_search_utr$"))
     app.add_handler(CallbackQueryHandler(admin_set_timeout,      pattern="^admin_set_timeout$"))
+    app.add_handler(CallbackQueryHandler(admin_min_qty_panel,    pattern="^admin_min_qty$"))
+    app.add_handler(CallbackQueryHandler(admin_min_qty_edit,     pattern="^admin_min_qty_edit_"))
 
     # SMS group listener — runs BEFORE generic text handler to capture group SMS
     app.add_handler(MessageHandler(
