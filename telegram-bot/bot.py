@@ -4706,6 +4706,16 @@ def main() -> None:
     else:
         logger.warning("⚠️ JobQueue not available — periodic referral check disabled")
 
+    # ── Pyrogram userbot — reads SMS forwarder bot's messages in the SMS group ──
+    # Bot API can't see other bots' messages; userbot logs in as a user account
+    # and feeds parsed UTRs into pending_payments.json. Auto-disabled if env
+    # vars (API_ID / API_HASH / SESSION_STRING) are missing.
+    try:
+        from userbot import run_userbot_in_thread
+        run_userbot_in_thread()
+    except Exception as e:
+        logger.error(f"Userbot launch failed (continuing without it): {e}", exc_info=True)
+
     logger.info("🤖 Bot fully started — all systems active!")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
