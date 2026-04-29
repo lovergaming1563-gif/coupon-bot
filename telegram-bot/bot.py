@@ -444,8 +444,8 @@ USED_UTRS_FILE        = os.path.join(_DATA_DIR, "used_utrs.json")         # Anti
 DEPOSITS_LOG_FILE     = os.path.join(_DATA_DIR, "deposits_log.json")      # Last 50 deposits
 CUSTOM_QR_PATH        = os.path.join(_DATA_DIR, "custom_qr.jpg")          # Admin-uploaded QR
 
-ORDER_TIMEOUT_SECONDS  = 300   # 5 min auto-cancel
-EXIT_TRAP_SECONDS      = 180   # 3 min urgency nudge
+ORDER_TIMEOUT_SECONDS  = 600   # 10 min auto-cancel
+EXIT_TRAP_SECONDS      = 180   # (DISABLED — kept for backward compat)
 FAST_PAYMENT_THRESHOLD = 120   # < 2 min = 🔥 fast
 LOW_STOCK_THRESHOLD    = 5
 
@@ -1981,12 +1981,8 @@ async def _confirm_quantity(
                 order_expired, when=ORDER_TIMEOUT_SECONDS,
                 data={"user_id": uid, "product_key": product_key}, name=f"order_{uid}",
             )
-            trap_job = context.job_queue.run_once(
-                exit_trap_nudge, when=EXIT_TRAP_SECONDS,
-                data={"user_id": uid, "product_key": product_key}, name=f"trap_{uid}",
-            )
             context.user_data[f"order_timer_{uid}"] = timer_job
-            context.user_data[f"exit_trap_{uid}"]   = trap_job
+            # Exit-trap nudge DISABLED per admin request
         except Exception as e:
             logger.warning(f"Timer setup failed (non-fatal): {e}")
     else:
@@ -4123,6 +4119,29 @@ async def _handle_user_utr_submission(update: Update, context: ContextTypes.DEFA
         await update.message.reply_text("❌ Order session expired. /start dabao.", parse_mode=ParseMode.MARKDOWN)
         return
 
+    # ── Always ensure a pending order exists (so _try_auto_approve can find it) ──
+    pending_orders = get_pending()
+    if str(user.id) not in pending_orders:
+        order_id = f"{user.id}_{int(now_ts())}"
+        order = {
+            "order_id":   order_id,
+            "user_id":    user.id,
+            "username":   user.username or "",
+            "first_name": user.first_name,
+            "product":    product_key,
+            "quantity":   quantity,
+            "total":      expected,
+            "status":     "pending",
+            "priority":   "auto",
+            "timestamp":  datetime.now().isoformat(),
+            "via":        "auto",
+        }
+        orders = get_orders()
+        orders[order_id] = order
+        save_orders(orders)
+        pending_orders[str(user.id)] = order_id
+        save_pending(pending_orders)
+
     # Check if SMS already arrived for this UTR
     pps = get_pending_payments()
     matched = None
@@ -4148,30 +4167,6 @@ async def _handle_user_utr_submission(update: Update, context: ContextTypes.DEFA
 
     # SMS not yet arrived — register UTR in pending list, background job will match
     putrs = get_pending_utrs()
-    # Ensure first-order order_id exists in pending
-    pending_orders = get_pending()
-    if str(user.id) not in pending_orders:
-        # Create a placeholder order so _try_auto_approve can find it later
-        order_id = f"{user.id}_{int(now_ts())}"
-        order = {
-            "order_id":   order_id,
-            "user_id":    user.id,
-            "username":   user.username or "",
-            "first_name": user.first_name,
-            "product":    product_key,
-            "quantity":   quantity,
-            "total":      expected,
-            "status":     "pending",
-            "priority":   "auto",
-            "timestamp":  datetime.now().isoformat(),
-            "via":        "auto",
-        }
-        orders = get_orders()
-        orders[order_id] = order
-        save_orders(orders)
-        pending_orders[str(user.id)] = order_id
-        save_pending(pending_orders)
-
     putrs[str(user.id)] = {
         "utr":             utr,
         "expected_amount": expected,
