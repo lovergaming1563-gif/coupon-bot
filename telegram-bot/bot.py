@@ -6,6 +6,7 @@ import threading
 import html
 import urllib.request
 import urllib.parse
+import io
 from datetime import datetime, timezone
 from flask import Flask, redirect, request as flask_request
 from telegram import (
@@ -46,6 +47,33 @@ ALOO_MERCHANT_ID = os.environ.get("ALOO_MERCHANT_ID", "")
 ALOO_BASE_URL    = "http://bharataalu.animeverse23.in/api/v1"
 ALOO_POLL_INTERVAL = 5    # seconds between each poll
 ALOO_MAX_POLLS     = 60   # max attempts (60 x 5s = 5 min timeout)
+
+# ─────────────── Dynamic UPI QR Generator ───────────────
+
+def _generate_upi_qr(upi_id: str, amount: float, name: str = "Store") -> bytes:
+    """Generate a QR code image (PNG bytes) for a UPI payment link with exact amount."""
+    try:
+        import qrcode
+        from qrcode.image.pure import PyPNGImage
+        upi_link = (
+            f"upi://pay?pa={urllib.parse.quote(upi_id)}"
+            f"&pn={urllib.parse.quote(name)}"
+            f"&am={amount:.2f}"
+            f"&cu=INR"
+        )
+        qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=10, border=4)
+        qr.add_data(upi_link)
+        qr.make(fit=True)
+        img = qr.make_image(image_factory=PyPNGImage)
+        buf = io.BytesIO()
+        img.save(buf)
+        buf.seek(0)
+        return buf.read()
+    except ImportError:
+        return None
+    except Exception as e:
+        logger.warning(f"QR generation failed: {e}")
+        return None
 
 # ─────────────── Referral & Channel Config ───────────────
 CHANNEL_USERNAME    = "@withoutanyinvestmentwork"
@@ -2215,29 +2243,55 @@ async def _confirm_quantity(
     )
     cancel_btn = InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel Order", callback_data="cancel_order")]])
 
-    # Try to send QR code image alongside the summary
+    # ── Generate dynamic UPI QR with exact unique amount ──
     qr_sent = False
-    if os.path.exists(_active_qr):
+    qr_bytes = _generate_upi_qr(_active_upi, unique_amount, "Coupon Store")
+    if qr_bytes:
         try:
-            with open(_active_qr, "rb") as qr_file:
-                if update.callback_query:
-                    await context.bot.send_photo(
-                        chat_id=uid, photo=qr_file,
-                        caption=summary_text, reply_markup=cancel_btn,
-                        parse_mode=ParseMode.MARKDOWN,
-                    )
-                    await update.callback_query.edit_message_text(
-                        "👆 *See the message above for your order details.*",
-                        parse_mode=ParseMode.MARKDOWN,
-                    )
-                else:
-                    await update.message.reply_photo(
-                        photo=qr_file, caption=summary_text,
-                        reply_markup=cancel_btn, parse_mode=ParseMode.MARKDOWN,
-                    )
+            qr_bio = io.BytesIO(qr_bytes)
+            qr_bio.name = "payment_qr.png"
+            if update.callback_query:
+                await context.bot.send_photo(
+                    chat_id=uid, photo=qr_bio,
+                    caption=summary_text, reply_markup=cancel_btn,
+                    parse_mode=ParseMode.MARKDOWN,
+                )
+                await update.callback_query.edit_message_text(
+                    "👆 *See the message above for your order details.*",
+                    parse_mode=ParseMode.MARKDOWN,
+                )
+            else:
+                await update.message.reply_photo(
+                    photo=qr_bio, caption=summary_text,
+                    reply_markup=cancel_btn, parse_mode=ParseMode.MARKDOWN,
+                )
             qr_sent = True
         except Exception as e:
-            logger.warning(f"QR send failed: {e}")
+            logger.warning(f"Dynamic QR send failed: {e}")
+
+    # Fallback: static admin QR or text-only
+    if not qr_sent:
+        if os.path.exists(_active_qr):
+            try:
+                with open(_active_qr, "rb") as qr_file:
+                    if update.callback_query:
+                        await context.bot.send_photo(
+                            chat_id=uid, photo=qr_file,
+                            caption=summary_text, reply_markup=cancel_btn,
+                            parse_mode=ParseMode.MARKDOWN,
+                        )
+                        await update.callback_query.edit_message_text(
+                            "👆 *See the message above for your order details.*",
+                            parse_mode=ParseMode.MARKDOWN,
+                        )
+                    else:
+                        await update.message.reply_photo(
+                            photo=qr_file, caption=summary_text,
+                            reply_markup=cancel_btn, parse_mode=ParseMode.MARKDOWN,
+                        )
+                qr_sent = True
+            except Exception as e:
+                logger.warning(f"Static QR send failed: {e}")
 
     if not qr_sent:
         if update.callback_query:
@@ -2248,7 +2302,6 @@ async def _confirm_quantity(
             await update.message.reply_text(
                 summary_text, reply_markup=cancel_btn, parse_mode=ParseMode.MARKDOWN,
             )
-
 
 async def select_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle quantity button 1–10. callback_data is qty_<number>."""
