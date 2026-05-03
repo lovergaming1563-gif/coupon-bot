@@ -140,8 +140,76 @@ def init_referral_db():
                 con.execute("DROP TABLE reward_coupons_old")
     except Exception as _me:
         logger.warning(f"reward_coupons migration skipped: {_me}")
+    # Waitlist table
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS waitlist (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id     TEXT NOT NULL,
+            product_key TEXT NOT NULL,
+            added_at    TEXT,
+            UNIQUE(user_id, product_key)
+        )
+    """)
+    # Banned users table
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS banned_users (
+            user_id   TEXT PRIMARY KEY,
+            reason    TEXT,
+            banned_at TEXT
+        )
+    """)
     con.commit()
     con.close()
+
+def db_is_banned(user_id: str) -> bool:
+    con = sqlite3.connect(REFERRAL_DB)
+    row = con.execute("SELECT 1 FROM banned_users WHERE user_id = ?", (str(user_id),)).fetchone()
+    con.close()
+    return row is not None
+
+def db_ban_user(user_id: str, reason: str = "") -> None:
+    con = sqlite3.connect(REFERRAL_DB)
+    con.execute(
+        "INSERT OR REPLACE INTO banned_users (user_id, reason, banned_at) VALUES (?, ?, ?)",
+        (str(user_id), reason, datetime.now(timezone.utc).isoformat())
+    )
+    con.commit()
+    con.close()
+
+def db_unban_user(user_id: str) -> bool:
+    con = sqlite3.connect(REFERRAL_DB)
+    cur = con.execute("DELETE FROM banned_users WHERE user_id = ?", (str(user_id),))
+    con.commit()
+    con.close()
+    return cur.rowcount > 0
+
+def db_add_to_waitlist(user_id: str, product_key: str) -> bool:
+    """Returns True if newly added, False if already on waitlist."""
+    con = sqlite3.connect(REFERRAL_DB)
+    try:
+        con.execute(
+            "INSERT INTO waitlist (user_id, product_key, added_at) VALUES (?, ?, ?)",
+            (str(user_id), product_key, datetime.now(timezone.utc).isoformat())
+        )
+        con.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+    finally:
+        con.close()
+
+def db_get_waitlist(product_key: str) -> list:
+    con = sqlite3.connect(REFERRAL_DB)
+    rows = con.execute("SELECT user_id FROM waitlist WHERE product_key = ?", (product_key,)).fetchall()
+    con.close()
+    return [r[0] for r in rows]
+
+def db_clear_waitlist(product_key: str) -> int:
+    con = sqlite3.connect(REFERRAL_DB)
+    cur = con.execute("DELETE FROM waitlist WHERE product_key = ?", (product_key,))
+    con.commit()
+    con.close()
+    return cur.rowcount
 
 def db_get_referral(user_id: str):
     """Returns (user_id, referred_by, reward_given) or None."""
@@ -1129,6 +1197,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         else:
             referrer_id = raw      # old-format link (no IP tracking)
 
+    if db_is_banned(uid):
+        await update.message.reply_text(
+            "⛔ *Aapka account ban kar diya gaya hai.*\n\nKisi galti ke liye contact karein: " + SUPPORT_HANDLE,
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+
     is_new = register_user(user)
 
     # ── Record referral in SQLite (only for genuinely new users, no self-referral) ──
@@ -1870,9 +1945,16 @@ async def buy_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     stock = get_stock(product_key)
     if stock == 0:
+        waitlist_kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔔 Notify Me When Available", callback_data=f"waitlist_{product_key}")],
+            [InlineKeyboardButton("◀️ Back", callback_data="back_to_start")],
+        ])
         await query.edit_message_text(
-            "😔 *Out of Stock!*\n\nThis product is currently unavailable. Check back soon!",
+            f"😔 *Out of Stock!*\n\n"
+            f"*{PRODUCTS[product_key]['name']}* abhi available nahi hai.\n\n"
+            f"🔔 *Notify Me* press karo — jab stock aayega toh hum turant batayenge!",
             parse_mode=ParseMode.MARKDOWN,
+            reply_markup=waitlist_kb,
         )
         return
 
@@ -3164,12 +3246,109 @@ async def add_coupon_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     coupons   = get_coupons()
     coupons.setdefault(pk, []).extend(new_codes)
     save_coupons(coupons)
+    # Notify waitlisted users
+    waitlist_users = db_get_waitlist(pk)
+    notified = 0
+    for wuid in waitlist_users:
+        try:
+            await context.bot.send_message(
+                chat_id=int(wuid),
+                text=f"🎉 *Stock Aa Gaya!*\n\n"
+                     f"*{PRODUCTS[pk]['name']}* ab available hai!\n"
+                     f"Jaldi karo — limited stock hai! 👇",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            notified += 1
+        except Exception:
+            pass
+    if waitlist_users:
+        db_clear_waitlist(pk)
     await update.message.reply_text(
         f"✅ *{len(new_codes)} coupon(s) added!*\n\n"
         f"📦 Product: *{PRODUCTS[pk]['name']}*\n"
-        f"📊 Total Stock: *{len(coupons[pk])}*",
+        f"📊 Total Stock: *{len(coupons[pk])}*" +
+        (f"\n🔔 *{notified} users ko notify kar diya!*" if waitlist_users else ""),
         parse_mode=ParseMode.MARKDOWN,
     )
+
+
+# ─────────────── Waitlist handler ───────────────
+async def join_waitlist(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    user = query.from_user
+    uid  = str(user.id)
+    product_key = query.data.replace("waitlist_", "")
+    if db_is_banned(uid):
+        await query.answer("⛔ Account banned.", show_alert=True)
+        return
+    product = PRODUCTS.get(product_key)
+    if not product:
+        await query.answer("Product nahi mila.", show_alert=True)
+        return
+    added = db_add_to_waitlist(uid, product_key)
+    if added:
+        await query.edit_message_text(
+            f"✅ *Waitlist mein add ho gaye!*\n\n"
+            f"Jab *{product['name']}* ka stock aayega, hum aapko turant message karenge. 🔔",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back", callback_data="back_to_start")]]),
+        )
+    else:
+        await query.answer("🔔 Aap pehle se waitlist mein hain!", show_alert=True)
+
+
+# ─────────────── Ban / Unban admin commands ───────────────
+async def cmd_ban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
+        return
+    args = context.args
+    if not args:
+        await update.message.reply_text(
+            "❌ *Usage:* `/ban USER\_ID reason`\n\nExample: `/ban 123456789 fake payment`",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+    target_id = args[0]
+    reason    = " ".join(args[1:]) if len(args) > 1 else "No reason given"
+    db_ban_user(target_id, reason)
+    try:
+        await context.bot.send_message(
+            chat_id=int(target_id),
+            text=f"⛔ *Aapka account ban kar diya gaya hai.*\nReason: {reason}\n\nContact: {SUPPORT_HANDLE}",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+    except Exception:
+        pass
+    await update.message.reply_text(
+        f"✅ *User {target_id} ban kar diya gaya!*\nReason: {reason}",
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+async def cmd_unban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
+        return
+    args = context.args
+    if not args:
+        await update.message.reply_text("❌ *Usage:* `/unban USER\_ID`", parse_mode=ParseMode.MARKDOWN)
+        return
+    target_id = args[0]
+    success   = db_unban_user(target_id)
+    if success:
+        try:
+            await context.bot.send_message(
+                chat_id=int(target_id),
+                text="✅ *Aapka ban hata diya gaya hai!* Ab aap bot use kar sakte hain.",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+        except Exception:
+            pass
+        await update.message.reply_text(f"✅ *User {target_id} unban ho gaya!*", parse_mode=ParseMode.MARKDOWN)
+    else:
+        await update.message.reply_text(f"❌ User {target_id} ban list mein nahi tha.", parse_mode=ParseMode.MARKDOWN)
 
 
 async def admin_broadcast_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -4750,6 +4929,8 @@ def main() -> None:
     app.add_handler(CommandHandler("referral",   referral_command))
     app.add_handler(CommandHandler("admin",      admin_panel))
     app.add_handler(CommandHandler("addcoupon",  add_coupon_command))
+    app.add_handler(CommandHandler("ban",         cmd_ban))
+    app.add_handler(CommandHandler("unban",       cmd_unban))
     app.add_handler(CommandHandler("approve",    approve_command))
     app.add_handler(CommandHandler("broadcast",  broadcast_command))
     # Product management
@@ -4782,6 +4963,7 @@ def main() -> None:
     app.add_handler(CallbackQueryHandler(my_points,            pattern="^my_points$"))
     app.add_handler(CallbackQueryHandler(redeem_points,        pattern="^redeem_points$"))
     app.add_handler(CallbackQueryHandler(do_redeem,            pattern="^do_redeem_"))
+    app.add_handler(CallbackQueryHandler(join_waitlist,       pattern="^waitlist_"))
     app.add_handler(CallbackQueryHandler(buy_product,         pattern="^buy_"))
     app.add_handler(CallbackQueryHandler(custom_qty_prompt, pattern="^qty_custom$"))
     app.add_handler(CallbackQueryHandler(select_quantity,   pattern=r"^qty_\d+$"))
