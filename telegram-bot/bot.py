@@ -40,6 +40,13 @@ UPI_ID         = "BHARATPE.8B0L1T2H8C56136@fbpe"  # UPI ID
 SUPPORT_HANDLE = "@MyntraCouponsupport_bot"  # Support Telegram handle
 QR_IMAGE_PATH  = os.path.join(os.path.dirname(__file__), "qr_code.jpg")
 
+# ─────────────── ALOO BharatPe API Config ───────────────
+ALOO_API_KEY     = os.environ.get("ALOO_API_KEY", "")
+ALOO_MERCHANT_ID = os.environ.get("ALOO_MERCHANT_ID", "")
+ALOO_BASE_URL    = "http://bharataalu.animeverse23.in/api/v1"
+ALOO_POLL_INTERVAL = 5    # seconds between each poll
+ALOO_MAX_POLLS     = 60   # max attempts (60 x 5s = 5 min timeout)
+
 # ─────────────── Referral & Channel Config ───────────────
 CHANNEL_USERNAME    = "@withoutanyinvestmentwork"
 CHANNEL_LINK        = "https://t.me/withoutanyinvestmentwork"
@@ -504,11 +511,9 @@ USERS_FILE   = os.path.join(_DATA_DIR, "users.json")
 ORDERS_FILE  = os.path.join(_DATA_DIR, "orders.json")
 PENDING_FILE = os.path.join(_DATA_DIR, "pending_orders.json")
 
-# ─────────────── Auto-Payment files ───────────────
+# ─────────────── Payment files ───────────────
 SETTINGS_FILE         = os.path.join(_DATA_DIR, "auto_settings.json")
-PENDING_PAYMENTS_FILE = os.path.join(_DATA_DIR, "pending_payments.json")  # SMS-side waiting
-PENDING_UTRS_FILE     = os.path.join(_DATA_DIR, "pending_utrs.json")      # User-side waiting
-USED_UTRS_FILE        = os.path.join(_DATA_DIR, "used_utrs.json")         # Anti-fraud
+USED_AMOUNTS_FILE     = os.path.join(_DATA_DIR, "used_amounts.json")      # Anti-fraud: track used unique amounts
 DEPOSITS_LOG_FILE     = os.path.join(_DATA_DIR, "deposits_log.json")      # Last 50 deposits
 CUSTOM_QR_PATH        = os.path.join(_DATA_DIR, "custom_qr.jpg")          # Admin-uploaded QR
 
@@ -2139,28 +2144,59 @@ async def _confirm_quantity(
             "5. Cashback credited after delivery."
         )
 
-    # ── Auto-Payment aware: show UTR instructions if auto on, else screenshot ──
-    _settings  = get_settings()
-    _auto_on   = bool(_settings.get("auto_payment_on"))
-    _timeout_m = int(_settings.get("timeout_minutes", 5))
+    # ── ALOO Auto-Payment: generate unique amount, create order, start polling ──
+    _settings   = get_settings()
+    _timeout_m  = int(_settings.get("timeout_minutes", 5))
     _active_upi = get_active_upi()
     _active_qr  = get_active_qr_path()
 
-    if _auto_on:
-        # Save expected amount in user_data for UTR matcher to use
-        context.user_data["pending_amount"] = total
-        payment_instructions = (
-            f"✍️ *After payment, send your 12-digit UTR / Txn ID here.*\n"
-            f"_(UTR/Reference number from your UPI app)_\n\n"
-            f"⚡ Auto-verification is ON — coupon will be delivered automatically.\n"
-            f"⏳ You have *{_timeout_m} minutes* to send UTR after paying."
-        )
-    else:
-        payment_instructions = (
-            f"📸 *After payment, send your screenshot here.*\n\n"
-            f"⏳ You have *5 minutes* to complete payment.\n"
-            f"After that your order will be cancelled automatically."
-        )
+    # Generate unique amount (base + paise suffix) for this user
+    unique_amount = _generate_unique_amount(total)
+    context.user_data["pending_amount"]   = unique_amount
+    context.user_data["pending_product"]  = product_key
+    context.user_data["pending_quantity"] = quantity
+
+    # Create order record immediately
+    order_id = f"{uid}_{int(now_ts())}"
+    order_rec = {
+        "order_id":   order_id,
+        "user_id":    uid,
+        "username":   update.effective_user.username or "",
+        "first_name": update.effective_user.first_name,
+        "product":    product_key,
+        "quantity":   quantity,
+        "total":      unique_amount,
+        "status":     "pending",
+        "priority":   "auto",
+        "timestamp":  datetime.now().isoformat(),
+        "via":        "aloo",
+    }
+    orders = get_orders()
+    orders[order_id] = order_rec
+    save_orders(orders)
+    pending_orders = get_pending()
+    pending_orders[str(uid)] = order_id
+    save_pending(pending_orders)
+
+    # Register in bot_data for polling job
+    if "aloo_pending" not in context.bot_data:
+        context.bot_data["aloo_pending"] = {}
+    context.bot_data["aloo_pending"][str(uid)] = {
+        "amount":      unique_amount,
+        "order_id":    order_id,
+        "polls_done":  0,
+        "chat_id":     uid,
+        "product_key": product_key,
+        "quantity":    quantity,
+    }
+
+    payment_instructions = (
+        f"⚡ *Payment baad automatic verify hoga!*\n\n"
+        f"✅ Coupon ₹{unique_amount:.2f} receive hote hi *automatically* deliver ho jayega.\n"
+        f"⏳ Timeout: *{_timeout_m} minutes*\n\n"
+        f"⚠️ *Exactly ₹{unique_amount:.2f} hi bhejo* — ye unique amount sirf aapke liye hai."
+    )
+
 
     summary_text = (
         f"🧾 *Order Summary*\n"
@@ -2173,7 +2209,7 @@ async def _confirm_quantity(
         f"━━━━━━━━━━━━━━━━━━━━\n\n"
         f"📲 *Payment Details*\n"
         f"🏦 UPI ID: `{_active_upi}`\n"
-        f"💵 Pay exactly: *₹{total}*\n\n"
+        f"💵 Pay exactly: *₹{unique_amount:.2f}*\n\n"
         f"{payment_instructions}"
         f"{extra_tnc}"
     )
@@ -2279,13 +2315,12 @@ async def handle_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     if user.id == ADMIN_ID:
         return
 
-    # ── If auto payment ON: don't accept screenshots, ask for UTR ──
-    if get_settings().get("auto_payment_on") and context.user_data.get("pending_product"):
+    # ── Auto-payment ON: no screenshot needed ──
+    if context.user_data.get("pending_product"):
         await update.message.reply_text(
-            "⚡ *Auto-Payment ON hai!*\n\n"
-            "Screenshot ki zarurat nahi - bas apna *12-digit UTR / Txn ID* bhejo "
-            "(UPI app me transaction ke baad milta hai).\n\n"
-            "Coupon automatic deliver ho jayega.",
+            "⚡ *Automatic payment verification chal raha hai!*\n\n"
+            "Screenshot ki zarurat nahi — payment receive hote hi coupon automatically deliver ho jayega.\n\n"
+            f"Agar 5 minute mein verify nahi hua, support se contact karo: {SUPPORT_HANDLE}",
             parse_mode=ParseMode.MARKDOWN,
         )
         return
@@ -2737,8 +2772,6 @@ def _admin_text() -> str:
 
 
 def _admin_kb():
-    s = get_settings()
-    auto_label = "🟢 Auto Pay: ON" if s.get("auto_payment_on") else "🔴 Auto Pay: OFF"
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton("⏳ Pending Orders", callback_data="admin_pending"),
@@ -2760,22 +2793,16 @@ def _admin_kb():
             InlineKeyboardButton("🔗 Referral Tracker", callback_data="admin_referrals"),
             InlineKeyboardButton("🎁 Rewards",          callback_data="admin_rewards"),
         ],
-        # ─── Auto-Payment section ───
-        [InlineKeyboardButton(auto_label, callback_data="admin_auto_toggle")],
+        # ─── ALOO BharatPe Payment section ───
         [
-            InlineKeyboardButton("💳 Change UPI",    callback_data="admin_set_upi"),
-            InlineKeyboardButton("📷 Change QR",     callback_data="admin_set_qr"),
-        ],
-        [
-            InlineKeyboardButton("👥 SMS Group",     callback_data="admin_set_smsgrp"),
-            InlineKeyboardButton("📨 SMS Senders",   callback_data="admin_sms_senders"),
+            InlineKeyboardButton("💳 Change UPI",      callback_data="admin_set_upi"),
+            InlineKeyboardButton("📷 Change QR",       callback_data="admin_set_qr"),
         ],
         [
             InlineKeyboardButton("📊 Recent Deposits", callback_data="admin_recent_deposits"),
-            InlineKeyboardButton("🔍 Search UTR",      callback_data="admin_search_utr"),
+            InlineKeyboardButton("⏱ Set Timeout",      callback_data="admin_set_timeout"),
         ],
-        [InlineKeyboardButton("⏱ Set Timeout (min)", callback_data="admin_set_timeout")],
-        [InlineKeyboardButton("📐 Min Quantity",     callback_data="admin_min_qty")],
+        [InlineKeyboardButton("📐 Min Quantity",       callback_data="admin_min_qty")],
     ])
 
 
@@ -3385,31 +3412,6 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
             )
             return
 
-        if context.user_data.pop("awaiting_smsgrp", False):
-            try:
-                gid = int(text)
-            except ValueError:
-                await update.message.reply_text("❌ Group ID ek negative number hota hai (e.g. `-1001234567890`).", parse_mode=ParseMode.MARKDOWN)
-                return
-            s = get_settings()
-            s["sms_group_id"] = gid
-            save_settings(s)
-            await update.message.reply_text(
-                f"✅ SMS Group ID set: `{gid}`\n\nBot ab is group se SMS read karega.",
-                parse_mode=ParseMode.MARKDOWN,
-            )
-            return
-
-        if context.user_data.pop("awaiting_sender_add", False):
-            s = get_settings()
-            senders = s.get("allowed_senders", [])
-            if text not in senders:
-                senders.append(text)
-            s["allowed_senders"] = senders
-            save_settings(s)
-            await update.message.reply_text(f"✅ Sender added: `{text}`", parse_mode=ParseMode.MARKDOWN)
-            return
-
         if context.user_data.pop("awaiting_timeout", False):
             try:
                 m = int(text)
@@ -3458,26 +3460,6 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         if context.user_data.pop("awaiting_search_utr", False):
             await _do_search_utr(update, context, text)
             return
-
-        if context.user_data.pop("awaiting_test_sms", False):
-            utr, amt = parse_bank_sms(text)
-            if utr or amt:
-                await update.message.reply_text(
-                    f"🧪 *SMS Parser Test*\n\n"
-                    f"🔑 UTR: `{utr or 'NOT FOUND'}`\n"
-                    f"💰 Amount: `{amt if amt is not None else 'NOT FOUND'}`",
-                    parse_mode=ParseMode.MARKDOWN,
-                )
-            else:
-                await update.message.reply_text("❌ Parser ne kuch detect nahi kiya is SMS me.")
-            return
-
-    # ── User: UTR submission when auto-payment ON ──
-    if (get_settings().get("auto_payment_on")
-            and context.user_data.get("pending_product")
-            and user.id != ADMIN_ID):
-        await _handle_user_utr_submission(update, context)
-        return
 
     # Admin broadcast via panel
     if user.id == ADMIN_ID and context.user_data.get("broadcast_mode"):
@@ -3529,11 +3511,12 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         await _confirm_quantity(update, context, product_key, qty_val)
         return
 
-    # User has a pending order but sent text instead of a photo
+    # User has a pending order - ALOO payment in progress
     if context.user_data.get("pending_product"):
         await update.message.reply_text(
-            "📸 *Please send a payment screenshot* (photo) to proceed.\n\n"
-            "Tap ❌ Cancel on the order message or use /start to restart.",
+            "⚡ *Payment verify ho raha hai...*\n\n"
+            "Koi action ki zarurat nahi — payment receive hote hi coupon automatically deliver ho jayega.\n\n"
+            "Agar cancel karna hai toh ❌ Cancel button press karo.",
             parse_mode=ParseMode.MARKDOWN,
         )
 
@@ -4074,23 +4057,19 @@ async def list_flash_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
 # ─────────────── Main ───────────────
 
 # ═══════════════════════════════════════════════════════════════════════════
-# AUTO-PAYMENT SYSTEM
+# ALOO BHARATPE PAYMENT SYSTEM
 # ═══════════════════════════════════════════════════════════════════════════
 import re as _re
 
 _DEFAULT_SETTINGS = {
-    "auto_payment_on": False,
-    "custom_upi_id":   None,        # If None, fallback to UPI_ID constant
-    "sms_group_id":    None,        # Telegram group/chat ID where SMS forwarder posts
-    "timeout_minutes": 5,           # Match window for both directions (1-60)
-    "allowed_senders": [],          # Empty = accept any sender; else whitelist of sender IDs
+    "custom_upi_id":   None,   # If None, fallback to UPI_ID constant
+    "timeout_minutes": 5,      # Polling window (1-60 min)
 }
 
 def get_settings() -> dict:
     s = load_json(SETTINGS_FILE, {})
     if not isinstance(s, dict):
         s = {}
-    # Fill defaults for missing keys
     for k, v in _DEFAULT_SETTINGS.items():
         if k not in s:
             s[k] = v
@@ -4106,147 +4085,96 @@ def get_active_upi() -> str:
 def get_active_qr_path() -> str:
     return CUSTOM_QR_PATH if os.path.exists(CUSTOM_QR_PATH) else QR_IMAGE_PATH
 
-# ─────────────── SMS Parser ───────────────
+# ─────────────── Used Amounts (anti-fraud) ───────────────
 
-# Matches "Rs.15.00", "Rs 1.00", "INR 35", "₹100" etc. Captures the numeric value.
-_AMT_RE = _re.compile(r"(?:rs\.?|inr|₹)\s*([0-9]+(?:\.[0-9]{1,2})?)", _re.IGNORECASE)
-# UTR / Txn ID — 10 to 22 digit number (covers all Indian bank formats)
-_UTR_RE = _re.compile(r"\b(\d{10,22})\b")
-# UTR submitted by user — accept 10-22 digit numbers
-_USER_UTR_RE = _re.compile(r"\b(\d{10,22})\b")
-
-# Strong negative keywords — these only appear in debits / OTP / non-credit SMS
-_IGNORE_KEYWORDS = (
-    "otp", "debited", "withdrawn", "spent", "purchased",
-    "you sent", "amount sent", "transferred to",
-)
-# Positive keywords — at least one must be present (credits)
-_CREDIT_KEYWORDS = (
-    "credited", "received", "deposited", "added to",
-)
-
-def parse_bank_sms(text: str) -> tuple:
-    """Returns (utr_str, amount_float) or (None, None) if SMS isn't a valid credit."""
-    if not text:
-        return None, None
-    low = text.lower()
-
-    # Must be a credit SMS first
-    if not any(kw in low for kw in _CREDIT_KEYWORDS):
-        return None, None
-
-    # Reject if a clear debit/OTP signal is present
-    for kw in _IGNORE_KEYWORDS:
-        if kw in low:
-            return None, None
-
-    # First "Rs/INR/₹ X" amount in the SMS = credited amount (banks always
-    # put the credited amount first, balance later).
-    amt_m = _AMT_RE.search(text)
-    if not amt_m:
-        return None, None
-    try:
-        amount = float(amt_m.group(1))
-    except ValueError:
-        return None, None
-
-    # Find longest digit sequence as UTR (most banks: 12 digit Ref/Txn)
-    utr_candidates = _UTR_RE.findall(text)
-    amt_str = amt_m.group(1).split(".")[0]
-    utrs = [u for u in utr_candidates if u != amt_str]
-    if not utrs:
-        return None, amount
-    # Prefer 12-digit (standard NPCI UTR), else longest
-    twelve = [u for u in utrs if len(u) == 12]
-    utr = twelve[0] if twelve else max(utrs, key=len)
-    return utr, amount
-
-# ─────────────── Pending stores ───────────────
-
-def get_pending_payments() -> list:
-    """List of {utr, amount, sms_text, sender, received_at}."""
-    d = load_json(PENDING_PAYMENTS_FILE, [])
-    return d if isinstance(d, list) else []
-
-def save_pending_payments(d: list) -> None:
-    _save(PENDING_PAYMENTS_FILE, d)
-
-def get_pending_utrs() -> dict:
-    """Dict keyed by user_id (str): {utr, expected_amount, product_key, quantity, submitted_at, message_id, chat_id}."""
-    d = load_json(PENDING_UTRS_FILE, {})
+def get_used_amounts() -> dict:
+    """Dict {amount_str: {used_at, user_id, order_id}}"""
+    d = load_json(USED_AMOUNTS_FILE, {})
     return d if isinstance(d, dict) else {}
 
-def save_pending_utrs(d: dict) -> None:
-    _save(PENDING_UTRS_FILE, d)
+def save_used_amounts(d: dict) -> None:
+    _save(USED_AMOUNTS_FILE, d)
 
-def get_used_utrs() -> dict:
-    """Dict {utr: {used_at, user_id, order_id, amount}}."""
-    d = load_json(USED_UTRS_FILE, {})
-    return d if isinstance(d, dict) else {}
+def _amount_key(amount: float) -> str:
+    return f"{amount:.2f}"
 
-def save_used_utrs(d: dict) -> None:
-    _save(USED_UTRS_FILE, d)
+def _is_amount_used(amount: float) -> bool:
+    return _amount_key(amount) in get_used_amounts()
+
+def _mark_amount_used(amount: float, user_id: int, order_id: str) -> None:
+    used = get_used_amounts()
+    used[_amount_key(amount)] = {
+        "used_at": now_ts(),
+        "user_id": user_id,
+        "order_id": order_id,
+    }
+    save_used_amounts(used)
+
+# ─────────────── Unique amount generator ───────────────
+
+def _generate_unique_amount(base_amount: int) -> float:
+    """Add a unique paise suffix (0-99) to distinguish concurrent payments.
+    Tries up to 100 values. Returns base_amount.00 if all taken (very unlikely)."""
+    import random
+    used = get_used_amounts()
+    candidates = list(range(100))
+    random.shuffle(candidates)
+    for paise in candidates:
+        candidate = round(base_amount + paise / 100, 2)
+        if _amount_key(candidate) not in used:
+            return candidate
+    return float(base_amount)
+
+# ─────────────── Deposits log ───────────────
 
 def get_deposits_log() -> list:
-    """Last N deposit attempts (success + fail)."""
     d = load_json(DEPOSITS_LOG_FILE, [])
     return d if isinstance(d, list) else []
 
 def save_deposits_log(d: list) -> None:
-    _save(DEPOSITS_LOG_FILE, d[-50:])  # Keep last 50
+    _save(DEPOSITS_LOG_FILE, d[-50:])
 
 def log_deposit(entry: dict) -> None:
     log = get_deposits_log()
     log.append(entry)
     save_deposits_log(log)
 
-# ─────────────── Core auto-payment logic ───────────────
+# ─────────────── ALOO API: verify payment ───────────────
 
-async def _try_auto_approve(context, user_id: int, utr: str, expected_amount: float,
-                             matched_payment: dict) -> bool:
-    """A matching SMS was found for user's UTR. Approve order & deliver coupon."""
-    pending = get_pending()
-    order_id = pending.get(str(user_id))
-    if not order_id:
-        # Fallback: find latest pending order for user
-        orders = get_orders()
-        for oid, o in orders.items():
-            if o.get("user_id") == user_id and o.get("status") == "pending":
-                order_id = oid
-                break
-        if not order_id:
-            logger.warning(f"_try_auto_approve: no pending order for user {user_id}")
-            return False
+def _aloo_verify(amount: float) -> dict:
+    """Call ALOO API to check if a payment of exactly amount was received.
+    Returns the API response dict on success, None on error."""
+    if not ALOO_API_KEY or not ALOO_MERCHANT_ID:
+        logger.warning("[ALOO] API key or merchant ID not configured!")
+        return None
+    try:
+        params = urllib.parse.urlencode({
+            "api_key":     ALOO_API_KEY,
+            "merchant_id": ALOO_MERCHANT_ID,
+            "amount":      f"{amount:.2f}",
+        })
+        url = f"{ALOO_BASE_URL}/verify?{params}"
+        req = urllib.request.Request(url, headers={"User-Agent": "CouponBot/1.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            return data
+    except Exception as e:
+        logger.error(f"[ALOO] API call failed: {e}")
+        return None
 
-    # Update order to mark UTR + auto flag
-    orders = get_orders()
-    if order_id in orders:
-        orders[order_id]["utr"]            = utr
-        orders[order_id]["matched_amount"] = matched_payment.get("amount")
-        orders[order_id]["auto_approved"]  = True
-        save_orders(orders)
+# ─────────────── Core: approve order & deliver coupon ───────────────
 
-    # Mark UTR as used (anti-fraud)
-    used = get_used_utrs()
-    used[utr] = {
-        "used_at": now_ts(),
-        "user_id": user_id,
-        "order_id": order_id,
-        "amount":  matched_payment.get("amount"),
-    }
-    save_used_utrs(used)
-
-    # Remove this UTR from pending lists
-    putrs = get_pending_utrs()
-    putrs.pop(str(user_id), None)
-    save_pending_utrs(putrs)
-
-    pps = get_pending_payments()
-    pps = [p for p in pps if p.get("utr") != utr]
-    save_pending_payments(pps)
-
-    # Execute approval (delivers coupon)
+async def _execute_aloo_approve(context, order_id: str, amount: float, utr: str = "") -> bool:
+    """Mark payment verified -> deliver coupon -> notify admin."""
     order, status = await _execute_approve(context, order_id)
+    if not isinstance(status, list):
+        logger.error(f"[ALOO] _execute_approve failed: {status}")
+        return False
+
+    user_id = (order or {}).get("user_id", 0)
+
+    # Mark amount as used (anti-fraud)
+    _mark_amount_used(amount, user_id, order_id)
 
     # Log deposit
     log_deposit({
@@ -4254,10 +4182,10 @@ async def _try_auto_approve(context, user_id: int, utr: str, expected_amount: fl
         "user_id":  user_id,
         "username": (order or {}).get("username", ""),
         "product":  (order or {}).get("product", ""),
-        "expected": expected_amount,
-        "paid":     matched_payment.get("amount"),
+        "expected": amount,
+        "paid":     amount,
         "utr":      utr,
-        "status":   "approved" if isinstance(status, list) else f"failed:{status}",
+        "status":   "approved",
         "auto":     True,
     })
 
@@ -4266,367 +4194,96 @@ async def _try_auto_approve(context, user_id: int, utr: str, expected_amount: fl
         await context.bot.send_message(
             chat_id=ADMIN_ID,
             text=(
-                f"✅ <b>Auto Deposit Approved</b>\n"
-                f"━━━━━━━━━━━━━━━━━━━━\n"
-                f"👤 User: <code>{user_id}</code>\n"
-                f"📦 Product: {html.escape(str((order or {}).get('product','')))}\n"
-                f"💰 Paid: ₹{matched_payment.get('amount')}\n"
-                f"🔑 UTR: <code>{utr}</code>\n"
-                f"🎟 Coupon delivered."
+                f"\u2705 <b>Auto Payment Approved (ALOO/BharatPe)</b>\n"
+                f"\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n"
+                f"\U0001f464 User: <code>{user_id}</code>\n"
+                f"\U0001f4e6 Product: {html.escape(str((order or {}).get('product', '')))}\n"
+                f"\U0001f4b0 Amount: \u20b9{amount:.2f}\n"
+                f"\U0001f511 UTR: <code>{utr or 'N/A'}</code>\n"
+                f"\U0001f39f Coupon delivered."
             ),
             parse_mode=ParseMode.HTML,
         )
     except Exception as e:
-        logger.error(f"Admin notify (auto approve) failed: {e}")
-
+        logger.error(f"[ALOO] Admin notify failed: {e}")
     return True
 
+# ─────────────── Polling job: runs every ALOO_POLL_INTERVAL seconds ───────────────
 
-async def _try_auto_reject_wrong_amount(context, user_id: int, utr: str,
-                                          expected_amount: float, paid_amount: float) -> None:
-    """User's UTR matched a SMS but amount mismatch → reject."""
-    putrs = get_pending_utrs()
-    putrs.pop(str(user_id), None)
-    save_pending_utrs(putrs)
-
-    # Mark UTR as used (so attacker can't retry with the same UTR)
-    used = get_used_utrs()
-    used[utr] = {
-        "used_at": now_ts(),
-        "user_id": user_id,
-        "amount":  paid_amount,
-        "rejected": True,
-    }
-    save_used_utrs(used)
-
-    log_deposit({
-        "ts":       now_ts(),
-        "user_id":  user_id,
-        "expected": expected_amount,
-        "paid":     paid_amount,
-        "utr":      utr,
-        "status":   "rejected_wrong_amount",
-        "auto":     True,
-    })
-
-    try:
-        await context.bot.send_message(
-            chat_id=user_id,
-            text=(
-                f"❌ *Wrong Amount Detected*\n\n"
-                f"💵 Expected: ₹{expected_amount}\n"
-                f"💸 Received: ₹{paid_amount}\n\n"
-                f"Please contact admin: {SUPPORT_HANDLE}"
-            ),
-            parse_mode=ParseMode.MARKDOWN,
-        )
-    except Exception as e:
-        logger.error(f"Notify user (wrong amount) failed: {e}")
-
-    try:
-        await context.bot.send_message(
-            chat_id=ADMIN_ID,
-            text=(
-                f"❌ <b>Auto Deposit Rejected (Wrong Amount)</b>\n"
-                f"━━━━━━━━━━━━━━━━━━━━\n"
-                f"👤 User: <code>{user_id}</code>\n"
-                f"💵 Expected: ₹{expected_amount}\n"
-                f"💸 Paid: ₹{paid_amount}\n"
-                f"🔑 UTR: <code>{utr}</code>\n"
-                f"User asked to contact admin."
-            ),
-            parse_mode=ParseMode.HTML,
-        )
-    except Exception as e:
-        logger.error(f"Admin notify (wrong amount) failed: {e}")
-
-
-async def _handle_user_utr_submission(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """User sent text — check if it's a valid UTR and try to match."""
-    user = update.effective_user
-    text = (update.message.text or "").strip()
-
-    m = _USER_UTR_RE.search(text)
-    if not m:
-        await update.message.reply_text(
-            "❌ *Invalid UTR.*\n\n"
-            "UTR ek 12-digit number hota hai (e.g. `123456789012`).\n"
-            "UPI app me transaction ke baad milta hai.\n\n"
-            "Sirf UTR number bhejo — kuch aur nahi.",
-            parse_mode=ParseMode.MARKDOWN,
-        )
+async def aloo_poll_job(context) -> None:
+    """Background job: poll ALOO API for each user with a pending payment."""
+    pending_payments = context.bot_data.get("aloo_pending", {})
+    if not pending_payments:
         return
 
-    utr = m.group(1)
+    to_remove = []
+    for user_id_str, info in list(pending_payments.items()):
+        user_id    = int(user_id_str)
+        amount     = info["amount"]
+        order_id   = info["order_id"]
+        polls_done = info.get("polls_done", 0)
+        chat_id    = info.get("chat_id", user_id)
 
-    # Anti-fraud: UTR already used?
-    used = get_used_utrs()
-    if utr in used:
-        await update.message.reply_text(
-            "❌ *Ye UTR pehle use ho chuka hai.*\n\n"
-            f"Agar tumne abhi payment ki hai, support se contact karo: {SUPPORT_HANDLE}",
-            parse_mode=ParseMode.MARKDOWN,
-        )
-        return
-
-    expected = float(context.user_data.get("pending_amount", 0))
-    product_key = context.user_data.get("pending_product")
-    quantity    = context.user_data.get("pending_quantity", 1)
-
-    if not product_key or expected <= 0:
-        await update.message.reply_text("❌ Order session expired. /start dabao.", parse_mode=ParseMode.MARKDOWN)
-        return
-
-    # ── Always ensure a pending order exists (so _try_auto_approve can find it) ──
-    pending_orders = get_pending()
-    if str(user.id) not in pending_orders:
-        order_id = f"{user.id}_{int(now_ts())}"
-        order = {
-            "order_id":   order_id,
-            "user_id":    user.id,
-            "username":   user.username or "",
-            "first_name": user.first_name,
-            "product":    product_key,
-            "quantity":   quantity,
-            "total":      expected,
-            "status":     "pending",
-            "priority":   "auto",
-            "timestamp":  datetime.now().isoformat(),
-            "via":        "auto",
-        }
-        orders = get_orders()
-        orders[order_id] = order
-        save_orders(orders)
-        pending_orders[str(user.id)] = order_id
-        save_pending(pending_orders)
-
-    # Check if SMS already arrived for this UTR
-    pps = get_pending_payments()
-    matched = None
-    for p in pps:
-        if p.get("utr") == utr:
-            matched = p
-            break
-
-    if matched:
-        # SMS already in our list → check amount
-        if abs(float(matched.get("amount", 0)) - expected) < 0.01:
-            await update.message.reply_text(
-                "✅ *Payment verified instantly!*\n\n"
-                "Coupon delivery in progress...",
-                parse_mode=ParseMode.MARKDOWN,
-            )
-            await _try_auto_approve(context, user.id, utr, expected, matched)
-        else:
-            await _try_auto_reject_wrong_amount(
-                context, user.id, utr, expected, float(matched.get("amount", 0))
-            )
-        return
-
-    # SMS not yet arrived — register UTR in pending list, background job will match
-    putrs = get_pending_utrs()
-    putrs[str(user.id)] = {
-        "utr":             utr,
-        "expected_amount": expected,
-        "product_key":     product_key,
-        "quantity":        quantity,
-        "submitted_at":    now_ts(),
-        "chat_id":         update.effective_chat.id,
-    }
-    save_pending_utrs(putrs)
-
-    # Clear timers (auto flow controls own timeout)
-    cancel_user_timers(context, user.id)
-
-    me, se = divmod(int(get_settings().get("timeout_minutes", 5) * 60), 60)
-    await update.message.reply_text(
-        f"📨 *UTR Received:* `{utr}`\n\n"
-        f"⏳ Payment verify ho raha hai... (max {me}m {se}s)\n"
-        f"Bot bank SMS ka wait kar raha hai.\n\n"
-        f"Match hote hi coupon turant mil jayega ✅",
-        parse_mode=ParseMode.MARKDOWN,
-    )
-
-
-# ─────────────── SMS Group Handler ───────────────
-
-async def sms_group_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Receives messages in the SMS forwarder group, parses bank SMS."""
-    if not update.effective_chat or not update.message:
-        return
-    s = get_settings()
-    sms_grp = s.get("sms_group_id")
-    if sms_grp is None or update.effective_chat.id != sms_grp:
-        return
-
-    text = update.message.text or update.message.caption or ""
-    if not text:
-        return
-
-    # Sender whitelist (if configured)
-    senders = s.get("allowed_senders", [])
-    sender_id = ""
-    # Detect sender — look for common patterns like "From: AD-AIRBNK-S"
-    sender_m = _re.search(r"From:\s*([A-Z0-9-]+)", text)
-    if sender_m:
-        sender_id = sender_m.group(1)
-    if senders and sender_id and sender_id not in senders:
-        logger.info(f"SMS from non-whitelisted sender '{sender_id}' — ignored.")
-        return
-
-    utr, amount = parse_bank_sms(text)
-    if not utr or amount is None:
-        return  # Not a credit SMS we care about
-
-    # Anti-replay: UTR already used?
-    if utr in get_used_utrs():
-        logger.info(f"SMS UTR {utr} already used, skip.")
-        return
-
-    # Add to pending payments
-    pps = get_pending_payments()
-    # Avoid duplicates
-    if any(p.get("utr") == utr for p in pps):
-        return
-    pps.append({
-        "utr":          utr,
-        "amount":       amount,
-        "sender":       sender_id,
-        "received_at":  now_ts(),
-        "sms_text":     text[:500],
-    })
-    save_pending_payments(pps)
-    logger.info(f"📨 SMS received → UTR={utr} Amount=₹{amount} Sender={sender_id}")
-
-    # Try immediate match against any pending UTR
-    putrs = get_pending_utrs()
-    for uid_str, info in list(putrs.items()):
-        if info.get("utr") == utr:
-            uid = int(uid_str)
-            expected = float(info.get("expected_amount", 0))
-            if abs(amount - expected) < 0.01:
-                try:
-                    await context.bot.send_message(
-                        chat_id=uid,
-                        text="✅ *Bank SMS mil gaya — payment verified!*\n\nCoupon delivery in progress...",
-                        parse_mode=ParseMode.MARKDOWN,
-                    )
-                except Exception:
-                    pass
-                await _try_auto_approve(context, uid, utr, expected,
-                                          {"amount": amount, "sender": sender_id})
-            else:
-                await _try_auto_reject_wrong_amount(context, uid, utr, expected, amount)
-            break
-
-
-# ─────────────── Background jobs ───────────────
-
-async def auto_pay_match_job(context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Every 3 sec: try to match pending UTRs against pending payments."""
-    putrs = get_pending_utrs()
-    if not putrs:
-        return
-    pps = get_pending_payments()
-    if not pps:
-        return
-    pps_by_utr = {p.get("utr"): p for p in pps}
-    for uid_str, info in list(putrs.items()):
-        utr = info.get("utr")
-        if utr in pps_by_utr:
-            uid = int(uid_str)
-            expected = float(info.get("expected_amount", 0))
-            paid = float(pps_by_utr[utr].get("amount", 0))
-            if abs(paid - expected) < 0.01:
-                await _try_auto_approve(context, uid, utr, expected, pps_by_utr[utr])
-            else:
-                await _try_auto_reject_wrong_amount(context, uid, utr, expected, paid)
-
-
-async def auto_pay_cleanup_job(context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Every 30 sec: expire old pending UTRs and pending payments."""
-    timeout = int(get_settings().get("timeout_minutes", 5)) * 60
-    cutoff  = now_ts() - timeout
-
-    # Expire pending UTRs (user submitted, no SMS came)
-    putrs = get_pending_utrs()
-    expired_users = []
-    for uid_str, info in list(putrs.items()):
-        if float(info.get("submitted_at", 0)) < cutoff:
-            expired_users.append((uid_str, info))
-            putrs.pop(uid_str, None)
-    if expired_users:
-        save_pending_utrs(putrs)
-        for uid_str, info in expired_users:
-            uid = int(uid_str)
+        # Timeout check
+        if polls_done >= ALOO_MAX_POLLS:
+            to_remove.append(user_id_str)
             try:
                 await context.bot.send_message(
-                    chat_id=uid,
+                    chat_id=chat_id,
                     text=(
-                        f"⚠️ *Payment Verify Nahi Ho Saka*\n\n"
-                        f"Bank SMS nahi mila timeout ke andar.\n"
-                        f"Agar payment ho gayi hai toh:\n"
-                        f"1. Support se contact karo: {SUPPORT_HANDLE}\n"
-                        f"2. Payment screenshot bhejo wahaan\n"
-                        f"3. UTR: `{info.get('utr')}` mention karo"
+                        f"\u26a0\ufe0f *Payment Verify Nahi Ho Saka*\n\n"
+                        f"5 minute mein payment confirm nahi hua.\n"
+                        f"Agar aapne payment ki hai toh support se contact karo: {SUPPORT_HANDLE}\n\n"
+                        f"Amount: \u20b9{amount:.2f}"
                     ),
                     parse_mode=ParseMode.MARKDOWN,
                 )
-            except Exception as e:
-                logger.error(f"Notify user (UTR timeout) failed: {e}")
+            except Exception:
+                pass
+            # Cancel order
+            orders = get_orders()
+            if order_id in orders and orders[order_id].get("status") == "pending":
+                orders[order_id]["status"] = "timeout"
+                save_orders(orders)
+            pending_orders = get_pending()
+            pending_orders.pop(user_id_str, None)
+            save_pending(pending_orders)
+            log_deposit({
+                "ts": now_ts(), "user_id": user_id,
+                "expected": amount, "status": "timeout", "auto": True,
+            })
+            continue
+
+        # Poll ALOO API
+        result = _aloo_verify(amount)
+        info["polls_done"] = polls_done + 1
+        pending_payments[user_id_str] = info
+
+        if result and result.get("success"):
+            utr = result.get("utr", "")
+            to_remove.append(user_id_str)
+            # Notify user
             try:
                 await context.bot.send_message(
-                    chat_id=ADMIN_ID,
-                    text=(
-                        f"⚠️ <b>UTR Timeout</b>\n"
-                        f"User <code>{uid}</code> ne UTR diya par bank SMS nahi aaya.\n"
-                        f"UTR: <code>{info.get('utr')}</code>\n"
-                        f"Expected: ₹{info.get('expected_amount')}"
-                    ),
-                    parse_mode=ParseMode.HTML,
+                    chat_id=chat_id,
+                    text="\u2705 *Payment verified!* Coupon delivery in progress...",
+                    parse_mode=ParseMode.MARKDOWN,
                 )
             except Exception:
                 pass
-            log_deposit({
-                "ts":       now_ts(),
-                "user_id":  uid,
-                "expected": info.get("expected_amount"),
-                "utr":      info.get("utr"),
-                "status":   "timeout_no_sms",
-                "auto":     True,
-            })
+            await _execute_aloo_approve(context, order_id, amount, utr)
 
-    # Expire pending payments (SMS came, no user claimed)
-    pps     = get_pending_payments()
-    kept    = [p for p in pps if float(p.get("received_at", 0)) >= cutoff]
-    if len(kept) != len(pps):
-        save_pending_payments(kept)
-        for dropped in [p for p in pps if p not in kept]:
-            logger.info(f"⏱ Pending SMS expired (no UTR claim): UTR={dropped.get('utr')} ₹{dropped.get('amount')}")
+    # Remove completed entries
+    for uid_str in to_remove:
+        pending_payments.pop(uid_str, None)
+    context.bot_data["aloo_pending"] = pending_payments
 
-
-# ─────────────── Admin Panel: Auto-Payment screens ───────────────
+# ─────────────── Admin Panel: Payment settings ───────────────
 
 def _back_to_admin_kb():
-    return InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back to Admin", callback_data="admin_back")]])
+    return InlineKeyboardMarkup([[InlineKeyboardButton("\u25c0\ufe0f Back to Admin", callback_data="admin_back")]])
 
-async def admin_auto_toggle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    query = update.callback_query
-    await query.answer()
-    if query.from_user.id != ADMIN_ID:
-        return
-    s = get_settings()
-    s["auto_payment_on"] = not bool(s.get("auto_payment_on"))
-    save_settings(s)
-    state = "ON ✅" if s["auto_payment_on"] else "OFF ❌"
-    await query.edit_message_text(
-        f"⚡ *Auto Payment is now: {state}*\n\n"
-        f"{'Bot ab UTR-based automatic verification karega.' if s['auto_payment_on'] else 'Manual flow active hai (QR + screenshot + admin approve).'}",
-        reply_markup=_back_to_admin_kb(),
-        parse_mode=ParseMode.MARKDOWN,
-    )
-
-async def admin_set_upi(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def admin_set_upi(update, context) -> None:
     query = update.callback_query
     await query.answer()
     if query.from_user.id != ADMIN_ID:
@@ -4634,173 +4291,44 @@ async def admin_set_upi(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     context.user_data["awaiting_upi"] = True
     cur = get_active_upi()
     await query.edit_message_text(
-        f"💳 *Change UPI ID*\n\nCurrent: `{cur}`\n\nNaya UPI ID type karke bhejo (cancel ke liye /admin):",
+        f"\U0001f4b3 *Change UPI ID*\n\nCurrent: `{cur}`\n\nNaya UPI ID type karke bhejo (cancel ke liye /admin):",
         reply_markup=_back_to_admin_kb(),
         parse_mode=ParseMode.MARKDOWN,
     )
 
-async def admin_set_qr(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def admin_set_qr(update, context) -> None:
     query = update.callback_query
     await query.answer()
     if query.from_user.id != ADMIN_ID:
         return
     context.user_data["awaiting_qr_upload"] = True
     await query.edit_message_text(
-        f"📷 *Change QR Code*\n\nNaya QR image (photo) bhejo abhi (cancel ke liye /admin):",
+        f"\U0001f4f7 *Change QR Code*\n\nNaya QR image (photo) bhejo abhi (cancel ke liye /admin):",
         reply_markup=_back_to_admin_kb(),
         parse_mode=ParseMode.MARKDOWN,
     )
 
-async def admin_set_smsgrp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    query = update.callback_query
-    await query.answer()
-    if query.from_user.id != ADMIN_ID:
-        return
-    context.user_data["awaiting_smsgrp"] = True
-    cur = get_settings().get("sms_group_id")
-    await query.edit_message_text(
-        f"👥 *SMS Group ID Set Karo*\n\n"
-        f"Current: `{cur if cur else 'Not set'}`\n\n"
-        f"Group ID type karke bhejo (e.g. `-1001234567890`).\n\n"
-        f"_Tip: Bot ko us group me add karo (admin/member), phir kisi message ko forward karke @userinfobot pe — wo group ID bata dega._",
-        reply_markup=_back_to_admin_kb(),
-        parse_mode=ParseMode.MARKDOWN,
-    )
-
-async def admin_sms_senders(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    query = update.callback_query
-    await query.answer()
-    if query.from_user.id != ADMIN_ID:
-        return
-    s = get_settings()
-    senders = s.get("allowed_senders", [])
-
-    data = (query.data or "")
-    if data.startswith("admin_sms_senders_del_"):
-        idx = int(data.split("_")[-1])
-        if 0 <= idx < len(senders):
-            removed = senders.pop(idx)
-            s["allowed_senders"] = senders
-            save_settings(s)
-            await query.answer(f"Removed {removed}", show_alert=False)
-    elif data == "admin_sms_senders_add":
-        context.user_data["awaiting_sender_add"] = True
-        await query.edit_message_text(
-            "📨 *Add Sender ID*\n\nSender ID bhejo (e.g. `AD-AIRBNK-S`):",
-            reply_markup=_back_to_admin_kb(),
-            parse_mode=ParseMode.MARKDOWN,
-        )
-        return
-
-    lines = ["📨 *Allowed SMS Senders*\n━━━━━━━━━━━━━━━━━━━━"]
-    if not senders:
-        lines.append("\n_(Empty = sab senders accept honge)_")
-    else:
-        for i, snd in enumerate(senders):
-            lines.append(f"{i+1}. `{snd}`")
-    rows = []
-    for i, snd in enumerate(senders):
-        rows.append([InlineKeyboardButton(f"❌ Remove {snd}", callback_data=f"admin_sms_senders_del_{i}")])
-    rows.append([InlineKeyboardButton("➕ Add Sender", callback_data="admin_sms_senders_add")])
-    rows.append([InlineKeyboardButton("◀️ Back", callback_data="admin_back")])
-    await query.edit_message_text(
-        "\n".join(lines), reply_markup=InlineKeyboardMarkup(rows),
-        parse_mode=ParseMode.MARKDOWN,
-    )
-
-async def admin_recent_deposits(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def admin_recent_deposits(update, context) -> None:
     query = update.callback_query
     await query.answer()
     if query.from_user.id != ADMIN_ID:
         return
     log = list(reversed(get_deposits_log()))[:30]
     if not log:
-        text = "📊 *Recent Deposits*\n\n_(Koi deposit nahi hua abhi tak)_"
+        text = "\U0001f4ca *Recent Deposits*\n\n_(Koi deposit nahi hua abhi tak)_"
     else:
-        lines = ["📊 *Recent Deposits (latest 30)*", "━━━━━━━━━━━━━━━━━━━━"]
+        lines_out = ["\U0001f4ca *Recent Deposits (latest 30)*", "\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501"]
         for e in log:
             ts = datetime.fromtimestamp(float(e.get("ts", 0))).strftime("%d %b %H:%M")
-            status_emoji = {
-                "approved": "✅",
-                "rejected_wrong_amount": "❌",
-                "timeout_no_sms": "⏱",
-            }.get(e.get("status", ""), "❓")
+            status_emoji = {"approved": "\u2705", "timeout": "\u23f1"}.get(e.get("status", ""), "\u2753")
             uid = e.get("user_id", "")
-            utr = e.get("utr", "")
-            exp = e.get("expected", "")
-            paid = e.get("paid", "")
-            lines.append(
-                f"{status_emoji} `{utr}` — ₹{paid or exp}  "
-                f"User:`{uid}`  {ts}"
-            )
-        text = "\n".join(lines)
-    await query.edit_message_text(
-        text, reply_markup=_back_to_admin_kb(),
-        parse_mode=ParseMode.MARKDOWN,
-    )
+            utr = e.get("utr", "N/A")
+            amt = e.get("paid") or e.get("expected", "")
+            lines_out.append(f"{status_emoji} \u20b9{amt}  UTR:`{utr}`  User:`{uid}`  {ts}")
+        text = "\n".join(lines_out)
+    await query.edit_message_text(text, reply_markup=_back_to_admin_kb(), parse_mode=ParseMode.MARKDOWN)
 
-async def admin_search_utr(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    query = update.callback_query
-    await query.answer()
-    if query.from_user.id != ADMIN_ID:
-        return
-    context.user_data["awaiting_search_utr"] = True
-    await query.edit_message_text(
-        "🔍 *Search by UTR*\n\nUTR number bhejo (cancel ke liye /admin):",
-        reply_markup=_back_to_admin_kb(),
-        parse_mode=ParseMode.MARKDOWN,
-    )
-
-async def _do_search_utr(update, context, utr: str) -> None:
-    utr = utr.strip()
-    used  = get_used_utrs()
-    log   = get_deposits_log()
-    pps   = get_pending_payments()
-    putrs = get_pending_utrs()
-
-    parts = [f"🔍 *Search Result for:* `{utr}`", "━━━━━━━━━━━━━━━━━━━━"]
-    found = False
-
-    if utr in used:
-        u = used[utr]
-        parts.append(
-            f"\n✅ *Used UTR*\n"
-            f"User: `{u.get('user_id')}`\n"
-            f"Amount: ₹{u.get('amount')}\n"
-            f"Order: `{u.get('order_id', 'N/A')}`\n"
-            f"Time: {datetime.fromtimestamp(float(u.get('used_at', 0))).strftime('%d %b %Y %H:%M')}"
-        )
-        found = True
-
-    for p in pps:
-        if p.get("utr") == utr:
-            parts.append(f"\n📨 *Pending SMS Payment*\nAmount: ₹{p.get('amount')}\nSender: {p.get('sender', '?')}\nReceived: {datetime.fromtimestamp(float(p.get('received_at', 0))).strftime('%H:%M')}")
-            found = True
-
-    for uid, info in putrs.items():
-        if info.get("utr") == utr:
-            parts.append(f"\n⏳ *Pending User UTR*\nUser: `{uid}`\nExpected: ₹{info.get('expected_amount')}")
-            found = True
-
-    matching_logs = [e for e in log if e.get("utr") == utr]
-    if matching_logs:
-        for e in matching_logs[-5:]:
-            parts.append(
-                f"\n📊 *Log:* {e.get('status')} | User `{e.get('user_id')}` | "
-                f"₹{e.get('paid') or e.get('expected')}"
-            )
-            found = True
-
-    if not found:
-        parts.append("\n❌ *UTR kahin nahi mila.*")
-
-    await update.message.reply_text(
-        "\n".join(parts),
-        reply_markup=_back_to_admin_kb(),
-        parse_mode=ParseMode.MARKDOWN,
-    )
-
-async def admin_set_timeout(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def admin_set_timeout(update, context) -> None:
     query = update.callback_query
     await query.answer()
     if query.from_user.id != ADMIN_ID:
@@ -4808,90 +4336,74 @@ async def admin_set_timeout(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     context.user_data["awaiting_timeout"] = True
     cur = get_settings().get("timeout_minutes", 5)
     await query.edit_message_text(
-        f"⏱ *Set Auto-Pay Timeout*\n\nCurrent: *{cur} minutes*\n\nNumber bhejo (1-60):",
+        f"\u23f1 *Set Payment Timeout*\n\nCurrent: *{cur} minutes*\n\nNumber bhejo (1-60):",
         reply_markup=_back_to_admin_kb(),
         parse_mode=ParseMode.MARKDOWN,
     )
 
-
 # ─────────────── Min Quantity admin panel ───────────────
 
-async def admin_min_qty_panel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Show list of products with their current min_qty + per-product Edit buttons."""
+async def admin_min_qty_panel(update, context) -> None:
     query = update.callback_query
     await query.answer()
     if query.from_user.id != ADMIN_ID:
         return
-
-    # Drop any stale awaiting flag
     context.user_data.pop("awaiting_min_qty_edit", None)
-
-    lines = [
-        "📐 *Minimum Quantity Settings*",
-        "━━━━━━━━━━━━━━━━━━━━",
+    lines_out = [
+        "\U0001f4d0 *Minimum Quantity Settings*",
+        "\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501",
         "Default: *1* (sab products ke liye)",
         "Kisi product ka minimum badhana ho toh niche button dabao.",
         "",
     ]
     rows = []
-    # Use STORE_PRODUCT_ORDER so admin sees them in store order; skip hidden.
     keys = [k for k in STORE_PRODUCT_ORDER if k in PRODUCTS]
     for k in keys:
         p = PRODUCTS[k]
         if p.get("hidden"):
             continue
         m = get_min_qty(k)
-        marker = "" if m == 1 else "  ⚙️"
-        lines.append(f"{p.get('emoji','📦')} *{p.get('name', k)}* — min: *{m}*{marker}")
-        # Truncate label so button doesn't overflow on mobile
+        marker = "" if m == 1 else "  \u2699\ufe0f"
+        lines_out.append(f"{p.get('emoji','\U0001f4e6')} *{p.get('name', k)}* \u2014 min: *{m}*{marker}")
         lbl = p.get("name", k)
         if len(lbl) > 22:
-            lbl = lbl[:21] + "…"
+            lbl = lbl[:21] + "\u2026"
         rows.append([InlineKeyboardButton(
-            f"✏️ {lbl} (now: {m})",
+            f"\u270f\ufe0f {lbl} (now: {m})",
             callback_data=f"admin_min_qty_edit_{k}",
         )])
-
-    rows.append([InlineKeyboardButton("◀️ Back to Admin", callback_data="admin_back")])
-
+    rows.append([InlineKeyboardButton("\u25c0\ufe0f Back to Admin", callback_data="admin_back")])
     await query.edit_message_text(
-        "\n".join(lines),
+        "\n".join(lines_out),
         reply_markup=InlineKeyboardMarkup(rows),
         parse_mode=ParseMode.MARKDOWN,
     )
 
-
-async def admin_min_qty_edit(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Prompt admin to type the new min quantity for a specific product."""
+async def admin_min_qty_edit(update, context) -> None:
     query = update.callback_query
     await query.answer()
     if query.from_user.id != ADMIN_ID:
         return
-
     key = query.data.replace("admin_min_qty_edit_", "", 1)
     if key not in PRODUCTS:
-        await query.edit_message_text("❌ Product nahi mila.", reply_markup=_back_to_admin_kb())
+        await query.edit_message_text("\u274c Product nahi mila.", reply_markup=_back_to_admin_kb())
         return
-
     cur = get_min_qty(key)
     p = PRODUCTS[key]
     context.user_data["awaiting_min_qty_edit"] = key
-
     await query.edit_message_text(
-        f"📐 *Set Min Quantity*\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"{p.get('emoji','📦')} *{p.get('name', key)}*\n"
+        f"\U0001f4d0 *Set Min Quantity*\n"
+        f"\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n"
+        f"{p.get('emoji','\U0001f4e6')} *{p.get('name', key)}*\n"
         f"Current min: *{cur}*\n\n"
-        f"👇 New min number bhejo (1 = no limit, max 1000).",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("◀️ Back", callback_data="admin_min_qty")],
-        ]),
+        f"\U0001f447 New min number bhejo (1 = no limit, max 1000).",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("\u25c0\ufe0f Back", callback_data="admin_min_qty")]]),
         parse_mode=ParseMode.MARKDOWN,
     )
 
-
 # ═══════════════════════════════════════════════════════════════════════════
-# END AUTO-PAYMENT SYSTEM
+# END ALOO BHARATPE PAYMENT SYSTEM
+  # ═══════════════════════════════════════════════════════════════════════════
 # ═══════════════════════════════════════════════════════════════════════════
 
 
@@ -4990,23 +4502,13 @@ def main() -> None:
     app.add_handler(CallbackQueryHandler(admin_reward_delete,    pattern="^admin_rwd_del_"))
     app.add_handler(CallbackQueryHandler(admin_reward_detail,    pattern="^admin_rwd_"))
 
-    # Auto-Payment admin panel handlers
-    app.add_handler(CallbackQueryHandler(admin_auto_toggle,      pattern="^admin_auto_toggle$"))
+    # ALOO Payment admin panel handlers
     app.add_handler(CallbackQueryHandler(admin_set_upi,          pattern="^admin_set_upi$"))
     app.add_handler(CallbackQueryHandler(admin_set_qr,           pattern="^admin_set_qr$"))
-    app.add_handler(CallbackQueryHandler(admin_set_smsgrp,       pattern="^admin_set_smsgrp$"))
-    app.add_handler(CallbackQueryHandler(admin_sms_senders,      pattern="^admin_sms_senders"))
     app.add_handler(CallbackQueryHandler(admin_recent_deposits,  pattern="^admin_recent_deposits$"))
-    app.add_handler(CallbackQueryHandler(admin_search_utr,       pattern="^admin_search_utr$"))
     app.add_handler(CallbackQueryHandler(admin_set_timeout,      pattern="^admin_set_timeout$"))
     app.add_handler(CallbackQueryHandler(admin_min_qty_panel,    pattern="^admin_min_qty$"))
     app.add_handler(CallbackQueryHandler(admin_min_qty_edit,     pattern="^admin_min_qty_edit_"))
-
-    # SMS group listener — runs BEFORE generic text handler to capture group SMS
-    app.add_handler(MessageHandler(
-        (filters.TEXT | filters.CAPTION) & filters.ChatType.GROUPS & ~filters.COMMAND,
-        sms_group_handler,
-    ))
 
     # Media & text
     app.add_handler(MessageHandler(filters.PHOTO | filters.Document.ALL, handle_screenshot))
@@ -5032,28 +4534,20 @@ def main() -> None:
         )
         logger.info("✅ Periodic referral validity check job registered (every 6 min)")
 
-        # ── Auto-Payment background jobs ──
+        # ── ALOO Payment polling job ──
         app.job_queue.run_repeating(
-            auto_pay_match_job, interval=3, first=10,
-            name="auto_pay_match",
+            aloo_poll_job, interval=ALOO_POLL_INTERVAL, first=10,
+            name="aloo_poll",
         )
-        app.job_queue.run_repeating(
-            auto_pay_cleanup_job, interval=30, first=20,
-            name="auto_pay_cleanup",
-        )
-        logger.info("✅ Auto-payment match (3s) & cleanup (30s) jobs registered")
+        logger.info(f"✅ ALOO payment polling job registered (every {ALOO_POLL_INTERVAL}s)")
     else:
         logger.warning("⚠️ JobQueue not available — periodic referral check disabled")
 
-    # ── Pyrogram userbot — reads SMS forwarder bot's messages in the SMS group ──
-    # Bot API can't see other bots' messages; userbot logs in as a user account
-    # and feeds parsed UTRs into pending_payments.json. Auto-disabled if env
-    # vars (API_ID / API_HASH / SESSION_STRING) are missing.
-    try:
-        from userbot import run_userbot_in_thread
-        run_userbot_in_thread()
-    except Exception as e:
-        logger.error(f"Userbot launch failed (continuing without it): {e}", exc_info=True)
+    # ALOO API is used for payment verification (no userbot needed)
+    if not ALOO_API_KEY or not ALOO_MERCHANT_ID:
+        logger.warning("⚠️ ALOO_API_KEY or ALOO_MERCHANT_ID not set! Payments will NOT verify automatically.")
+    else:
+        logger.info(f"✅ ALOO API configured (merchant: {ALOO_MERCHANT_ID})")
 
     logger.info("🤖 Bot fully started — all systems active!")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
