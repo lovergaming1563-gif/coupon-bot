@@ -4911,9 +4911,16 @@ if __name__ == "__main__":
     acquire_pid_lock()
 
     import time as _restart_time
+    import asyncio as _asyncio
     while True:
         try:
+            loop = _asyncio.new_event_loop()
+            _asyncio.set_event_loop(loop)
             main()
         except Exception as e:
             logger.error(f"Bot crashed: {e}. Restarting in 5s...")
+            try:
+                loop.close()
+            except Exception:
+                pass
             _restart_time.sleep(5)
