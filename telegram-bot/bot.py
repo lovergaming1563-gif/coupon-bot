@@ -2206,23 +2206,10 @@ async def _confirm_quantity(
     pending_orders[str(uid)] = order_id
     save_pending(pending_orders)
 
-    # Register in bot_data for polling job
-    if "aloo_pending" not in context.bot_data:
-        context.bot_data["aloo_pending"] = {}
-    context.bot_data["aloo_pending"][str(uid)] = {
-        "amount":      unique_amount,
-        "order_id":    order_id,
-        "polls_done":  0,
-        "chat_id":     uid,
-        "product_key": product_key,
-        "quantity":    quantity,
-    }
 
     payment_instructions = (
-        f"⚡ *Payment baad automatic verify hoga!*\n\n"
-        f"✅ Coupon ₹{unique_amount:.2f} receive hote hi *automatically* deliver ho jayega.\n"
-        f"⏳ Timeout: *{_timeout_m} minutes*\n\n"
-        f"⚠️ *Exactly ₹{unique_amount:.2f} hi bhejo* — ye unique amount sirf aapke liye hai."
+        f"⚠️ *Exactly ₹{unique_amount:.2f} hi bhejo* — ye unique amount sirf aapke liye hai.\n\n"
+        f"👇 Payment karne ke baad neeche *'✅ Maine Pay Kar Diya'* button dabao."
     )
 
 
@@ -2241,7 +2228,10 @@ async def _confirm_quantity(
         f"{payment_instructions}"
         f"{extra_tnc}"
     )
-    cancel_btn = InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel Order", callback_data="cancel_order")]])
+    cancel_btn = InlineKeyboardMarkup([
+          [InlineKeyboardButton("✅ Maine Pay Kar Diya", callback_data="i_paid")],
+          [InlineKeyboardButton("❌ Cancel Order",        callback_data="cancel_order")],
+      ])
 
     # ── Generate dynamic UPI QR with exact unique amount ──
     qr_sent = False
@@ -4331,6 +4321,97 @@ async def aloo_poll_job(context) -> None:
         pending_payments.pop(uid_str, None)
     context.bot_data["aloo_pending"] = pending_payments
 
+# ─────────────── "Maine Pay Kar Diya" Handler ───────────────
+
+_MAX_PAY_RETRIES = 10  # max times user can click retry
+
+async def i_paid_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """User clicked 'Maine Pay Kar Diya' — call ALOO API once to verify."""
+    query = update.callback_query
+    await query.answer("🔍 Payment check ho raha hai...")
+    user_id = query.from_user.id
+
+    amount   = context.user_data.get("pending_amount")
+    order_id = get_pending().get(str(user_id))
+
+    if not amount or not order_id:
+        await query.edit_message_caption(
+            caption="❌ *Session expire ho gaya.* /start dabao naya order karo.",
+            parse_mode=ParseMode.MARKDOWN,
+        ) if query.message and query.message.photo else await query.edit_message_text(
+            "❌ *Session expire ho gaya.* /start dabao naya order karo.",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+
+    # Track retry count
+    retries = context.user_data.get("paid_check_count", 0)
+    if retries >= _MAX_PAY_RETRIES:
+        # Cancel order
+        orders = get_orders()
+        if order_id in orders:
+            orders[order_id]["status"] = "timeout"
+            save_orders(orders)
+        pending = get_pending()
+        pending.pop(str(user_id), None)
+        save_pending(pending)
+        context.user_data.pop("pending_product",  None)
+        context.user_data.pop("pending_amount",   None)
+        context.user_data.pop("paid_check_count", None)
+        msg = "❌ *Bahut zyada retries ho gayi.* Order cancel kar diya gaya.\n\nDobara order karo ya support se contact karo."
+        try:
+            await query.edit_message_caption(caption=msg, parse_mode=ParseMode.MARKDOWN)
+        except Exception:
+            await query.edit_message_text(msg, parse_mode=ParseMode.MARKDOWN)
+        return
+
+    context.user_data["paid_check_count"] = retries + 1
+
+    # ── Single ALOO API call ──
+    await query.edit_message_caption(
+        caption=f"🔍 *Payment verify ho rahi hai...* (Attempt {retries+1}/{_MAX_PAY_RETRIES})\n\nEk second ruko...",
+        parse_mode=ParseMode.MARKDOWN,
+    ) if query.message and query.message.photo else None
+
+    result = _aloo_verify(amount)
+
+    if result and result.get("success"):
+        utr = result.get("utr", "")
+        context.user_data.pop("paid_check_count", None)
+        try:
+            await query.edit_message_caption(
+                caption="✅ *Payment verify ho gaya!* Coupon deliver ho raha hai...",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+        except Exception:
+            await query.edit_message_text(
+                "✅ *Payment verify ho gaya!* Coupon deliver ho raha hai...",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+        await _execute_aloo_approve(context, order_id, amount, utr)
+    else:
+        # Payment not detected yet — show retry button
+        retry_kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔄 Dobara Check Karo", callback_data="i_paid_retry")],
+            [InlineKeyboardButton("❌ Cancel Order",      callback_data="cancel_order")],
+        ])
+        baki = _MAX_PAY_RETRIES - retries - 1
+        msg = (
+            f"⚠️ *Payment abhi detect nahi hui.*\n\n"
+            f"Agar aapne payment kar di hai toh thodi der baad dobara check karo.\n"
+            f"_(Attempts remaining: {baki})_"
+        )
+        try:
+            await query.edit_message_caption(caption=msg, reply_markup=retry_kb, parse_mode=ParseMode.MARKDOWN)
+        except Exception:
+            await query.edit_message_text(msg, reply_markup=retry_kb, parse_mode=ParseMode.MARKDOWN)
+
+
+async def i_paid_retry_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Same as i_paid_handler — retry button."""
+    await i_paid_handler(update, context)
+
+
 # ─────────────── Admin Panel: Payment settings ───────────────
 
 def _back_to_admin_kb():
@@ -4533,6 +4614,8 @@ def main() -> None:
     app.add_handler(CallbackQueryHandler(custom_qty_prompt, pattern="^qty_custom$"))
     app.add_handler(CallbackQueryHandler(select_quantity,   pattern=r"^qty_\d+$"))
     app.add_handler(CallbackQueryHandler(cancel_order,      pattern="^cancel_order$"))
+    app.add_handler(CallbackQueryHandler(i_paid_handler,       pattern="^i_paid$"))
+    app.add_handler(CallbackQueryHandler(i_paid_retry_handler, pattern="^i_paid_retry$"))
 
     # Approve / reject buttons
     app.add_handler(CallbackQueryHandler(approve_order_btn,  pattern="^approve_"))
@@ -4587,12 +4670,6 @@ def main() -> None:
         )
         logger.info("✅ Periodic referral validity check job registered (every 6 min)")
 
-        # ── ALOO Payment polling job ──
-        app.job_queue.run_repeating(
-            aloo_poll_job, interval=ALOO_POLL_INTERVAL, first=10,
-            name="aloo_poll",
-        )
-        logger.info(f"✅ ALOO payment polling job registered (every {ALOO_POLL_INTERVAL}s)")
     else:
         logger.warning("⚠️ JobQueue not available — periodic referral check disabled")
 
