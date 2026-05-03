@@ -4910,4 +4910,10 @@ if __name__ == "__main__":
     # Kill any duplicate instance first — prevents 409 Conflict
     acquire_pid_lock()
 
-    main()
+    import time as _restart_time
+    while True:
+        try:
+            main()
+        except Exception as e:
+            logger.error(f"Bot crashed: {e}. Restarting in 5s...")
+            _restart_time.sleep(5)
