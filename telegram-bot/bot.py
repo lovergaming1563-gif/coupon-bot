@@ -2220,7 +2220,7 @@ async def _confirm_quantity(
         f"{combo_note}"
         f"📦 Quantity:   *{qty_disp} × {quantity}*\n"
         f"💰 Unit Price: ₹{unit_price}\n"
-        f"💵 *Total:     ₹{total}*\n"
+        f"💵 *Total:     ₹{unique_amount:.2f}*\n"
         f"━━━━━━━━━━━━━━━━━━━━\n\n"
         f"📲 *Payment Details*\n"
         f"🏦 UPI ID: `{_active_upi}`\n"
