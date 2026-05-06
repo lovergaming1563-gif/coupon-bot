@@ -54,25 +54,25 @@ def _generate_upi_qr(upi_id: str, amount: float, name: str = "Store") -> bytes:
     """Generate a QR code image (PNG bytes) for a UPI payment link with exact amount."""
     try:
         import qrcode
-        from qrcode.image.pure import PyPNGImage
+        # Use PIL backend (qrcode[pil] installed) — PyPNGImage fails silently on Render
         upi_link = (
             f"upi://pay?pa={urllib.parse.quote(upi_id, safe='@.')}"
             f"&pn={urllib.parse.quote(name)}"
             f"&am={amount:.2f}"
             f"&cu=INR"
         )
+        logger.info(f"[QR] Generating dynamic QR for amount={amount:.2f} upi={upi_id}")
         qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=10, border=4)
         qr.add_data(upi_link)
         qr.make(fit=True)
-        img = qr.make_image(image_factory=PyPNGImage)
+        img = qr.make_image(fill_color="black", back_color="white")
         buf = io.BytesIO()
-        img.save(buf)
+        img.save(buf, format="PNG")
         buf.seek(0)
+        logger.info(f"[QR] Dynamic QR generated successfully ({buf.getbuffer().nbytes} bytes)")
         return buf.read()
-    except ImportError:
-        return None
     except Exception as e:
-        logger.warning(f"QR generation failed: {e}")
+        logger.error(f"[QR] generation FAILED: {type(e).__name__}: {e}")
         return None
 
 # ─────────────── Referral & Channel Config ───────────────
