@@ -2,3 +2,5 @@ python-telegram-bot[job-queue]==21.10
 flask
 pyrogram==2.0.106
 tgcrypto==1.2.5
+qrcode[pil]==7.4.2
+Pillow>=10.0.0
