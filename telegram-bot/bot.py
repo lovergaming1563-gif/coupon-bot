@@ -44,7 +44,7 @@ QR_IMAGE_PATH  = os.path.join(os.path.dirname(__file__), "qr_code.jpg")
 # ─────────────── ALOO BharatPe API Config ───────────────
 ALOO_API_KEY     = os.environ.get("ALOO_API_KEY", "")
 ALOO_MERCHANT_ID = os.environ.get("ALOO_MERCHANT_ID", "")
-ALOO_BASE_URL    = "http://bharataalu.animeverse23.in/api/v1"
+ALOO_BASE_URL    = "https://bharataalu.animeverse23.in/api/v1"
 ALOO_POLL_INTERVAL = 5    # seconds between each poll
 ALOO_MAX_POLLS     = 60   # max attempts (60 x 5s = 5 min timeout)
 
@@ -56,7 +56,7 @@ def _generate_upi_qr(upi_id: str, amount: float, name: str = "Store") -> bytes:
         import qrcode
         from qrcode.image.pure import PyPNGImage
         upi_link = (
-            f"upi://pay?pa={urllib.parse.quote(upi_id)}"
+            f"upi://pay?pa={urllib.parse.quote(upi_id, safe='@.')}"
             f"&pn={urllib.parse.quote(name)}"
             f"&am={amount:.2f}"
             f"&cu=INR"
@@ -2229,7 +2229,7 @@ async def _confirm_quantity(
         f"{extra_tnc}"
     )
     cancel_btn = InlineKeyboardMarkup([
-          [InlineKeyboardButton("✅ Maine Pay Kar Diya", callback_data="i_paid")],
+          [InlineKeyboardButton("✅ Maine Pay Kar Diya", callback_data=f"i_paid_{unique_amount:.2f}")],
           [InlineKeyboardButton("❌ Cancel Order",        callback_data="cancel_order")],
       ])
 
@@ -4334,6 +4334,16 @@ async def i_paid_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     amount   = context.user_data.get("pending_amount")
     order_id = get_pending().get(str(user_id))
 
+    # Fallback: parse amount from callback_data (survives bot restart)
+    if not amount:
+        cb = query.data  # e.g. "i_paid_150.37"
+        if cb.startswith("i_paid_"):
+            try:
+                amount = float(cb[len("i_paid_"):])
+                context.user_data["pending_amount"] = amount
+            except (ValueError, IndexError):
+                pass
+
     if not amount or not order_id:
         await query.edit_message_caption(
             caption="❌ *Session expire ho gaya.* /start dabao naya order karo.",
@@ -4614,7 +4624,7 @@ def main() -> None:
     app.add_handler(CallbackQueryHandler(custom_qty_prompt, pattern="^qty_custom$"))
     app.add_handler(CallbackQueryHandler(select_quantity,   pattern=r"^qty_\d+$"))
     app.add_handler(CallbackQueryHandler(cancel_order,      pattern="^cancel_order$"))
-    app.add_handler(CallbackQueryHandler(i_paid_handler,       pattern="^i_paid$"))
+    app.add_handler(CallbackQueryHandler(i_paid_handler,       pattern="^i_paid(_[0-9.]+)?$"))
     app.add_handler(CallbackQueryHandler(i_paid_retry_handler, pattern="^i_paid_retry$"))
 
     # Approve / reject buttons
