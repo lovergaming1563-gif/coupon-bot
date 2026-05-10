@@ -2267,13 +2267,12 @@ async def _confirm_quantity(
             f"💵 *Total:     ₹{total:.2f}*\n"
             f"━━━━━━━━━━━━━━━━━━━━\n\n"
             f"📲 *Neeche button dabao aur payment karo*\n\n"
-            f"✅ Payment ke baad *'Maine Pay Kar Diya'* button dabao."
+            f"✅ Payment hote hi coupon automatically deliver ho jayega."
             f"{extra_tnc}"
         )
         zap_kb = InlineKeyboardMarkup([
             [InlineKeyboardButton("💳 Pay Now (ZapUPI)", url=payment_url)],
-            [InlineKeyboardButton("✅ Maine Pay Kar Diya", callback_data=f"i_paid_{total:.2f}")],
-            [InlineKeyboardButton("❌ Cancel Order",       callback_data="cancel_order")],
+            [InlineKeyboardButton("❌ Cancel Order", callback_data="cancel_order")],
         ])
         if update.callback_query:
             await update.callback_query.edit_message_text(
