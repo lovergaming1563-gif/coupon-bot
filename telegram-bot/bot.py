@@ -48,6 +48,12 @@ ALOO_BASE_URL    = "https://bharataalu.animeverse23.in/api/v1"
 ALOO_POLL_INTERVAL = 5    # seconds between each poll
 ALOO_MAX_POLLS     = 60   # max attempts (60 x 5s = 5 min timeout)
 
+# ─────────────── ZapUPI API Config ───────────────
+ZAPUPI_KEY          = os.environ.get("ZAPUPI_KEY", "")
+ZAPUPI_BASE_URL     = "https://pay.zapupi.com"
+ZAPUPI_POLL_INTERVAL = 5    # seconds between each poll
+ZAPUPI_MAX_POLLS     = 60   # max attempts (60 x 5s = 5 min timeout)
+
 # ─────────────── Dynamic UPI QR Generator ───────────────
 
 def _generate_upi_qr(upi_id: str, amount: float, name: str = "Store") -> bytes:
@@ -2172,126 +2178,231 @@ async def _confirm_quantity(
             "5. Cashback credited after delivery."
         )
 
-    # ── ALOO Auto-Payment: generate unique amount, create order, start polling ──
-    _settings   = get_settings()
-    _timeout_m  = int(_settings.get("timeout_minutes", 5))
-    _active_upi = get_active_upi()
-    _active_qr  = get_active_qr_path()
+    # ── Determine active payment method ──
+    _active_method = get_active_payment_method()
 
-    # Generate unique amount (base + paise suffix) for this user
-    unique_amount = _generate_unique_amount(total)
-    context.user_data["pending_amount"]   = unique_amount
-    context.user_data["pending_product"]  = product_key
-    context.user_data["pending_quantity"] = quantity
+    if _active_method == "none":
+        msg = (
+            "⚠️ *Payment Unavailable*\n\n"
+            "Abhi koi bhi payment method active nahi hai.\n"
+            f"Support se contact karo: {SUPPORT_HANDLE}"
+        )
+        if update.callback_query:
+            await update.callback_query.edit_message_text(msg, parse_mode=ParseMode.MARKDOWN)
+        else:
+            await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
+        return
 
-    # Create order record immediately
-    order_id = f"{uid}_{int(now_ts())}"
-    order_rec = {
-        "order_id":   order_id,
-        "user_id":    uid,
-        "username":   update.effective_user.username or "",
-        "first_name": update.effective_user.first_name,
-        "product":    product_key,
-        "quantity":   quantity,
-        "total":      unique_amount,
-        "status":     "pending",
-        "priority":   "auto",
-        "timestamp":  datetime.now().isoformat(),
-        "via":        "aloo",
-    }
-    orders = get_orders()
-    orders[order_id] = order_rec
-    save_orders(orders)
-    pending_orders = get_pending()
-    pending_orders[str(uid)] = order_id
-    save_pending(pending_orders)
+    elif _active_method == "zapupi":
+        # ── ZapUPI Payment Flow ──
+        order_id = f"{uid}_{int(now_ts())}"
+        context.user_data["pending_amount"]   = float(total)
+        context.user_data["pending_product"]  = product_key
+        context.user_data["pending_quantity"] = quantity
 
-
-    payment_instructions = (
-        f"⚠️ *Exactly ₹{unique_amount:.2f} hi bhejo* — ye unique amount sirf aapke liye hai.\n\n"
-        f"👇 Payment karne ke baad neeche *'✅ Maine Pay Kar Diya'* button dabao."
-    )
-
-
-    summary_text = (
-        f"🧾 *Order Summary*\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"🎟 Product:    *{product['name']}*\n"
-        f"{combo_note}"
-        f"📦 Quantity:   *{qty_disp} × {quantity}*\n"
-        f"💰 Unit Price: ₹{unit_price}\n"
-        f"💵 *Total:     ₹{unique_amount:.2f}*\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"📲 *Payment Details*\n"
-        f"🏦 UPI ID: `{_active_upi}`\n"
-        f"💵 Pay exactly: *₹{unique_amount:.2f}*\n\n"
-        f"{payment_instructions}"
-        f"{extra_tnc}"
-    )
-    cancel_btn = InlineKeyboardMarkup([
-          [InlineKeyboardButton("✅ Maine Pay Kar Diya", callback_data=f"i_paid_{unique_amount:.2f}")],
-          [InlineKeyboardButton("❌ Cancel Order",        callback_data="cancel_order")],
-      ])
-
-    # ── Generate dynamic UPI QR with exact unique amount ──
-    qr_sent = False
-    qr_bytes = _generate_upi_qr(_active_upi, unique_amount, "Coupon Store")
-    if qr_bytes:
-        try:
-            qr_bio = io.BytesIO(qr_bytes)
-            qr_bio.name = "payment_qr.png"
+        # Create order via ZapUPI API
+        zap_result = _zapupi_create_order(order_id, total)
+        if not zap_result or zap_result.get("status") != "success":
+            err_msg = (zap_result or {}).get("message", "Unknown error")
+            logger.error(f"[ZapUPI] Create order failed: {err_msg}")
+            msg = (
+                f"❌ *Payment gateway error.*\n\n`{err_msg}`\n\n"
+                f"Support se contact karo: {SUPPORT_HANDLE}"
+            )
             if update.callback_query:
-                await context.bot.send_photo(
-                    chat_id=uid, photo=qr_bio,
-                    caption=summary_text, reply_markup=cancel_btn,
-                    parse_mode=ParseMode.MARKDOWN,
-                )
-                await update.callback_query.edit_message_text(
-                    "👆 *See the message above for your order details.*",
-                    parse_mode=ParseMode.MARKDOWN,
-                )
+                await update.callback_query.edit_message_text(msg, parse_mode=ParseMode.MARKDOWN)
             else:
-                await update.message.reply_photo(
-                    photo=qr_bio, caption=summary_text,
-                    reply_markup=cancel_btn, parse_mode=ParseMode.MARKDOWN,
+                await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
+            return
+
+        payment_url = zap_result.get("payment_url", "")
+        context.user_data["zapupi_order_id"] = order_id
+
+        # Save order record
+        order_rec = {
+            "order_id":   order_id,
+            "user_id":    uid,
+            "username":   update.effective_user.username or "",
+            "first_name": update.effective_user.first_name,
+            "product":    product_key,
+            "quantity":   quantity,
+            "total":      float(total),
+            "status":     "pending",
+            "priority":   "auto",
+            "timestamp":  datetime.now().isoformat(),
+            "via":        "zapupi",
+        }
+        orders = get_orders()
+        orders[order_id] = order_rec
+        save_orders(orders)
+        pending_orders = get_pending()
+        pending_orders[str(uid)] = order_id
+        save_pending(pending_orders)
+
+        # Start background polling
+        if context.job_queue:
+            context.bot_data.setdefault("zapupi_pending", {})[str(uid)] = {
+                "order_id":  order_id,
+                "amount":    float(total),
+                "chat_id":   uid,
+                "polls_done": 0,
+            }
+            # Register poll job if not already running
+            existing = context.job_queue.get_jobs_by_name("zapupi_poll")
+            if not existing:
+                context.job_queue.run_repeating(
+                    zapupi_poll_job,
+                    interval=ZAPUPI_POLL_INTERVAL,
+                    first=ZAPUPI_POLL_INTERVAL,
+                    name="zapupi_poll",
                 )
-            qr_sent = True
-        except Exception as e:
-            logger.warning(f"Dynamic QR send failed: {e}")
 
-    # Fallback: static admin QR or text-only
-    if not qr_sent:
-        if os.path.exists(_active_qr):
-            try:
-                with open(_active_qr, "rb") as qr_file:
-                    if update.callback_query:
-                        await context.bot.send_photo(
-                            chat_id=uid, photo=qr_file,
-                            caption=summary_text, reply_markup=cancel_btn,
-                            parse_mode=ParseMode.MARKDOWN,
-                        )
-                        await update.callback_query.edit_message_text(
-                            "👆 *See the message above for your order details.*",
-                            parse_mode=ParseMode.MARKDOWN,
-                        )
-                    else:
-                        await update.message.reply_photo(
-                            photo=qr_file, caption=summary_text,
-                            reply_markup=cancel_btn, parse_mode=ParseMode.MARKDOWN,
-                        )
-                qr_sent = True
-            except Exception as e:
-                logger.warning(f"Static QR send failed: {e}")
-
-    if not qr_sent:
+        summary_text = (
+            f"🧾 *Order Summary*\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"🎟 Product:    *{product['name']}*\n"
+            f"{combo_note}"
+            f"📦 Quantity:   *{qty_disp} × {quantity}*\n"
+            f"💰 Unit Price: ₹{unit_price}\n"
+            f"💵 *Total:     ₹{total:.2f}*\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"📲 *Neeche button dabao aur payment karo*\n\n"
+            f"✅ Payment ke baad *'Maine Pay Kar Diya'* button dabao."
+            f"{extra_tnc}"
+        )
+        zap_kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("💳 Pay Now (ZapUPI)", url=payment_url)],
+            [InlineKeyboardButton("✅ Maine Pay Kar Diya", callback_data=f"i_paid_{total:.2f}")],
+            [InlineKeyboardButton("❌ Cancel Order",       callback_data="cancel_order")],
+        ])
         if update.callback_query:
             await update.callback_query.edit_message_text(
-                summary_text, reply_markup=cancel_btn, parse_mode=ParseMode.MARKDOWN,
+                summary_text, reply_markup=zap_kb, parse_mode=ParseMode.MARKDOWN,
             )
         else:
             await update.message.reply_text(
-                summary_text, reply_markup=cancel_btn, parse_mode=ParseMode.MARKDOWN,
+                summary_text, reply_markup=zap_kb, parse_mode=ParseMode.MARKDOWN,
             )
+
+    else:
+        # ── ALOO Auto-Payment: generate unique amount, create order, start polling ──
+        _settings   = get_settings()
+        _timeout_m  = int(_settings.get("timeout_minutes", 5))
+        _active_upi = get_active_upi()
+        _active_qr  = get_active_qr_path()
+
+        # Generate unique amount (base + paise suffix) for this user
+        unique_amount = _generate_unique_amount(total)
+        context.user_data["pending_amount"]   = unique_amount
+        context.user_data["pending_product"]  = product_key
+        context.user_data["pending_quantity"] = quantity
+
+        # Create order record immediately
+        order_id = f"{uid}_{int(now_ts())}"
+        order_rec = {
+            "order_id":   order_id,
+            "user_id":    uid,
+            "username":   update.effective_user.username or "",
+            "first_name": update.effective_user.first_name,
+            "product":    product_key,
+            "quantity":   quantity,
+            "total":      unique_amount,
+            "status":     "pending",
+            "priority":   "auto",
+            "timestamp":  datetime.now().isoformat(),
+            "via":        "aloo",
+        }
+        orders = get_orders()
+        orders[order_id] = order_rec
+        save_orders(orders)
+        pending_orders = get_pending()
+        pending_orders[str(uid)] = order_id
+        save_pending(pending_orders)
+
+        payment_instructions = (
+            f"⚠️ *Exactly ₹{unique_amount:.2f} hi bhejo* — ye unique amount sirf aapke liye hai.\n\n"
+            f"👇 Payment karne ke baad neeche *'✅ Maine Pay Kar Diya'* button dabao."
+        )
+
+        summary_text = (
+            f"🧾 *Order Summary*\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"🎟 Product:    *{product['name']}*\n"
+            f"{combo_note}"
+            f"📦 Quantity:   *{qty_disp} × {quantity}*\n"
+            f"💰 Unit Price: ₹{unit_price}\n"
+            f"💵 *Total:     ₹{unique_amount:.2f}*\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"📲 *Payment Details*\n"
+            f"🏦 UPI ID: `{_active_upi}`\n"
+            f"💵 Pay exactly: *₹{unique_amount:.2f}*\n\n"
+            f"{payment_instructions}"
+            f"{extra_tnc}"
+        )
+        cancel_btn = InlineKeyboardMarkup([
+            [InlineKeyboardButton("✅ Maine Pay Kar Diya", callback_data=f"i_paid_{unique_amount:.2f}")],
+            [InlineKeyboardButton("❌ Cancel Order",        callback_data="cancel_order")],
+        ])
+
+        # ── Generate dynamic UPI QR with exact unique amount ──
+        qr_sent = False
+        qr_bytes = _generate_upi_qr(_active_upi, unique_amount, "Coupon Store")
+        if qr_bytes:
+            try:
+                qr_bio = io.BytesIO(qr_bytes)
+                qr_bio.name = "payment_qr.png"
+                if update.callback_query:
+                    await context.bot.send_photo(
+                        chat_id=uid, photo=qr_bio,
+                        caption=summary_text, reply_markup=cancel_btn,
+                        parse_mode=ParseMode.MARKDOWN,
+                    )
+                    await update.callback_query.edit_message_text(
+                        "👆 *See the message above for your order details.*",
+                        parse_mode=ParseMode.MARKDOWN,
+                    )
+                else:
+                    await update.message.reply_photo(
+                        photo=qr_bio, caption=summary_text,
+                        reply_markup=cancel_btn, parse_mode=ParseMode.MARKDOWN,
+                    )
+                qr_sent = True
+            except Exception as e:
+                logger.warning(f"Dynamic QR send failed: {e}")
+
+        # Fallback: static admin QR or text-only
+        if not qr_sent:
+            if os.path.exists(_active_qr):
+                try:
+                    with open(_active_qr, "rb") as qr_file:
+                        if update.callback_query:
+                            await context.bot.send_photo(
+                                chat_id=uid, photo=qr_file,
+                                caption=summary_text, reply_markup=cancel_btn,
+                                parse_mode=ParseMode.MARKDOWN,
+                            )
+                            await update.callback_query.edit_message_text(
+                                "👆 *See the message above for your order details.*",
+                                parse_mode=ParseMode.MARKDOWN,
+                            )
+                        else:
+                            await update.message.reply_photo(
+                                photo=qr_file, caption=summary_text,
+                                reply_markup=cancel_btn, parse_mode=ParseMode.MARKDOWN,
+                            )
+                    qr_sent = True
+                except Exception as e:
+                    logger.warning(f"Static QR send failed: {e}")
+
+        if not qr_sent:
+            if update.callback_query:
+                await update.callback_query.edit_message_text(
+                    summary_text, reply_markup=cancel_btn, parse_mode=ParseMode.MARKDOWN,
+                )
+            else:
+                await update.message.reply_text(
+                    summary_text, reply_markup=cancel_btn, parse_mode=ParseMode.MARKDOWN,
+                )
 
 async def select_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle quantity button 1–10. callback_data is qty_<number>."""
@@ -2846,6 +2957,8 @@ def _admin_kb():
             InlineKeyboardButton("⏱ Set Timeout",      callback_data="admin_set_timeout"),
         ],
         [InlineKeyboardButton("📐 Min Quantity",       callback_data="admin_min_qty")],
+        # ─── Payment Method Toggles ───
+        [InlineKeyboardButton("💳 Payment Methods", callback_data="admin_payment_methods")],
     ])
 
 
@@ -3504,6 +3617,17 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
             await _do_search_utr(update, context, text)
             return
 
+        if context.user_data.pop("awaiting_zapupi_key", False):
+            s = get_settings()
+            s["zapupi_key"] = text.strip()
+            save_settings(s)
+            await update.message.reply_text(
+                f"✅ *ZapUPI API key save ho gaya!*\n\n"
+                f"`{text.strip()[:6]}...{text.strip()[-4:] if len(text.strip()) > 10 else ''}`",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            return
+
     # Admin broadcast via panel
     if user.id == ADMIN_ID and context.user_data.get("broadcast_mode"):
         context.user_data.pop("broadcast_mode", None)
@@ -4107,6 +4231,9 @@ import re as _re
 _DEFAULT_SETTINGS = {
     "custom_upi_id":   None,   # If None, fallback to UPI_ID constant
     "timeout_minutes": 5,      # Polling window (1-60 min)
+    "aloo_enabled":    True,   # Toggle ALOO/BharatPe payment on/off
+    "zapupi_enabled":  False,  # Toggle ZapUPI payment on/off
+    "zapupi_key":      "",     # ZapUPI merchant API key (admin sets via panel)
 }
 
 def get_settings() -> dict:
@@ -4127,6 +4254,20 @@ def get_active_upi() -> str:
 
 def get_active_qr_path() -> str:
     return CUSTOM_QR_PATH if os.path.exists(CUSTOM_QR_PATH) else QR_IMAGE_PATH
+
+def get_active_payment_method() -> str:
+    """Returns 'zapupi', 'aloo', or 'none' based on admin toggles.
+    ZapUPI takes priority if both are enabled."""
+    s = get_settings()
+    if s.get("zapupi_enabled"):
+        return "zapupi"
+    if s.get("aloo_enabled", True):
+        return "aloo"
+    return "none"
+
+def get_zapupi_key() -> str:
+    """Get active ZapUPI key — env var takes priority over admin-set value."""
+    return ZAPUPI_KEY or get_settings().get("zapupi_key", "")
 
 # ─────────────── Used Amounts (anti-fraud) ───────────────
 
@@ -4377,44 +4518,60 @@ async def i_paid_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     context.user_data["paid_check_count"] = retries + 1
 
-    # ── Single ALOO API call ──
-    await query.edit_message_caption(
-        caption=f"🔍 *Payment verify ho rahi hai...* (Attempt {retries+1}/{_MAX_PAY_RETRIES})\n\nEk second ruko...",
-        parse_mode=ParseMode.MARKDOWN,
-    ) if query.message and query.message.photo else None
+    # ── Detect payment method via order record ──
+    orders_rec = get_orders()
+    order_via = (orders_rec.get(order_id) or {}).get("via", "aloo")
 
-    result = _aloo_verify(amount)
+    retry_kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔄 Dobara Check Karo", callback_data="i_paid_retry")],
+        [InlineKeyboardButton("❌ Cancel Order",      callback_data="cancel_order")],
+    ])
 
-    if result and result.get("success"):
-        utr = result.get("utr", "")
-        context.user_data.pop("paid_check_count", None)
+    async def _edit_msg(text: str, kb=None):
         try:
-            await query.edit_message_caption(
-                caption="✅ *Payment verify ho gaya!* Coupon deliver ho raha hai...",
-                parse_mode=ParseMode.MARKDOWN,
-            )
+            if query.message and query.message.photo:
+                await query.edit_message_caption(caption=text, reply_markup=kb, parse_mode=ParseMode.MARKDOWN)
+            else:
+                await query.edit_message_text(text, reply_markup=kb, parse_mode=ParseMode.MARKDOWN)
         except Exception:
-            await query.edit_message_text(
-                "✅ *Payment verify ho gaya!* Coupon deliver ho raha hai...",
-                parse_mode=ParseMode.MARKDOWN,
+            pass
+
+    if order_via == "zapupi":
+        # ── ZapUPI check ──
+        await _edit_msg(f"🔍 *Payment verify ho rahi hai...* (Attempt {retries+1}/{_MAX_PAY_RETRIES})\n\nEk second ruko...")
+        zap_status = _zapupi_check_status(order_id)
+        data = (zap_status or {}).get("data", {})
+        status_val = data.get("status", "")
+        if status_val == "Success":
+            utr = data.get("utr", "")
+            context.user_data.pop("paid_check_count", None)
+            await _edit_msg("✅ *Payment verify ho gaya!* Coupon deliver ho raha hai...")
+            await _execute_zapupi_approve(context, order_id, float(amount), utr)
+        else:
+            baki = _MAX_PAY_RETRIES - retries - 1
+            msg = (
+                f"⚠️ *Payment abhi detect nahi hui.*\n\n"
+                f"Agar aapne payment kar di hai toh thodi der baad dobara check karo.\n"
+                f"_(Attempts remaining: {baki})_"
             )
-        await _execute_aloo_approve(context, order_id, amount, utr)
+            await _edit_msg(msg, retry_kb)
     else:
-        # Payment not detected yet — show retry button
-        retry_kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔄 Dobara Check Karo", callback_data="i_paid_retry")],
-            [InlineKeyboardButton("❌ Cancel Order",      callback_data="cancel_order")],
-        ])
-        baki = _MAX_PAY_RETRIES - retries - 1
-        msg = (
-            f"⚠️ *Payment abhi detect nahi hui.*\n\n"
-            f"Agar aapne payment kar di hai toh thodi der baad dobara check karo.\n"
-            f"_(Attempts remaining: {baki})_"
-        )
-        try:
-            await query.edit_message_caption(caption=msg, reply_markup=retry_kb, parse_mode=ParseMode.MARKDOWN)
-        except Exception:
-            await query.edit_message_text(msg, reply_markup=retry_kb, parse_mode=ParseMode.MARKDOWN)
+        # ── ALOO check ──
+        await _edit_msg(f"🔍 *Payment verify ho rahi hai...* (Attempt {retries+1}/{_MAX_PAY_RETRIES})\n\nEk second ruko...")
+        result = _aloo_verify(amount)
+        if result and result.get("success"):
+            utr = result.get("utr", "")
+            context.user_data.pop("paid_check_count", None)
+            await _edit_msg("✅ *Payment verify ho gaya!* Coupon deliver ho raha hai...")
+            await _execute_aloo_approve(context, order_id, amount, utr)
+        else:
+            baki = _MAX_PAY_RETRIES - retries - 1
+            msg = (
+                f"⚠️ *Payment abhi detect nahi hui.*\n\n"
+                f"Agar aapne payment kar di hai toh thodi der baad dobara check karo.\n"
+                f"_(Attempts remaining: {baki})_"
+            )
+            await _edit_msg(msg, retry_kb)
 
 
 async def i_paid_retry_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -4547,7 +4704,257 @@ async def admin_min_qty_edit(update, context) -> None:
 
 # ═══════════════════════════════════════════════════════════════════════════
 # END ALOO BHARATPE PAYMENT SYSTEM
-  # ═══════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ZAPUPI PAYMENT SYSTEM
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _zapupi_create_order(order_id: str, amount: float) -> dict:
+    """Call ZapUPI API to create a new payment order.
+    Returns the API response dict or None on error."""
+    key = get_zapupi_key()
+    if not key:
+        logger.warning("[ZapUPI] API key not configured!")
+        return {"status": "error", "message": "ZapUPI key not set. Admin se contact karo."}
+    try:
+        payload = json.dumps({
+            "zap_key":  key,
+            "order_id": order_id,
+            "amount":   str(amount),
+            "remark":   "TelegramBotOrder",
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            f"{ZAPUPI_BASE_URL}/api/create-order",
+            data=payload,
+            headers={"Content-Type": "application/json", "User-Agent": "CouponBot/1.0"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except Exception as e:
+        logger.error(f"[ZapUPI] create_order failed: {e}")
+        return None
+
+
+def _zapupi_check_status(order_id: str) -> dict:
+    """Poll ZapUPI order-status API.
+    Returns API response dict or None on error."""
+    key = get_zapupi_key()
+    if not key:
+        return None
+    try:
+        payload = json.dumps({"zap_key": key, "order_id": order_id}).encode("utf-8")
+        req = urllib.request.Request(
+            f"{ZAPUPI_BASE_URL}/api/order-status",
+            data=payload,
+            headers={"Content-Type": "application/json", "User-Agent": "CouponBot/1.0"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except Exception as e:
+        logger.error(f"[ZapUPI] check_status failed: {e}")
+        return None
+
+
+async def _execute_zapupi_approve(context, order_id: str, amount: float, utr: str = "") -> bool:
+    """Mark ZapUPI payment verified → deliver coupon → notify admin."""
+    order, status = await _execute_approve(context, order_id)
+    if not isinstance(status, list):
+        logger.error(f"[ZapUPI] _execute_approve failed: {status}")
+        return False
+
+    user_id = (order or {}).get("user_id", 0)
+
+    log_deposit({
+        "ts":       now_ts(),
+        "user_id":  user_id,
+        "username": (order or {}).get("username", ""),
+        "product":  (order or {}).get("product", ""),
+        "expected": amount,
+        "paid":     amount,
+        "utr":      utr,
+        "status":   "approved",
+        "auto":     True,
+        "via":      "zapupi",
+    })
+
+    try:
+        await context.bot.send_message(
+            chat_id=ADMIN_ID,
+            text=(
+                f"✅ <b>Auto Payment Approved (ZapUPI)</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"👤 User: <code>{user_id}</code>\n"
+                f"📦 Product: {html.escape(str((order or {}).get('product', '')))}\n"
+                f"💰 Amount: ₹{amount:.2f}\n"
+                f"🔑 UTR: <code>{utr or 'N/A'}</code>\n"
+                f"🎟 Coupon delivered."
+            ),
+            parse_mode=ParseMode.HTML,
+        )
+    except Exception as e:
+        logger.error(f"[ZapUPI] Admin notify failed: {e}")
+    return True
+
+
+async def zapupi_poll_job(context) -> None:
+    """Background job: poll ZapUPI API for each user with a pending payment."""
+    pending_payments = context.bot_data.get("zapupi_pending", {})
+    if not pending_payments:
+        return
+
+    to_remove = []
+    for user_id_str, info in list(pending_payments.items()):
+        user_id    = int(user_id_str)
+        amount     = info["amount"]
+        order_id   = info["order_id"]
+        polls_done = info.get("polls_done", 0)
+        chat_id    = info.get("chat_id", user_id)
+
+        if polls_done >= ZAPUPI_MAX_POLLS:
+            to_remove.append(user_id_str)
+            try:
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=(
+                        f"⚠️ *Payment Verify Nahi Ho Saka*\n\n"
+                        f"5 minute mein payment confirm nahi hua.\n"
+                        f"Agar aapne payment ki hai toh support se contact karo: {SUPPORT_HANDLE}\n\n"
+                        f"Amount: ₹{amount:.2f}"
+                    ),
+                    parse_mode=ParseMode.MARKDOWN,
+                )
+            except Exception:
+                pass
+            orders = get_orders()
+            if order_id in orders and orders[order_id].get("status") == "pending":
+                orders[order_id]["status"] = "timeout"
+                save_orders(orders)
+            pending_orders = get_pending()
+            pending_orders.pop(user_id_str, None)
+            save_pending(pending_orders)
+            log_deposit({
+                "ts": now_ts(), "user_id": user_id,
+                "expected": amount, "status": "timeout", "auto": True, "via": "zapupi",
+            })
+            continue
+
+        result = _zapupi_check_status(order_id)
+        info["polls_done"] = polls_done + 1
+        pending_payments[user_id_str] = info
+
+        if result and result.get("status") == "success":
+            data   = result.get("data", {})
+            status = data.get("status", "")
+            if status == "Success":
+                utr = data.get("utr", "")
+                to_remove.append(user_id_str)
+                try:
+                    await context.bot.send_message(
+                        chat_id=chat_id,
+                        text="✅ *Payment verified!* Coupon delivery in progress...",
+                        parse_mode=ParseMode.MARKDOWN,
+                    )
+                except Exception:
+                    pass
+                await _execute_zapupi_approve(context, order_id, amount, utr)
+            elif status == "Failed":
+                to_remove.append(user_id_str)
+                try:
+                    await context.bot.send_message(
+                        chat_id=chat_id,
+                        text=(
+                            f"❌ *Payment Failed*\n\n"
+                            f"ZapUPI ne payment fail report ki.\n"
+                            f"Support: {SUPPORT_HANDLE}"
+                        ),
+                        parse_mode=ParseMode.MARKDOWN,
+                    )
+                except Exception:
+                    pass
+
+    for uid_str in to_remove:
+        pending_payments.pop(uid_str, None)
+    context.bot_data["zapupi_pending"] = pending_payments
+
+
+# ─────────────── Admin: Payment Methods Panel ───────────────
+
+async def admin_payment_methods(update, context) -> None:
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id != ADMIN_ID:
+        return
+    s = get_settings()
+    aloo_on   = s.get("aloo_enabled", True)
+    zap_on    = s.get("zapupi_enabled", False)
+    zap_key   = get_zapupi_key()
+    active    = get_active_payment_method()
+
+    aloo_icon = "🟢" if aloo_on else "🔴"
+    zap_icon  = "🟢" if zap_on  else "🔴"
+    active_lbl = {"aloo": "ALOO/BharatPe", "zapupi": "ZapUPI", "none": "⚠️ Koi nahi"}.get(active, active)
+
+    text = (
+        f"💳 *Payment Methods*\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"Active Method: *{active_lbl}*\n\n"
+        f"{aloo_icon} *ALOO/BharatPe* — {'ON' if aloo_on else 'OFF'}\n"
+        f"{zap_icon} *ZapUPI* — {'ON' if zap_on else 'OFF'}\n\n"
+        f"ZapUPI Key: `{'Set ✅' if zap_key else 'Not set ❌'}`\n\n"
+        f"ℹ️ _Agar dono ON hain toh ZapUPI priority lega._"
+    )
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton(f"{aloo_icon} ALOO Toggle ({'ON→OFF' if aloo_on else 'OFF→ON'})",
+                              callback_data="admin_toggle_aloo")],
+        [InlineKeyboardButton(f"{zap_icon} ZapUPI Toggle ({'ON→OFF' if zap_on else 'OFF→ON'})",
+                              callback_data="admin_toggle_zapupi")],
+        [InlineKeyboardButton("🔑 Set ZapUPI Key", callback_data="admin_set_zapupi_key")],
+        [InlineKeyboardButton("◀️ Back to Admin",  callback_data="admin_back")],
+    ])
+    await query.edit_message_text(text, reply_markup=kb, parse_mode=ParseMode.MARKDOWN)
+
+
+async def admin_toggle_aloo(update, context) -> None:
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id != ADMIN_ID:
+        return
+    s = get_settings()
+    s["aloo_enabled"] = not s.get("aloo_enabled", True)
+    save_settings(s)
+    await admin_payment_methods(update, context)
+
+
+async def admin_toggle_zapupi(update, context) -> None:
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id != ADMIN_ID:
+        return
+    s = get_settings()
+    s["zapupi_enabled"] = not s.get("zapupi_enabled", False)
+    save_settings(s)
+    await admin_payment_methods(update, context)
+
+
+async def admin_set_zapupi_key(update, context) -> None:
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id != ADMIN_ID:
+        return
+    context.user_data["awaiting_zapupi_key"] = True
+    cur = get_zapupi_key()
+    masked = (cur[:6] + "..." + cur[-4:]) if len(cur) > 10 else ("Set ✅" if cur else "Not set ❌")
+    await query.edit_message_text(
+        f"🔑 *Set ZapUPI API Key*\n\nCurrent: `{masked}`\n\nApna ZapUPI API key bhejo (cancel ke liye /admin):",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back", callback_data="admin_payment_methods")]]),
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+# ═══════════════════════════════════════════════════════════════════════════
+# END ZAPUPI PAYMENT SYSTEM
 # ═══════════════════════════════════════════════════════════════════════════
 
 
@@ -4656,6 +5063,12 @@ def main() -> None:
     app.add_handler(CallbackQueryHandler(admin_min_qty_panel,    pattern="^admin_min_qty$"))
     app.add_handler(CallbackQueryHandler(admin_min_qty_edit,     pattern="^admin_min_qty_edit_"))
 
+    # Payment Methods panel handlers (ALOO toggle + ZapUPI)
+    app.add_handler(CallbackQueryHandler(admin_payment_methods,  pattern="^admin_payment_methods$"))
+    app.add_handler(CallbackQueryHandler(admin_toggle_aloo,      pattern="^admin_toggle_aloo$"))
+    app.add_handler(CallbackQueryHandler(admin_toggle_zapupi,    pattern="^admin_toggle_zapupi$"))
+    app.add_handler(CallbackQueryHandler(admin_set_zapupi_key,   pattern="^admin_set_zapupi_key$"))
+
     # Media & text
     app.add_handler(MessageHandler(filters.PHOTO | filters.Document.ALL, handle_screenshot))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_message))
@@ -4688,6 +5101,13 @@ def main() -> None:
         logger.warning("⚠️ ALOO_API_KEY or ALOO_MERCHANT_ID not set! Payments will NOT verify automatically.")
     else:
         logger.info(f"✅ ALOO API configured (merchant: {ALOO_MERCHANT_ID})")
+
+    # ZapUPI startup check
+    _zap_key = get_zapupi_key()
+    if _zap_key:
+        logger.info("✅ ZapUPI API key configured.")
+    else:
+        logger.warning("⚠️ ZapUPI key not set — ZapUPI payments will fail if enabled.")
 
     logger.info("🤖 Bot fully started — all systems active!")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
