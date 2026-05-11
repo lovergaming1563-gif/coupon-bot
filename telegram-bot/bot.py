@@ -560,67 +560,58 @@ LOW_STOCK_THRESHOLD    = 5
 
 PRODUCTS_FILE = os.path.join(_DATA_DIR, "products_config.json")
 
-_DEFAULT_PRODUCTS: dict = {
-    "bigbasket":  {"name": "BigBasket ₹150 Cashback",  "price": 15, "emoji": "🛒", "desc": "₹150 cashback on orders above ₹149"},
-    "myntra_199": {"name": "Myntra ₹100 OFF (199)",     "price": 35, "emoji": "🟢", "desc": "₹100 off on orders above ₹199"},
-    "myntra_399": {"name": "Myntra ₹100 OFF (399)",     "price": 35, "emoji": "🔵", "desc": "₹100 off on orders above ₹399"},
-    "myntra_499": {"name": "Myntra ₹100 OFF (499)",     "price": 35, "emoji": "💛", "desc": "₹100 off on orders above ₹499"},
-    "myntra_649": {"name": "Myntra ₹150 OFF (649)",     "price": 35, "emoji": "🟣", "desc": "₹150 off on orders above ₹649"},
-    "combo":      {"name": "Myntra Combo (199+399)",    "price": 60, "emoji": "🎁", "desc": "₹100 OFF (199) + ₹100 OFF (399) — 2 codes"},
-    "combo2":     {"name": "Myntra Combo (100+150)",    "price": 60, "emoji": "💝", "desc": "₹100 OFF on ₹199+ & ₹150 OFF on ₹649+ — 2 premium codes"},
-    "chatgpt":    {"name": "ChatGPT 1 Month",           "price": 49, "emoji": "🤖", "desc": "1 month ChatGPT subscription"},
-    "youtube":    {"name": "YouTube 1 Month",           "price": 30, "emoji": "▶️", "desc": "1 month YouTube Premium"},
-    # Legacy keys — backward compat for existing orders (hidden from store)
-    "coupon_100":           {"name": "₹100 Myntra Coupon",      "price": 35, "emoji": "🟢", "desc": "", "hidden": True},
-    "coupon_150":           {"name": "₹150 Myntra Coupon",      "price": 30, "emoji": "🔵", "desc": "", "hidden": True},
-    "coupon_bigbasket_150": {"name": "₹150 BigBasket Cashback", "price": 30, "emoji": "🛒", "desc": "", "hidden": True},
-}
+_DEFAULT_PRODUCTS: dict = {}
 
 # Order in which products appear in the store (dynamic — loaded from file)
 STORE_PRODUCT_ORDER: list = []  # filled after _load_product_order_from_file() is defined
 
-# Combo product → sub-products whose stock it draws from
-COMBO_PARTS: dict = {
-    "combo":  ["myntra_199", "myntra_399"],
-    "combo2": ["myntra_199", "myntra_649"],
-}
+# Combo product → sub-products whose stock it draws from (dynamic — loaded from file)
+COMBO_PARTS: dict = {}
 
 
 def _load_products_from_file() -> dict:
-    """Load products config from file; merge with defaults for any missing keys."""
+    """Load products config from file only (no hardcoded defaults)."""
     try:
         data = json.load(open(PRODUCTS_FILE, encoding="utf-8"))
         if data:
-            merged = dict(_DEFAULT_PRODUCTS)
-            merged.update({k: v for k, v in data.items() if k != "__order__"})
-            return merged
+            return {k: v for k, v in data.items() if k not in ("__order__", "__combos__")}
     except Exception:
         pass
-    return dict(_DEFAULT_PRODUCTS)
+    return {}
 
 
 def _load_product_order_from_file() -> list:
-    """Load STORE_PRODUCT_ORDER from file, fallback to default."""
+    """Load STORE_PRODUCT_ORDER from file, fallback to empty list."""
     try:
         data = json.load(open(PRODUCTS_FILE, encoding="utf-8"))
         if "__order__" in data:
             return data["__order__"]
     except Exception:
         pass
-    return [
-        "bigbasket", "myntra_199", "myntra_399", "myntra_499",
-        "myntra_649", "combo", "combo2", "chatgpt", "youtube",
-    ]
+    return []
+
+
+def _load_combo_parts_from_file() -> dict:
+    """Load COMBO_PARTS from file, fallback to empty dict."""
+    try:
+        data = json.load(open(PRODUCTS_FILE, encoding="utf-8"))
+        if "__combos__" in data:
+            return data["__combos__"]
+    except Exception:
+        pass
+    return {}
 
 
 PRODUCTS: dict = _load_products_from_file()
 STORE_PRODUCT_ORDER = _load_product_order_from_file()
+COMBO_PARTS = _load_combo_parts_from_file()
 
 
 def save_products_config() -> None:
-    """Persist current PRODUCTS dict + order to file."""
+    """Persist current PRODUCTS dict + order + combos to file."""
     data = dict(PRODUCTS)
     data["__order__"] = list(STORE_PRODUCT_ORDER)
+    data["__combos__"] = dict(COMBO_PARTS)
     _save(PRODUCTS_FILE, data)
 
 
@@ -2692,6 +2683,25 @@ async def _execute_approve(context, order_id: str) -> tuple:
         except Exception as e2:
             logger.error(f"Coupon delivery fallback also failed: {e2}")
 
+    # ── Notify admin with exact coupon code(s) delivered ──
+    try:
+        admin_codes = "\n".join(f"<code>{html.escape(str(c))}</code>" for c in assigned)
+        username_part = f"@{html.escape(order.get('username', ''))}" if order.get("username") else ""
+        await context.bot.send_message(
+            chat_id=ADMIN_ID,
+            text=(
+                f"🎟 <b>Coupon Delivered!</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"👤 User: <code>{order['user_id']}</code> {username_part}\n"
+                f"📦 Product: <b>{html.escape(product.get('name', pk))}</b>  ×{quantity}\n"
+                f"🔑 Code(s) diya:\n\n"
+                f"{admin_codes}"
+            ),
+            parse_mode=ParseMode.HTML,
+        )
+    except Exception as e:
+        logger.error(f"Admin coupon notification failed: {e}")
+
     return order, assigned
 
 
@@ -3002,40 +3012,34 @@ async def admin_stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
 
 async def admin_products_panel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Show all products with name, price, stock — with edit instructions."""
+    """Show all products with name, price, stock — with action buttons."""
     query = update.callback_query
     await query.answer()
     if query.from_user.id != ADMIN_ID:
         return
-    lines = ["📋 *Products — Name & Price*", "━━━━━━━━━━━━━━━━━━━━", ""]
+
+    lines = ["📋 *Products Panel*", "━━━━━━━━━━━━━━━━━━━━", ""]
+    if not STORE_PRODUCT_ORDER:
+        lines.append("_(Koi service nahi hai abhi — neeche se add karo)_")
     for pk in STORE_PRODUCT_ORDER:
         p = PRODUCTS.get(pk, {})
         s = get_stock(pk)
-        lines.append(f"{p.get('emoji','🔹')} `{pk}`\n   *{p.get('name', pk)}* — ₹{p.get('price', 0)}  [Stock: {s}]")
-    lines += [
-        "",
-        "━━━━━━━━━━━━━━━━━━━━",
-        "*Naam change:*",
-        "`/set_name ID Naya Naam`",
-        "",
-        "*Price change:*",
-        "`/set_price ID 39`",
-        "",
-        "*Description change:*",
-        "`/set_desc ID description`",
-        "",
-        "━━━━━━━━━━━━━━━━━━━━",
-        "➕ *Nai service add karo:*",
-        "`/add_service ID PRICE EMOJI Naam`",
-        "_Example: /add_service amazon\\_100 20 🛍️ Amazon Gift Card_",
-        "",
-        "🗑️ *Service delete karo:*",
-        "`/del_service ID`",
-        "_Example: /del\\_service amazon\\_100_",
-    ]
+        combo_tag = " 🔀COMBO" if pk in COMBO_PARTS else ""
+        lines.append(f"{p.get('emoji','🔹')} *{p.get('name', pk)}*{combo_tag}\n   `{pk}` — ₹{p.get('price', 0)}  Stock: {s}")
+
+    kb = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("➕ Service Add Karo", callback_data="admin_create_service"),
+            InlineKeyboardButton("🎁 Combo Banao",      callback_data="admin_combo_create"),
+        ],
+        [
+            InlineKeyboardButton("🗑️ Service Hatao",   callback_data="admin_del_service_list"),
+        ],
+        [InlineKeyboardButton("◀️ Back", callback_data="admin_back")],
+    ])
     await query.edit_message_text(
         "\n".join(lines),
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back", callback_data="admin_back")]]),
+        reply_markup=kb,
         parse_mode=ParseMode.MARKDOWN,
     )
 
@@ -3627,6 +3631,180 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
             )
             return
 
+        # ── Step-by-step service / combo creation ──
+        svc_step = context.user_data.get("awaiting_service_step")
+        if svc_step:
+            import re as _re
+            ns = context.user_data.setdefault("new_service", {})
+
+            cancel_kb = InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="admin_products")]])
+
+            if svc_step == "id":
+                pk = text.strip().lower()
+                if not _re.match(r'^[a-z0-9_]+$', pk):
+                    await update.message.reply_text(
+                        "❌ ID mein sirf *lowercase letters, numbers aur underscore* allowed hai.\nDobara type karo:",
+                        parse_mode=ParseMode.MARKDOWN, reply_markup=cancel_kb,
+                    )
+                    return
+                if pk in PRODUCTS:
+                    await update.message.reply_text(
+                        f"❌ `{pk}` pehle se exist karta hai! Alag ID do:",
+                        parse_mode=ParseMode.MARKDOWN, reply_markup=cancel_kb,
+                    )
+                    return
+                ns["id"] = pk
+                context.user_data["awaiting_service_step"] = "price"
+                await update.message.reply_text(
+                    f"✅ ID: `{pk}`\n\n*Step 2/5 — Price (₹)*\n\nKitne rupaye mein sell karni hai? (sirf number)\nExample: `49`",
+                    parse_mode=ParseMode.MARKDOWN, reply_markup=cancel_kb,
+                )
+                return
+
+            if svc_step == "price":
+                try:
+                    price = int(text.strip())
+                    if price <= 0:
+                        raise ValueError
+                except ValueError:
+                    await update.message.reply_text("❌ Valid price do (positive number):", reply_markup=cancel_kb)
+                    return
+                ns["price"] = price
+                context.user_data["awaiting_service_step"] = "name"
+                await update.message.reply_text(
+                    f"✅ Price: ₹{price}\n\n*Step 3/5 — Service Name*\n\nKya naam rakhna hai?\nExample: `Amazon ₹100 Gift Card`",
+                    parse_mode=ParseMode.MARKDOWN, reply_markup=cancel_kb,
+                )
+                return
+
+            if svc_step == "name":
+                ns["name"] = text.strip()
+                context.user_data["awaiting_service_step"] = "desc"
+                await update.message.reply_text(
+                    f"✅ Naam: {text.strip()}\n\n*Step 4/5 — Description*\n\nChhoti si description do:\nExample: `₹100 off on orders above ₹299`",
+                    parse_mode=ParseMode.MARKDOWN, reply_markup=cancel_kb,
+                )
+                return
+
+            if svc_step == "desc":
+                ns["desc"] = text.strip()
+                context.user_data["awaiting_service_step"] = "terms"
+                await update.message.reply_text(
+                    f"✅ Description save!\n\n*Step 5/5 — Terms & Conditions*\n\nKoi terms batao (ya 'none' type karo agar nahi hain):\nExample: `Valid on app only. One time use.`",
+                    parse_mode=ParseMode.MARKDOWN, reply_markup=cancel_kb,
+                )
+                return
+
+            if svc_step == "terms":
+                ns["terms"] = text.strip() if text.strip().lower() != "none" else ""
+                # Create the service now
+                pk    = ns["id"]
+                PRODUCTS[pk] = {
+                    "name":  ns["name"],
+                    "price": ns["price"],
+                    "emoji": "🔹",
+                    "desc":  ns["desc"],
+                    "terms": ns.get("terms", ""),
+                }
+                if pk not in STORE_PRODUCT_ORDER:
+                    STORE_PRODUCT_ORDER.append(pk)
+                coupons = _load(COUPONS_FILE) or {}
+                if pk not in coupons:
+                    coupons[pk] = []
+                    _save(COUPONS_FILE, coupons)
+                save_products_config()
+                context.user_data.pop("awaiting_service_step", None)
+                context.user_data.pop("new_service", None)
+                await update.message.reply_text(
+                    f"✅ *Service Create Ho Gayi!*\n\n"
+                    f"🔹 `{pk}`\n"
+                    f"*Naam:* {ns['name']}\n"
+                    f"*Price:* ₹{ns['price']}\n"
+                    f"*Desc:* {ns['desc']}\n\n"
+                    f"Stock add karne ke liye:\n`/addcoupon {pk} CODE1 CODE2 ...`",
+                    parse_mode=ParseMode.MARKDOWN,
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("📋 Products Panel", callback_data="admin_products")]]),
+                )
+                return
+
+            # ── Combo creation steps ──
+            if svc_step == "combo_id":
+                pk = text.strip().lower()
+                if not _re.match(r'^[a-z0-9_]+$', pk):
+                    await update.message.reply_text(
+                        "❌ ID mein sirf lowercase letters, numbers, underscore allowed hai. Dobara type karo:",
+                        parse_mode=ParseMode.MARKDOWN, reply_markup=cancel_kb,
+                    )
+                    return
+                if pk in PRODUCTS:
+                    await update.message.reply_text(
+                        f"❌ `{pk}` pehle se exist karta hai! Alag ID do:", parse_mode=ParseMode.MARKDOWN, reply_markup=cancel_kb,
+                    )
+                    return
+                ns["id"] = pk
+                context.user_data["awaiting_service_step"] = "combo_price"
+                await update.message.reply_text(
+                    f"✅ ID: `{pk}`\n\n*Step 2/4 — Price (₹)*\n\nCombo ka price kya hoga?\nExample: `99`",
+                    parse_mode=ParseMode.MARKDOWN, reply_markup=cancel_kb,
+                )
+                return
+
+            if svc_step == "combo_price":
+                try:
+                    price = int(text.strip())
+                    if price <= 0:
+                        raise ValueError
+                except ValueError:
+                    await update.message.reply_text("❌ Valid price do (positive number):", reply_markup=cancel_kb)
+                    return
+                ns["price"] = price
+                context.user_data["awaiting_service_step"] = "combo_name"
+                await update.message.reply_text(
+                    f"✅ Price: ₹{price}\n\n*Step 3/4 — Combo Name*\n\nKya naam rakhna hai?\nExample: `Amazon + BigBasket Combo`",
+                    parse_mode=ParseMode.MARKDOWN, reply_markup=cancel_kb,
+                )
+                return
+
+            if svc_step == "combo_name":
+                ns["name"] = text.strip()
+                context.user_data["awaiting_service_step"] = "combo_desc"
+                await update.message.reply_text(
+                    f"✅ Naam: {text.strip()}\n\n*Step 4/4 — Description*\n\nCombo ki description do:",
+                    parse_mode=ParseMode.MARKDOWN, reply_markup=cancel_kb,
+                )
+                return
+
+            if svc_step == "combo_desc":
+                ns["desc"] = text.strip()
+                parts = ns.get("combo_parts", [])
+                pk    = ns["id"]
+                p1    = PRODUCTS.get(parts[0], {}).get("name", parts[0]) if len(parts) > 0 else ""
+                p2    = PRODUCTS.get(parts[1], {}).get("name", parts[1]) if len(parts) > 1 else ""
+                PRODUCTS[pk] = {
+                    "name":  ns["name"],
+                    "price": ns["price"],
+                    "emoji": "🎁",
+                    "desc":  ns["desc"],
+                }
+                if pk not in STORE_PRODUCT_ORDER:
+                    STORE_PRODUCT_ORDER.append(pk)
+                COMBO_PARTS[pk] = parts
+                save_products_config()
+                context.user_data.pop("awaiting_service_step", None)
+                context.user_data.pop("new_service", None)
+                context.user_data.pop("combo_selected", None)
+                await update.message.reply_text(
+                    f"✅ *Combo Create Ho Gaya!*\n\n"
+                    f"🎁 `{pk}`\n"
+                    f"*Naam:* {ns['name']}\n"
+                    f"*Price:* ₹{ns['price']}\n"
+                    f"*Parts:* {p1} + {p2}\n\n"
+                    f"_Jab user combo buy karega × qty, toh dono services se qty coupons jayenge._",
+                    parse_mode=ParseMode.MARKDOWN,
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("📋 Products Panel", callback_data="admin_products")]]),
+                )
+                return
+
     # Admin broadcast via panel
     if user.id == ADMIN_ID and context.user_data.get("broadcast_mode"):
         context.user_data.pop("broadcast_mode", None)
@@ -3685,6 +3863,207 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
             "Agar cancel karna hai toh ❌ Cancel button press karo.",
             parse_mode=ParseMode.MARKDOWN,
         )
+
+
+# ─────────────── Admin: Create Service (step-by-step via buttons) ───────────────
+
+async def admin_create_service(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Step 1: Admin clicked 'Add Service' → ask for product ID."""
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id != ADMIN_ID:
+        return
+    context.user_data["awaiting_service_step"] = "id"
+    context.user_data.pop("new_service", None)
+    await query.edit_message_text(
+        "➕ *Nai Service Add Karo*\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+        "*Step 1/5 — Product ID*\n\n"
+        "Ek unique ID type karo (sirf lowercase letters, numbers, underscore)\n"
+        "Example: `amazon_100` ya `netflix_1month`",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="admin_products")]]),
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+# ─────────────── Admin: Delete Service (list with buttons) ───────────────
+
+async def admin_del_service_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Show all deletable services as buttons."""
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id != ADMIN_ID:
+        return
+    if not PRODUCTS:
+        await query.edit_message_text(
+            "❌ Koi service nahi hai delete karne ke liye.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back", callback_data="admin_products")]]),
+        )
+        return
+    buttons = []
+    for pk in STORE_PRODUCT_ORDER:
+        p = PRODUCTS.get(pk, {})
+        buttons.append([InlineKeyboardButton(
+            f"{p.get('emoji','🔹')} {p.get('name', pk)} — ₹{p.get('price',0)}",
+            callback_data=f"admin_del_svc_confirm_{pk}"
+        )])
+    buttons.append([InlineKeyboardButton("◀️ Back", callback_data="admin_products")])
+    await query.edit_message_text(
+        "🗑️ *Kaun si service delete karni hai?*\n\n_(Select karo)_",
+        reply_markup=InlineKeyboardMarkup(buttons),
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+async def admin_del_svc_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Confirm deletion of a service."""
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id != ADMIN_ID:
+        return
+    pk = query.data.replace("admin_del_svc_confirm_", "")
+    p  = PRODUCTS.get(pk, {})
+    if not p:
+        await query.edit_message_text("❌ Service nahi mili.")
+        return
+    await query.edit_message_text(
+        f"⚠️ *Confirm Delete*\n\n"
+        f"{p.get('emoji','🔹')} *{p.get('name', pk)}*\n"
+        f"Price: ₹{p.get('price', 0)}\n\n"
+        f"Kya aap pakka delete karna chahte ho?",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("✅ Haan, Delete Karo", callback_data=f"admin_del_svc_do_{pk}")],
+            [InlineKeyboardButton("❌ Cancel",            callback_data="admin_del_service_list")],
+        ]),
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+async def admin_del_svc_do(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Actually delete the service."""
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id != ADMIN_ID:
+        return
+    pk = query.data.replace("admin_del_svc_do_", "")
+    if pk not in PRODUCTS:
+        await query.edit_message_text("❌ Service nahi mili.")
+        return
+    name = PRODUCTS[pk].get("name", pk)
+    del PRODUCTS[pk]
+    if pk in STORE_PRODUCT_ORDER:
+        STORE_PRODUCT_ORDER.remove(pk)
+    if pk in COMBO_PARTS:
+        del COMBO_PARTS[pk]
+    # Also remove from any combos that use this service as a part
+    for ck in list(COMBO_PARTS.keys()):
+        if pk in COMBO_PARTS[ck]:
+            del COMBO_PARTS[ck]
+            if ck in PRODUCTS:
+                del PRODUCTS[ck]
+            if ck in STORE_PRODUCT_ORDER:
+                STORE_PRODUCT_ORDER.remove(ck)
+    save_products_config()
+    await query.edit_message_text(
+        f"✅ *Service delete ho gayi!*\n\n`{pk}` — *{name}* ab store mein nahi hai.",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Products Panel", callback_data="admin_products")]]),
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+# ─────────────── Admin: Create Combo (select 2 services) ───────────────
+
+async def admin_combo_create(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Show non-combo services for admin to select 2 for a combo."""
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id != ADMIN_ID:
+        return
+    non_combo = [pk for pk in STORE_PRODUCT_ORDER if pk not in COMBO_PARTS]
+    if len(non_combo) < 2:
+        await query.edit_message_text(
+            "❌ Combo banane ke liye kam se kam *2 services* chahiye.\n\nPehle services add karo.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back", callback_data="admin_products")]]),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+    context.user_data["combo_selected"] = []
+    await _show_combo_select(query, context, non_combo)
+
+
+async def _show_combo_select(query, context, non_combo=None):
+    """Re-render the combo selection screen."""
+    if non_combo is None:
+        non_combo = [pk for pk in STORE_PRODUCT_ORDER if pk not in COMBO_PARTS]
+    selected = context.user_data.get("combo_selected", [])
+    buttons = []
+    for pk in non_combo:
+        p    = PRODUCTS.get(pk, {})
+        tick = "✅ " if pk in selected else ""
+        buttons.append([InlineKeyboardButton(
+            f"{tick}{p.get('emoji','🔹')} {p.get('name', pk)}",
+            callback_data=f"admin_combo_sel_{pk}"
+        )])
+    row = []
+    if len(selected) >= 2:
+        row.append(InlineKeyboardButton("➡️ Aage Badho", callback_data="admin_combo_done"))
+    row.append(InlineKeyboardButton("❌ Cancel", callback_data="admin_products"))
+    buttons.append(row)
+    sel_names = [PRODUCTS.get(pk, {}).get("name", pk) for pk in selected]
+    sel_text  = " + ".join(sel_names) if sel_names else "_koi nahi_"
+    await query.edit_message_text(
+        f"🎁 *Combo Banao*\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"2 services select karo jo combo mein shamil hongi:\n\n"
+        f"Selected: {sel_text}",
+        reply_markup=InlineKeyboardMarkup(buttons),
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+async def admin_combo_sel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Toggle a service selection for combo."""
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id != ADMIN_ID:
+        return
+    pk       = query.data.replace("admin_combo_sel_", "")
+    selected = context.user_data.get("combo_selected", [])
+    if pk in selected:
+        selected.remove(pk)
+    else:
+        if len(selected) >= 2:
+            await query.answer("⚠️ Sirf 2 services select kar sakte ho!", show_alert=True)
+            return
+        selected.append(pk)
+    context.user_data["combo_selected"] = selected
+    await _show_combo_select(query, context)
+
+
+async def admin_combo_done(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """2 services selected — now ask for combo details (step by step)."""
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id != ADMIN_ID:
+        return
+    selected = context.user_data.get("combo_selected", [])
+    if len(selected) < 2:
+        await query.answer("⚠️ Pehle 2 services select karo!", show_alert=True)
+        return
+    context.user_data["awaiting_service_step"] = "combo_id"
+    context.user_data["new_service"] = {"combo_parts": selected}
+    p1 = PRODUCTS.get(selected[0], {}).get("name", selected[0])
+    p2 = PRODUCTS.get(selected[1], {}).get("name", selected[1])
+    await query.edit_message_text(
+        f"🎁 *Combo Banao*\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"Selected: *{p1}* + *{p2}*\n\n"
+        f"*Step 1/4 — Combo ID*\n\n"
+        f"Ek unique ID type karo:\n"
+        f"Example: `combo_amazon_bb`",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="admin_products")]]),
+        parse_mode=ParseMode.MARKDOWN,
+    )
 
 
 # ─────────────── Admin product management commands ───────────────
@@ -5048,6 +5427,13 @@ def main() -> None:
     app.add_handler(CallbackQueryHandler(admin_pending,          pattern="^admin_pending$"))
     app.add_handler(CallbackQueryHandler(admin_add_coupon,       pattern="^admin_add_coupon$"))
     app.add_handler(CallbackQueryHandler(admin_products_panel,   pattern="^admin_products$"))
+    app.add_handler(CallbackQueryHandler(admin_create_service,   pattern="^admin_create_service$"))
+    app.add_handler(CallbackQueryHandler(admin_del_service_list, pattern="^admin_del_service_list$"))
+    app.add_handler(CallbackQueryHandler(admin_del_svc_confirm,  pattern="^admin_del_svc_confirm_"))
+    app.add_handler(CallbackQueryHandler(admin_del_svc_do,       pattern="^admin_del_svc_do_"))
+    app.add_handler(CallbackQueryHandler(admin_combo_create,     pattern="^admin_combo_create$"))
+    app.add_handler(CallbackQueryHandler(admin_combo_sel,        pattern="^admin_combo_sel_"))
+    app.add_handler(CallbackQueryHandler(admin_combo_done,       pattern="^admin_combo_done$"))
     app.add_handler(CallbackQueryHandler(admin_broadcast_prompt, pattern="^admin_broadcast$"))
     app.add_handler(CallbackQueryHandler(admin_back,             pattern="^admin_back"))
     app.add_handler(CallbackQueryHandler(admin_rewards_panel,    pattern="^admin_rewards$"))
