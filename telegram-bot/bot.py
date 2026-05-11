@@ -2017,20 +2017,28 @@ async def buy_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     else:
         price_line = f"💰 Price per unit: *₹{display_price}*\n"
 
-    min_line = f"📐 Min order: *{min_qty}*\n" if min_qty > 1 else ""
+    min_line  = f"📐 Min order: *{min_qty}*\n" if min_qty > 1 else ""
+    desc_line = f"📝 {product.get('desc', '')}\n" if product.get("desc") else ""
+    terms_line = (
+        f"📜 *T&C:* _{product.get('terms', '')}_\n"
+        if product.get("terms") else ""
+    )
+    combo_info = ""
+    if product_key in COMBO_PARTS:
+        parts_names = " + ".join(PRODUCTS.get(p, {}).get("name", p) for p in COMBO_PARTS[product_key])
+        combo_info = f"🎁 *Combo:* {parts_names}\n"
 
     await query.edit_message_text(
         f"📦 *Select Quantity*\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"{product['emoji']} *{product['name']}*\n"
+        + desc_line
+        + combo_info
         + price_line
-        + (
-            f"🏷 *Bulk Discount:* 10+ = ₹32/each | 20+ = ₹30/each\n"
-            if product_key == "coupon_100" else ""
-        )
         + min_line
-        + f"📊 Stock available: *{stock}*\n\n"
-        f"How many do you want?",
+        + f"📊 Stock available: *{stock}*\n"
+        + (terms_line if terms_line else "")
+        + f"\nHow many do you want?",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode=ParseMode.MARKDOWN,
     )
@@ -2147,27 +2155,12 @@ async def _confirm_quantity(
         combo_note = f"\n🎁 *Combo:* {parts_names} (2 codes per unit)\n"
 
     extra_tnc = ""
-    if product_key in ("coupon_bigbasket_150", "bigbasket"):
-        extra_tnc = (
-            "\n━━━━━━━━━━━━━━━━━━━━\n"
-            "📜 *BigBasket – ₹150 Cashback on ₹149 cart*\n\n"
-            "📋 *Terms & Conditions:*\n"
-            "• Applicable only for *new users* on BigBasket.\n"
-            "• Cashback of ₹150 credited to bbwallet within *24–48 hours* after delivery.\n"
-            "• Minimum cart value must be *₹149*.\n"
-            "• Can be used *once per customer per device*.\n"
-            "• Not applicable on Paan corner, Baby food, Electronics, Oils, Atta, Ghee, etc.\n"
-            "• Benefits removed if items are returned or refunded.\n"
-            "• Expires on *30 Apr 2026, 11:59 PM*.\n"
-            "• 🔐 Codes are unique, non-refundable & non-returnable.\n"
-            "• 💸 Payments once made cannot be reversed.\n\n"
-            "🛒 *How to Redeem:*\n"
-            "1. Go to checkout page.\n"
-            "2. Tap *Apply Voucher*.\n"
-            "3. Paste your unique voucher code.\n"
-            "4. Click Apply and complete payment.\n"
-            "5. Cashback credited after delivery."
-        )
+    if product.get("desc"):
+        extra_tnc += f"\n📝 *{product['desc']}*"
+    if product.get("terms"):
+        extra_tnc += f"\n\n📜 *Terms & Conditions:*\n{product['terms']}"
+    if extra_tnc:
+        extra_tnc = "\n━━━━━━━━━━━━━━━━━━━━" + extra_tnc
 
     # ── Determine active payment method ──
     _active_method = get_active_payment_method()
