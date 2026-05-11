@@ -3026,7 +3026,8 @@ async def admin_products_panel(update: Update, context: ContextTypes.DEFAULT_TYP
             InlineKeyboardButton("🎁 Combo Banao",      callback_data="admin_combo_create"),
         ],
         [
-            InlineKeyboardButton("🗑️ Service Hatao",   callback_data="admin_del_service_list"),
+            InlineKeyboardButton("✏️ Edit Service",    callback_data="admin_edit_svc_list"),
+            InlineKeyboardButton("🗑️ Service Hatao",  callback_data="admin_del_service_list"),
         ],
         [InlineKeyboardButton("◀️ Back", callback_data="admin_back")],
     ])
@@ -3624,6 +3625,41 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
             )
             return
 
+        # ── Edit service field ──
+        edit_field = context.user_data.pop("awaiting_edit_svc_field", None)
+        if edit_field:
+            pk = context.user_data.get("edit_svc_pk", "")
+            p  = PRODUCTS.get(pk, {})
+            if not p:
+                await update.message.reply_text("❌ Service nahi mili. Dobara try karo.", parse_mode=ParseMode.MARKDOWN)
+                return
+            back_kb = InlineKeyboardMarkup([[InlineKeyboardButton("✏️ Edit Panel", callback_data=f"admin_edit_svc_sel_{pk}")]])
+            if edit_field == "name":
+                PRODUCTS[pk]["name"] = text
+                save_products_config()
+                await update.message.reply_text(f"✅ *Naam update ho gaya!*\n\n`{pk}` → *{text}*", parse_mode=ParseMode.MARKDOWN, reply_markup=back_kb)
+            elif edit_field == "price":
+                try:
+                    new_price = int(text.strip())
+                    if new_price <= 0:
+                        raise ValueError
+                except ValueError:
+                    await update.message.reply_text("❌ Valid price do (positive number). Dobara type karo:")
+                    context.user_data["awaiting_edit_svc_field"] = edit_field
+                    return
+                PRODUCTS[pk]["price"] = new_price
+                save_products_config()
+                await update.message.reply_text(f"✅ *Price update ho gaya!*\n\n`{pk}` → ₹{new_price}", parse_mode=ParseMode.MARKDOWN, reply_markup=back_kb)
+            elif edit_field == "desc":
+                PRODUCTS[pk]["desc"] = text.strip()
+                save_products_config()
+                await update.message.reply_text(f"✅ *Description update ho gayi!*\n\n_{text.strip()}_", parse_mode=ParseMode.MARKDOWN, reply_markup=back_kb)
+            elif edit_field == "terms":
+                PRODUCTS[pk]["terms"] = "" if text.strip().lower() == "none" else text.strip()
+                save_products_config()
+                await update.message.reply_text(f"✅ *Terms update ho gayi!*", parse_mode=ParseMode.MARKDOWN, reply_markup=back_kb)
+            return
+
         # ── Step-by-step service / combo creation ──
         svc_step = context.user_data.get("awaiting_service_step")
         if svc_step:
@@ -3875,6 +3911,93 @@ async def admin_create_service(update: Update, context: ContextTypes.DEFAULT_TYP
         "Ek unique ID type karo (sirf lowercase letters, numbers, underscore)\n"
         "Example: `amazon_100` ya `netflix_1month`",
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="admin_products")]]),
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+# ─────────────── Admin: Edit Service ───────────────
+
+async def admin_edit_svc_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Show all services as buttons to pick one for editing."""
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id != ADMIN_ID:
+        return
+    if not PRODUCTS:
+        await query.edit_message_text(
+            "❌ Koi service nahi hai edit karne ke liye.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back", callback_data="admin_products")]]),
+        )
+        return
+    buttons = []
+    for pk in STORE_PRODUCT_ORDER:
+        p = PRODUCTS.get(pk, {})
+        buttons.append([InlineKeyboardButton(
+            f"{p.get('emoji','🔹')} {p.get('name', pk)}",
+            callback_data=f"admin_edit_svc_sel_{pk}"
+        )])
+    buttons.append([InlineKeyboardButton("◀️ Back", callback_data="admin_products")])
+    await query.edit_message_text(
+        "✏️ *Kaun si service edit karni hai?*\n\n_(Select karo)_",
+        reply_markup=InlineKeyboardMarkup(buttons),
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+async def admin_edit_svc_sel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Show edit options for the selected service."""
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id != ADMIN_ID:
+        return
+    pk = query.data.replace("admin_edit_svc_sel_", "")
+    p  = PRODUCTS.get(pk, {})
+    if not p:
+        await query.edit_message_text("❌ Service nahi mili.")
+        return
+    context.user_data["edit_svc_pk"] = pk
+    await query.edit_message_text(
+        f"✏️ *Edit Service*\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"{p.get('emoji','🔹')} *{p.get('name', pk)}* — ₹{p.get('price', 0)}\n\n"
+        f"Kya edit karna hai?",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("📛 Naam",        callback_data=f"admin_edit_svc_field_name")],
+            [InlineKeyboardButton("💰 Price",       callback_data=f"admin_edit_svc_field_price")],
+            [InlineKeyboardButton("📝 Description", callback_data=f"admin_edit_svc_field_desc")],
+            [InlineKeyboardButton("📜 Terms",       callback_data=f"admin_edit_svc_field_terms")],
+            [InlineKeyboardButton("◀️ Back",        callback_data="admin_edit_svc_list")],
+        ]),
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+async def admin_edit_svc_field(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Ask admin to type the new value for the chosen field."""
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id != ADMIN_ID:
+        return
+    field = query.data.replace("admin_edit_svc_field_", "")
+    pk    = context.user_data.get("edit_svc_pk", "")
+    p     = PRODUCTS.get(pk, {})
+    if not p:
+        await query.edit_message_text("❌ Session expire ho gaya, dobara try karo.")
+        return
+    context.user_data["awaiting_edit_svc_field"] = field
+    labels = {"name": "Naam", "price": "Price (₹, sirf number)", "desc": "Description", "terms": "Terms & Conditions (ya 'none')"}
+    current = {
+        "name":  p.get("name", ""),
+        "price": str(p.get("price", "")),
+        "desc":  p.get("desc", "_(khaali)_"),
+        "terms": p.get("terms", "_(khaali)_"),
+    }
+    await query.edit_message_text(
+        f"✏️ *{labels.get(field, field)} Edit Karo*\n\n"
+        f"Service: *{p.get('name', pk)}*\n"
+        f"Current: `{current.get(field, '')}`\n\n"
+        f"Naya {labels.get(field, field)} type karke bhejo:",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data=f"admin_edit_svc_sel_{pk}")]]),
         parse_mode=ParseMode.MARKDOWN,
     )
 
@@ -5421,6 +5544,9 @@ def main() -> None:
     app.add_handler(CallbackQueryHandler(admin_add_coupon,       pattern="^admin_add_coupon$"))
     app.add_handler(CallbackQueryHandler(admin_products_panel,   pattern="^admin_products$"))
     app.add_handler(CallbackQueryHandler(admin_create_service,   pattern="^admin_create_service$"))
+    app.add_handler(CallbackQueryHandler(admin_edit_svc_list,    pattern="^admin_edit_svc_list$"))
+    app.add_handler(CallbackQueryHandler(admin_edit_svc_sel,     pattern="^admin_edit_svc_sel_"))
+    app.add_handler(CallbackQueryHandler(admin_edit_svc_field,   pattern="^admin_edit_svc_field_"))
     app.add_handler(CallbackQueryHandler(admin_del_service_list, pattern="^admin_del_service_list$"))
     app.add_handler(CallbackQueryHandler(admin_del_svc_confirm,  pattern="^admin_del_svc_confirm_"))
     app.add_handler(CallbackQueryHandler(admin_del_svc_do,       pattern="^admin_del_svc_do_"))
