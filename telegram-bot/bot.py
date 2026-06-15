@@ -40,7 +40,7 @@ ADMIN_ID_2 = os.environ.get("TELEGRAM_ADMIN_ID_2", "")
 ADMIN_IDS  = {ADMIN_ID} | ({int(ADMIN_ID_2)} if ADMIN_ID_2 else set())
 
 UPI_ID         = "BHARATPE.8B0L1T2H8C56136@fbpe"  # UPI ID
-SUPPORT_HANDLE = "@MyntraCouponSupport"  # Support Telegram handle
+SUPPORT_HANDLE = "@HypesSupport_bot"  # Support Telegram handle
 QR_IMAGE_PATH  = os.path.join(os.path.dirname(__file__), "qr_code.jpg")
 
 # ─────────────── ALOO BharatPe API Config ───────────────
@@ -1228,7 +1228,7 @@ def _store_menu_text_and_keyboard():
 
     lines.append("\n━━━━━━━━━━━━━━━━━━━━")
     lines.append("⚡ Instant Delivery  |  ✅ Trusted  |  💬 24/7 Support")
-    keyboard.append([InlineKeyboardButton("📞 Contact Support", url="tg://openmessage?user_id=6724474397")])
+    keyboard.append([InlineKeyboardButton("📞 Contact Support", url="https://t.me/HypesSupport_bot")])
     return "\n".join(lines), keyboard
 
 
