@@ -36,6 +36,8 @@ logging.getLogger("werkzeug").setLevel(logging.ERROR)   # silence Flask access l
 # ─────────────── Config ───────────────
 BOT_TOKEN  = os.environ.get("TELEGRAM_BOT_TOKEN")
 ADMIN_ID   = int(os.environ.get("TELEGRAM_ADMIN_ID", "6724474397"))
+ADMIN_ID_2 = os.environ.get("TELEGRAM_ADMIN_ID_2", "")
+ADMIN_IDS  = {ADMIN_ID} | ({int(ADMIN_ID_2)} if ADMIN_ID_2 else set())
 
 UPI_ID         = "BHARATPE.8B0L1T2H8C56136@fbpe"  # UPI ID
 SUPPORT_HANDLE = "@MyntraCouponSupport"  # Support Telegram handle
@@ -1849,7 +1851,7 @@ async def do_redeem(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def cmd_add_reward(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Admin: /add_reward POINTS NAME"""
-    if update.effective_user.id != ADMIN_ID:
+    if update.effective_user.id not in ADMIN_IDS:
         return
     args = context.args or []
     if len(args) < 2:
@@ -1875,7 +1877,7 @@ async def cmd_add_reward(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 async def cmd_add_reward_coupon(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Admin: /add_coupon REWARD_NAME CODE1 CODE2 CODE3 ..."""
-    if update.effective_user.id != ADMIN_ID:
+    if update.effective_user.id not in ADMIN_IDS:
         return
     args = context.args or []
     if len(args) < 2:
@@ -1907,7 +1909,7 @@ async def cmd_add_reward_coupon(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def cmd_del_reward_coupon(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Admin: /del_coupon REWARD_NAME CODE"""
-    if update.effective_user.id != ADMIN_ID:
+    if update.effective_user.id not in ADMIN_IDS:
         return
     args = context.args or []
     if len(args) < 2:
@@ -1937,7 +1939,7 @@ async def cmd_del_reward_coupon(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def cmd_list_reward_coupons(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Admin: /list_coupons REWARD_NAME — show all unused codes"""
-    if update.effective_user.id != ADMIN_ID:
+    if update.effective_user.id not in ADMIN_IDS:
         return
     args = context.args or []
     if not args:
@@ -2428,7 +2430,7 @@ async def handle_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     user = update.effective_user
 
     # ── Admin uploading a custom QR code via panel ──
-    if user.id == ADMIN_ID and context.user_data.get("awaiting_qr_upload"):
+    if user.id in ADMIN_IDS and context.user_data.get("awaiting_qr_upload"):
         context.user_data.pop("awaiting_qr_upload", None)
         try:
             if update.message.photo:
@@ -2449,7 +2451,7 @@ async def handle_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             await update.message.reply_text(f"❌ Upload failed: {e}")
         return
 
-    if user.id == ADMIN_ID:
+    if user.id in ADMIN_IDS:
         return
 
     # ── Auto-payment ON: no screenshot needed ──
@@ -2701,7 +2703,7 @@ async def _execute_approve(context, order_id: str) -> tuple:
 # ─────────────── /approve <user_id> command ───────────────
 
 async def approve_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.effective_user.id != ADMIN_ID:
+    if update.effective_user.id not in ADMIN_IDS:
         await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
         return
 
@@ -2766,7 +2768,7 @@ async def approve_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 async def approve_order_btn(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         await query.answer("⛔ Not authorized.", show_alert=True)
         return
     await query.answer()
@@ -2842,7 +2844,7 @@ async def _do_reject(context, order_id: str):
 
 async def reject_order_btn(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         await query.answer("⛔ Not authorized.", show_alert=True)
         return
     await query.answer()
@@ -2862,7 +2864,7 @@ async def reject_order_btn(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 async def reject_text_order(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
     order_id = query.data.replace("reject_text_", "")
     _, status = await _do_reject(context, order_id)
@@ -2873,7 +2875,7 @@ async def reject_text_order(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 # ─────────────── /broadcast <message> command ───────────────
 
 async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.effective_user.id != ADMIN_ID:
+    if update.effective_user.id not in ADMIN_IDS:
         await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
         return
 
@@ -2965,7 +2967,7 @@ def _admin_kb():
 
 
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.effective_user.id != ADMIN_ID:
+    if update.effective_user.id not in ADMIN_IDS:
         await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
         return
     await update.message.reply_text(
@@ -2976,7 +2978,7 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 async def admin_back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
     context.user_data.pop("broadcast_mode", None)
     await query.edit_message_text(
@@ -2987,7 +2989,7 @@ async def admin_back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 async def admin_stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
     lines   = ["📦 *Current Stock*\n━━━━━━━━━━━━━━━━━━━━\n"]
     for k in STORE_PRODUCT_ORDER:
@@ -3008,7 +3010,7 @@ async def admin_products_panel(update: Update, context: ContextTypes.DEFAULT_TYP
     """Show all products with name, price, stock — with action buttons."""
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
 
     lines = ["📋 *Products Panel*", "━━━━━━━━━━━━━━━━━━━━", ""]
@@ -3041,7 +3043,7 @@ async def admin_products_panel(update: Update, context: ContextTypes.DEFAULT_TYP
 async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
     orders    = get_orders()
     completed = [o for o in orders.values() if o.get("status") == "approved"]
@@ -3080,7 +3082,7 @@ async def admin_referrals(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     """Admin: Referral Tracker — User ID | Points left | Total referrals."""
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
 
     leaderboard = db_get_referral_leaderboard()
@@ -3141,7 +3143,7 @@ async def admin_ref_detail(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     """Admin: Show detail of who a specific referrer referred."""
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
 
     import html as _html
@@ -3196,7 +3198,7 @@ async def admin_rewards_panel(update: Update, context: ContextTypes.DEFAULT_TYPE
     """Admin: Show all rewards with stock + manage buttons."""
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
     rewards = db_list_rewards()
     if not rewards:
@@ -3240,7 +3242,7 @@ async def admin_reward_detail(update: Update, context: ContextTypes.DEFAULT_TYPE
     """Admin: Detail of one reward — edit points + delete."""
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
     reward_name = query.data.replace("admin_rwd_", "")
     rewards     = db_list_rewards()
@@ -3274,7 +3276,7 @@ async def admin_reward_delete(update: Update, context: ContextTypes.DEFAULT_TYPE
     """Admin: Confirm delete a reward."""
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
     reward_name = query.data.replace("admin_rwd_del_", "")
     ok = db_delete_reward(reward_name)
@@ -3292,7 +3294,7 @@ async def admin_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     """Show last 20 registered users sorted by join date (newest first)."""
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
     users = get_users()
     if not users:
@@ -3324,7 +3326,7 @@ async def admin_export_users(update: Update, context: ContextTypes.DEFAULT_TYPE)
     """Send users.json as a file document to the admin."""
     query = update.callback_query
     await query.answer("Preparing file…", show_alert=False)
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
     users = get_users()
     if not users:
@@ -3345,7 +3347,7 @@ async def admin_export_users(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def admin_pending(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
     orders  = get_orders()
     pending = {oid: o for oid, o in orders.items() if o.get("status") == "pending"}
@@ -3382,7 +3384,7 @@ async def admin_pending(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 async def admin_add_coupon(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
     lines = ["➕ *Add Coupons*\n━━━━━━━━━━━━━━━━━━━━\n"]
     for pk in STORE_PRODUCT_ORDER:
@@ -3397,7 +3399,7 @@ async def admin_add_coupon(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 
 async def add_coupon_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.effective_user.id != ADMIN_ID:
+    if update.effective_user.id not in ADMIN_IDS:
         await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
         return
     args = context.args
@@ -3480,7 +3482,7 @@ async def join_waitlist(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 # ─────────────── Ban / Unban admin commands ───────────────
 async def cmd_ban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.effective_user.id != ADMIN_ID:
+    if update.effective_user.id not in ADMIN_IDS:
         await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
         return
     args = context.args
@@ -3508,7 +3510,7 @@ async def cmd_ban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def cmd_unban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.effective_user.id != ADMIN_ID:
+    if update.effective_user.id not in ADMIN_IDS:
         await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
         return
     args = context.args
@@ -3534,7 +3536,7 @@ async def cmd_unban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def admin_broadcast_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
     context.user_data["broadcast_mode"] = True
     await query.edit_message_text(
@@ -3552,7 +3554,7 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
     user = update.effective_user
 
     # ── Admin: handle awaiting prompts for auto-payment settings ──
-    if user.id == ADMIN_ID:
+    if user.id in ADMIN_IDS:
         text = (update.message.text or "").strip()
 
         if context.user_data.pop("awaiting_upi", False):
@@ -3835,7 +3837,7 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
                 return
 
     # Admin broadcast via panel
-    if user.id == ADMIN_ID and context.user_data.get("broadcast_mode"):
+    if user.id in ADMIN_IDS and context.user_data.get("broadcast_mode"):
         context.user_data.pop("broadcast_mode", None)
         users   = get_users()
         success = failed = 0
@@ -3900,7 +3902,7 @@ async def admin_create_service(update: Update, context: ContextTypes.DEFAULT_TYP
     """Step 1: Admin clicked 'Add Service' → ask for product ID."""
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
     context.user_data["awaiting_service_step"] = "id"
     context.user_data.pop("new_service", None)
@@ -3921,7 +3923,7 @@ async def admin_edit_svc_list(update: Update, context: ContextTypes.DEFAULT_TYPE
     """Show all services as buttons to pick one for editing."""
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
     if not PRODUCTS:
         await query.edit_message_text(
@@ -3948,7 +3950,7 @@ async def admin_edit_svc_sel(update: Update, context: ContextTypes.DEFAULT_TYPE)
     """Show edit options for the selected service."""
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
     pk = query.data.replace("admin_edit_svc_sel_", "")
     p  = PRODUCTS.get(pk, {})
@@ -3976,7 +3978,7 @@ async def admin_edit_svc_field(update: Update, context: ContextTypes.DEFAULT_TYP
     """Ask admin to type the new value for the chosen field."""
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
     field = query.data.replace("admin_edit_svc_field_", "")
     pk    = context.user_data.get("edit_svc_pk", "")
@@ -4008,7 +4010,7 @@ async def admin_del_service_list(update: Update, context: ContextTypes.DEFAULT_T
     """Show all deletable services as buttons."""
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
     if not PRODUCTS:
         await query.edit_message_text(
@@ -4035,7 +4037,7 @@ async def admin_del_svc_confirm(update: Update, context: ContextTypes.DEFAULT_TY
     """Confirm deletion of a service."""
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
     pk = query.data.replace("admin_del_svc_confirm_", "")
     p  = PRODUCTS.get(pk, {})
@@ -4059,7 +4061,7 @@ async def admin_del_svc_do(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     """Actually delete the service."""
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
     pk = query.data.replace("admin_del_svc_do_", "")
     if pk not in PRODUCTS:
@@ -4093,7 +4095,7 @@ async def admin_combo_create(update: Update, context: ContextTypes.DEFAULT_TYPE)
     """Show non-combo services for admin to select 2 for a combo."""
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
     non_combo = [pk for pk in STORE_PRODUCT_ORDER if pk not in COMBO_PARTS]
     if len(non_combo) < 2:
@@ -4141,7 +4143,7 @@ async def admin_combo_sel(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     """Toggle a service selection for combo."""
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
     pk       = query.data.replace("admin_combo_sel_", "")
     selected = context.user_data.get("combo_selected", [])
@@ -4160,7 +4162,7 @@ async def admin_combo_done(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     """2 services selected — now ask for combo details (step by step)."""
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
     selected = context.user_data.get("combo_selected", [])
     if len(selected) < 2:
@@ -4186,7 +4188,7 @@ async def admin_combo_done(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 async def products_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """/products — show all products with id, name, price."""
-    if update.effective_user.id != ADMIN_ID:
+    if update.effective_user.id not in ADMIN_IDS:
         await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
         return
     lines = ["📋 *Products List*", "━━━━━━━━━━━━━━━━━━━━", ""]
@@ -4207,7 +4209,7 @@ async def products_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 async def set_name_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """/set_name PRODUCT_ID NEW NAME — update product display name."""
-    if update.effective_user.id != ADMIN_ID:
+    if update.effective_user.id not in ADMIN_IDS:
         await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
         return
     args = context.args
@@ -4230,7 +4232,7 @@ async def set_name_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 async def set_price_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """/set_price PRODUCT_ID PRICE — update product price."""
-    if update.effective_user.id != ADMIN_ID:
+    if update.effective_user.id not in ADMIN_IDS:
         await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
         return
     args = context.args
@@ -4259,7 +4261,7 @@ async def set_price_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 async def set_desc_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """/set_desc PRODUCT_ID description text — update product description."""
-    if update.effective_user.id != ADMIN_ID:
+    if update.effective_user.id not in ADMIN_IDS:
         await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
         return
     args = context.args
@@ -4282,7 +4284,7 @@ async def set_desc_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 async def add_service_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """/add_service ID PRICE EMOJI Name — add a new product to the store."""
-    if update.effective_user.id != ADMIN_ID:
+    if update.effective_user.id not in ADMIN_IDS:
         await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
         return
     args = context.args
@@ -4347,7 +4349,7 @@ async def add_service_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def del_service_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """/del_service ID — remove a product from the store."""
-    if update.effective_user.id != ADMIN_ID:
+    if update.effective_user.id not in ADMIN_IDS:
         await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
         return
     args = context.args
@@ -4389,7 +4391,7 @@ async def del_service_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def debug_ref_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """/debug_ref USER_ID — show full referral + points + rewards state for a user."""
-    if update.effective_user.id != ADMIN_ID:
+    if update.effective_user.id not in ADMIN_IDS:
         return
     args = context.args
     uid  = args[0] if args else str(update.effective_user.id)
@@ -4436,7 +4438,7 @@ async def debug_ref_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 async def force_reward_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """/force_reward USER_ID — manually trigger referral reward for a user."""
-    if update.effective_user.id != ADMIN_ID:
+    if update.effective_user.id not in ADMIN_IDS:
         return
     args = context.args
     if not args:
@@ -4456,7 +4458,7 @@ async def force_reward_command(update: Update, context: ContextTypes.DEFAULT_TYP
 
 async def del_reward_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """/del_reward NAAM — delete entire reward + all unclaimed codes."""
-    if update.effective_user.id != ADMIN_ID:
+    if update.effective_user.id not in ADMIN_IDS:
         await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
         return
     args = context.args
@@ -4482,7 +4484,7 @@ async def del_reward_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def give_points_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """/give_points USER_ID POINTS — admin manually add points to a user."""
-    if update.effective_user.id != ADMIN_ID:
+    if update.effective_user.id not in ADMIN_IDS:
         await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
         return
     args = context.args
@@ -4525,7 +4527,7 @@ async def give_points_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def deduct_points_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """/deduct_points USER_ID POINTS — admin manually deduct points from a user."""
-    if update.effective_user.id != ADMIN_ID:
+    if update.effective_user.id not in ADMIN_IDS:
         await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
         return
     args = context.args
@@ -4560,7 +4562,7 @@ async def deduct_points_command(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def flash_sale_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """/flash_sale ID SALE_PRICE DURATION — start a flash sale. Duration: 30m, 1h, 2h30m"""
-    if update.effective_user.id != ADMIN_ID:
+    if update.effective_user.id not in ADMIN_IDS:
         await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
         return
     args = context.args
@@ -4668,7 +4670,7 @@ async def _flash_sale_expire_job(context) -> None:
 
 async def end_flash_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """/end_flash ID — end a running flash sale early."""
-    if update.effective_user.id != ADMIN_ID:
+    if update.effective_user.id not in ADMIN_IDS:
         await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
         return
     args = context.args
@@ -4698,7 +4700,7 @@ async def end_flash_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 async def list_flash_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """/flash_list — show all active flash sales."""
-    if update.effective_user.id != ADMIN_ID:
+    if update.effective_user.id not in ADMIN_IDS:
         await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
         return
     active = {pk: s for pk, s in FLASH_SALES.items() if s["expires_at"] > _time_mod.time()}
@@ -5081,7 +5083,7 @@ def _back_to_admin_kb():
 async def admin_set_upi(update, context) -> None:
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
     context.user_data["awaiting_upi"] = True
     cur = get_active_upi()
@@ -5094,7 +5096,7 @@ async def admin_set_upi(update, context) -> None:
 async def admin_set_qr(update, context) -> None:
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
     context.user_data["awaiting_qr_upload"] = True
     await query.edit_message_text(
@@ -5106,7 +5108,7 @@ async def admin_set_qr(update, context) -> None:
 async def admin_recent_deposits(update, context) -> None:
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
     log = list(reversed(get_deposits_log()))[:30]
     if not log:
@@ -5126,7 +5128,7 @@ async def admin_recent_deposits(update, context) -> None:
 async def admin_set_timeout(update, context) -> None:
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
     context.user_data["awaiting_timeout"] = True
     cur = get_settings().get("timeout_minutes", 5)
@@ -5141,7 +5143,7 @@ async def admin_set_timeout(update, context) -> None:
 async def admin_min_qty_panel(update, context) -> None:
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
     context.user_data.pop("awaiting_min_qty_edit", None)
     lines_out = [
@@ -5177,7 +5179,7 @@ async def admin_min_qty_panel(update, context) -> None:
 async def admin_min_qty_edit(update, context) -> None:
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
     key = query.data.replace("admin_min_qty_edit_", "", 1)
     if key not in PRODUCTS:
@@ -5379,7 +5381,7 @@ async def zapupi_poll_job(context) -> None:
 async def admin_payment_methods(update, context) -> None:
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
     s = get_settings()
     aloo_on   = s.get("aloo_enabled", True)
@@ -5414,7 +5416,7 @@ async def admin_payment_methods(update, context) -> None:
 async def admin_toggle_aloo(update, context) -> None:
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
     s = get_settings()
     s["aloo_enabled"] = not s.get("aloo_enabled", True)
@@ -5425,7 +5427,7 @@ async def admin_toggle_aloo(update, context) -> None:
 async def admin_toggle_zapupi(update, context) -> None:
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
     s = get_settings()
     s["zapupi_enabled"] = not s.get("zapupi_enabled", False)
@@ -5436,7 +5438,7 @@ async def admin_toggle_zapupi(update, context) -> None:
 async def admin_set_zapupi_key(update, context) -> None:
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in ADMIN_IDS:
         return
     context.user_data["awaiting_zapupi_key"] = True
     cur = get_zapupi_key()
