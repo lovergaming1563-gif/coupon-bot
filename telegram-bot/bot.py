@@ -93,6 +93,7 @@ REFERRAL_REWARD_KEY = "coupon_bigbasket_150"     # free coupon product key
 # Leave empty → direct t.me link (no IP check)
 REFERRAL_BASE_URL   = os.environ.get("REFERRAL_BASE_URL", "").rstrip("/")
 BOT_USERNAME        = os.environ.get("BOT_USERNAME", "")   # e.g. MyntraCouponBot
+RENDER_URL          = os.environ.get("RENDER_URL", "")      # e.g. https://yourapp.onrender.com
 
 # ─────────────── Multi-Channel Config ───────────────
 # Users must join ALL of these channels before using the bot.
@@ -701,14 +702,6 @@ flask_app = Flask(__name__)
 def index():
     return "Bot is running ✅"
 
-@flask_app.route("/ping")
-def ping():
-    return "pong", 200
-
-@flask_app.route("/health")
-def health():
-    return "OK", 200
-
 @flask_app.route("/api/ref/<uid>")
 def referral_redirect(uid):
     """Track referral click IP and redirect to Telegram bot (token in URL)."""
@@ -749,8 +742,29 @@ def store_ref_ip():
         logger.error(f"store_ref_ip error: {e}")
         return jsonify({"error": str(e)}), 500
 
+def _self_ping():
+    """Ping self every 14 minutes to prevent Render free-tier sleep."""
+    import time as _time
+    _time.sleep(60)  # wait 1 min after startup
+    while True:
+        try:
+            if RENDER_URL:
+                req = urllib.request.Request(
+                    RENDER_URL.rstrip("/") + "/",
+                    headers={"User-Agent": "SelfPing/1.0"},
+                )
+                urllib.request.urlopen(req, timeout=10)
+                logger.info("[SelfPing] ✅ Pinged self successfully")
+            else:
+                logger.warning("[SelfPing] RENDER_URL not set — skipping ping")
+        except Exception as e:
+            logger.warning(f"[SelfPing] failed: {e}")
+        _time.sleep(14 * 60)  # 14 minutes
+
+
 def keep_alive():
     port = int(os.environ.get("PORT", 3000))
+    threading.Thread(target=_self_ping, daemon=True).start()
     flask_app.run(host="0.0.0.0", port=port)
 
 
@@ -1178,7 +1192,7 @@ async def exit_trap_nudge(context: ContextTypes.DEFAULT_TYPE) -> None:
 def _store_menu_text_and_keyboard():
     """Returns (text, keyboard) for the main store menu — fully dynamic."""
     lines = [
-        "🎉 *Welcome to Coupon Store*",
+        "🛒 *HYPES ZONE*",
         "━━━━━━━━━━━━━━━━━━━━",
         "🔥 *Best Deals Available*\n",
     ]
@@ -1259,11 +1273,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not is_channel_verified(uid):
         has_referral = db_get_referral(uid) is not None
         intro = (
-            "🎁 *You were referred by a friend!*\n\n"
-            "Join ALL our channels to activate the referral reward\nand unlock the store:\n\n"
+            "🎁 *Dost ne bheja hai tujhe HYPES ZONE pe!*\n\n"
+            "Referral reward activate karne ke liye aur store unlock karne ke liye\n*teeno channels join kar* — seedha maal milega! 💸\n\n"
             if has_referral else
-            "👋 *Welcome!*\n\n"
-            "To use this bot, please join *all 3 channels* first:\n\n"
+            "🔥 *Bhai aa gaya HYPES ZONE pe!*\n\n"
+            "Yahan milte hain *sabse saste coupons* — Myntra, BigBasket aur bahut kuch! 💥\n\n"
+            "Ek kaam kar, pehle *3 channels join kar* — 30 second ka kaam hai:\n\n"
         )
         channel_buttons = [
             [InlineKeyboardButton(f"📢 Join {ch['name']}", url=ch["link"])]
@@ -1343,7 +1358,7 @@ async def verify_channel_join(update: Update, context: ContextTypes.DEFAULT_TYPE
         if ip_blocked:
             # Allow bot access — but do NOT count referral
             await query.edit_message_text(
-                "✅ *Welcome to Coupon Store!*\n\n"
+                "✅ *HYPES ZONE pe welcome hai tu!* 🔥\n\n"
                 "⚠️ Referral not counted (same network detected)\n"
                 "But you can still use the bot ✅",
                 parse_mode=ParseMode.MARKDOWN,
@@ -1365,7 +1380,7 @@ async def verify_channel_join(update: Update, context: ContextTypes.DEFAULT_TYPE
             )
     else:
         await query.edit_message_text(
-            "✅ *Verified! Welcome to Coupon Store!*\n\n"
+            "✅ *Sahi hai bhai! HYPES ZONE pe welcome hai tu* 🔥\n\n"
             "Explore the best deals below 👇",
             parse_mode=ParseMode.MARKDOWN,
         )
