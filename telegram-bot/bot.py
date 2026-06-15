@@ -93,7 +93,6 @@ REFERRAL_REWARD_KEY = "coupon_bigbasket_150"     # free coupon product key
 # Leave empty → direct t.me link (no IP check)
 REFERRAL_BASE_URL   = os.environ.get("REFERRAL_BASE_URL", "").rstrip("/")
 BOT_USERNAME        = os.environ.get("BOT_USERNAME", "")   # e.g. MyntraCouponBot
-RENDER_URL          = os.environ.get("RENDER_URL", "")      # e.g. https://yourapp.onrender.com
 
 # ─────────────── Multi-Channel Config ───────────────
 # Users must join ALL of these channels before using the bot.
@@ -702,6 +701,14 @@ flask_app = Flask(__name__)
 def index():
     return "Bot is running ✅"
 
+@flask_app.route("/ping")
+def ping():
+    return "pong", 200
+
+@flask_app.route("/health")
+def health():
+    return "OK", 200
+
 @flask_app.route("/api/ref/<uid>")
 def referral_redirect(uid):
     """Track referral click IP and redirect to Telegram bot (token in URL)."""
@@ -742,29 +749,8 @@ def store_ref_ip():
         logger.error(f"store_ref_ip error: {e}")
         return jsonify({"error": str(e)}), 500
 
-def _self_ping():
-    """Ping self every 14 minutes to prevent Render free-tier sleep."""
-    import time as _time
-    _time.sleep(60)  # wait 1 min after startup
-    while True:
-        try:
-            if RENDER_URL:
-                req = urllib.request.Request(
-                    RENDER_URL.rstrip("/") + "/",
-                    headers={"User-Agent": "SelfPing/1.0"},
-                )
-                urllib.request.urlopen(req, timeout=10)
-                logger.info("[SelfPing] ✅ Pinged self successfully")
-            else:
-                logger.warning("[SelfPing] RENDER_URL not set — skipping ping")
-        except Exception as e:
-            logger.warning(f"[SelfPing] failed: {e}")
-        _time.sleep(14 * 60)  # 14 minutes
-
-
 def keep_alive():
     port = int(os.environ.get("PORT", 3000))
-    threading.Thread(target=_self_ping, daemon=True).start()
     flask_app.run(host="0.0.0.0", port=port)
 
 
