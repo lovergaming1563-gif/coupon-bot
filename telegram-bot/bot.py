@@ -65,7 +65,6 @@ def _generate_upi_qr(upi_id: str, amount: float, name: str = "Store") -> bytes:
         # Use PIL backend (qrcode[pil] installed) — PyPNGImage fails silently on Render
         upi_link = (
             f"upi://pay?pa={urllib.parse.quote(upi_id, safe='@.')}"
-            f"&pn={urllib.parse.quote(name)}"
             f"&am={amount:.2f}"
             f"&cu=INR"
         )
@@ -94,6 +93,7 @@ REFERRAL_REWARD_KEY = "coupon_bigbasket_150"     # free coupon product key
 # Leave empty → direct t.me link (no IP check)
 REFERRAL_BASE_URL   = os.environ.get("REFERRAL_BASE_URL", "").rstrip("/")
 BOT_USERNAME        = os.environ.get("BOT_USERNAME", "")   # e.g. MyntraCouponBot
+RENDER_URL          = os.environ.get("RENDER_URL", "")      # e.g. https://yourapp.onrender.com
 
 # ─────────────── Multi-Channel Config ───────────────
 # Users must join ALL of these channels before using the bot.
@@ -742,8 +742,29 @@ def store_ref_ip():
         logger.error(f"store_ref_ip error: {e}")
         return jsonify({"error": str(e)}), 500
 
+def _self_ping():
+    """Ping self every 14 minutes to prevent Render free-tier sleep."""
+    import time as _time
+    _time.sleep(60)  # wait 1 min after startup
+    while True:
+        try:
+            if RENDER_URL:
+                req = urllib.request.Request(
+                    RENDER_URL.rstrip("/") + "/",
+                    headers={"User-Agent": "SelfPing/1.0"},
+                )
+                urllib.request.urlopen(req, timeout=10)
+                logger.info("[SelfPing] ✅ Pinged self successfully")
+            else:
+                logger.warning("[SelfPing] RENDER_URL not set — skipping ping")
+        except Exception as e:
+            logger.warning(f"[SelfPing] failed: {e}")
+        _time.sleep(14 * 60)  # 14 minutes
+
+
 def keep_alive():
     port = int(os.environ.get("PORT", 3000))
+    threading.Thread(target=_self_ping, daemon=True).start()
     flask_app.run(host="0.0.0.0", port=port)
 
 
@@ -1207,7 +1228,6 @@ def _store_menu_text_and_keyboard():
 
     lines.append("\n━━━━━━━━━━━━━━━━━━━━")
     lines.append("⚡ Instant Delivery  |  ✅ Trusted  |  💬 24/7 Support")
-    keyboard.append([InlineKeyboardButton("🔗 Refer & Earn Free Coupon", callback_data="referral_menu")])
     keyboard.append([InlineKeyboardButton("📞 Contact Support", url="tg://openmessage?user_id=6724474397")])
     return "\n".join(lines), keyboard
 
@@ -2331,7 +2351,7 @@ async def _confirm_quantity(
 
         # ── Generate dynamic UPI QR with exact unique amount ──
         qr_sent = False
-        qr_bytes = _generate_upi_qr(_active_upi, unique_amount, "Coupon Store")
+        qr_bytes = _generate_upi_qr(_active_upi, unique_amount, "")
         if qr_bytes:
             try:
                 qr_bio = io.BytesIO(qr_bytes)
