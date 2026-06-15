@@ -1207,6 +1207,7 @@ def _store_menu_text_and_keyboard():
 
     lines.append("\n━━━━━━━━━━━━━━━━━━━━")
     lines.append("⚡ Instant Delivery  |  ✅ Trusted  |  💬 24/7 Support")
+    keyboard.append([InlineKeyboardButton("🔗 Refer & Earn Free Coupon", callback_data="referral_menu")])
     keyboard.append([InlineKeyboardButton("📞 Contact Support", url="tg://openmessage?user_id=6724474397")])
     return "\n".join(lines), keyboard
 
@@ -2939,6 +2940,9 @@ def _admin_kb():
             InlineKeyboardButton("➕ Add Coupon",     callback_data="admin_add_coupon"),
         ],
         [
+            InlineKeyboardButton("🗑️ Remove Coupon",  callback_data="admin_remove_coupon"),
+        ],
+        [
             InlineKeyboardButton("📋 Products",       callback_data="admin_products"),
             InlineKeyboardButton("📤 Export Users",   callback_data="admin_export_users"),
         ],
@@ -3396,6 +3400,103 @@ async def admin_add_coupon(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         parse_mode=ParseMode.MARKDOWN,
     )
 
+
+
+
+# ─────────────── Admin: Remove Coupon (button-based) ───────────────
+
+async def admin_remove_coupon(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Show list of products with their coupon counts for removal."""
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id not in ADMIN_IDS:
+        return
+    coupons = get_coupons()
+    lines = ["🗑️ *Remove Coupon*\n━━━━━━━━━━━━━━━━━━━━\n"]
+    lines.append("_Product select karo jiska coupon delete karna hai:_\n")
+    kb = []
+    for pk in STORE_PRODUCT_ORDER:
+        p = PRODUCTS.get(pk, {})
+        codes = coupons.get(pk, [])
+        count = len(codes)
+        label = f"{p.get('emoji','🎫')} {p.get('name', pk)} ({count} codes)"
+        if count > 0:
+            kb.append([InlineKeyboardButton(label, callback_data=f"admin_rmcoupon_sel_{pk}")])
+        else:
+            lines.append(f"• _{p.get('name', pk)}: No codes_")
+    kb.append([InlineKeyboardButton("◀️ Back", callback_data="admin_back")])
+    await query.edit_message_text(
+        "\n".join(lines),
+        reply_markup=InlineKeyboardMarkup(kb),
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+async def admin_rmcoupon_sel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Show coupon codes for a selected product so admin can delete one."""
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id not in ADMIN_IDS:
+        return
+    pk = query.data.replace("admin_rmcoupon_sel_", "")
+    p = PRODUCTS.get(pk, {})
+    coupons = get_coupons()
+    codes = coupons.get(pk, [])
+    if not codes:
+        await query.edit_message_text(
+            f"📭 *{p.get('name', pk)}* mein koi coupon nahi hai.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back", callback_data="admin_remove_coupon")]]),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+    lines = [f"🗑️ *{p.get('name', pk)} — Coupons*\n━━━━━━━━━━━━━━━━━━━━"]
+    lines.append(f"_Total: {len(codes)} codes. Delete karne ke liye select karo:_\n")
+    kb = []
+    for code in codes[:20]:  # max 20 show karo
+        kb.append([InlineKeyboardButton(f"❌ {code}", callback_data=f"admin_rmcoupon_do_{pk}|{code}")])
+    if len(codes) > 20:
+        lines.append(f"_(Sirf pehle 20 dikh rahe hain, {len(codes)-20} aur hain)_")
+    kb.append([InlineKeyboardButton("◀️ Back", callback_data="admin_remove_coupon")])
+    await query.edit_message_text(
+        "\n".join(lines),
+        reply_markup=InlineKeyboardMarkup(kb),
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+async def admin_rmcoupon_do(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Delete the selected coupon code."""
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id not in ADMIN_IDS:
+        return
+    data = query.data.replace("admin_rmcoupon_do_", "")
+    pk, code = data.split("|", 1)
+    p = PRODUCTS.get(pk, {})
+    coupons = get_coupons()
+    codes = coupons.get(pk, [])
+    if code in codes:
+        codes.remove(code)
+        coupons[pk] = codes
+        save_coupons(coupons)
+        remaining = len(codes)
+        await query.edit_message_text(
+            f"✅ *Coupon Deleted!*\n\n"
+            f"Product: *{p.get('name', pk)}*\n"
+            f"Code: `{code}`\n"
+            f"Remaining: *{remaining} codes*",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🗑️ Aur Delete Karo", callback_data=f"admin_rmcoupon_sel_{pk}")],
+                [InlineKeyboardButton("◀️ Back", callback_data="admin_remove_coupon")],
+            ]),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+    else:
+        await query.edit_message_text(
+            f"❌ Code `{code}` nahi mila *{p.get('name', pk)}* mein.\n(Shayad pehle se delete ho gaya)",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back", callback_data="admin_remove_coupon")]]),
+            parse_mode=ParseMode.MARKDOWN,
+        )
 
 async def add_coupon_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_user.id not in ADMIN_IDS:
@@ -5543,6 +5644,9 @@ def main() -> None:
     app.add_handler(CallbackQueryHandler(admin_export_users,     pattern="^admin_export_users$"))
     app.add_handler(CallbackQueryHandler(admin_pending,          pattern="^admin_pending$"))
     app.add_handler(CallbackQueryHandler(admin_add_coupon,       pattern="^admin_add_coupon$"))
+    app.add_handler(CallbackQueryHandler(admin_remove_coupon,     pattern="^admin_remove_coupon$"))
+    app.add_handler(CallbackQueryHandler(admin_rmcoupon_sel,      pattern="^admin_rmcoupon_sel_"))
+    app.add_handler(CallbackQueryHandler(admin_rmcoupon_do,       pattern="^admin_rmcoupon_do_"))
     app.add_handler(CallbackQueryHandler(admin_products_panel,   pattern="^admin_products$"))
     app.add_handler(CallbackQueryHandler(admin_create_service,   pattern="^admin_create_service$"))
     app.add_handler(CallbackQueryHandler(admin_edit_svc_list,    pattern="^admin_edit_svc_list$"))
