@@ -1207,7 +1207,6 @@ def _store_menu_text_and_keyboard():
 
     lines.append("\n━━━━━━━━━━━━━━━━━━━━")
     lines.append("⚡ Instant Delivery  |  ✅ Trusted  |  💬 24/7 Support")
-    keyboard.append([InlineKeyboardButton("🔗 Refer & Earn Free Coupon", callback_data="referral_menu")])
     keyboard.append([InlineKeyboardButton("📞 Contact Support", url="tg://openmessage?user_id=6724474397")])
     return "\n".join(lines), keyboard
 
