@@ -2018,17 +2018,17 @@ async def buy_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     # Build quantity grid. Skip buttons below min_qty so user can't tap an
     # invalid amount. If min_qty > 10, show only the Custom Quantity button.
     row1 = [
-        InlineKeyboardButton(QTY_EMOJIS[q], callback_data=f"qty_{q}")
+        InlineKeyboardButton(QTY_EMOJIS[q], callback_data=f"qty_{product_key}_{q}")
         for q in range(max(1, min_qty), 6) if q <= stock
     ]
     row2 = [
-        InlineKeyboardButton(QTY_EMOJIS[q], callback_data=f"qty_{q}")
+        InlineKeyboardButton(QTY_EMOJIS[q], callback_data=f"qty_{product_key}_{q}")
         for q in range(max(6, min_qty), 11) if q <= stock
     ]
     keyboard = []
     if row1: keyboard.append(row1)
     if row2: keyboard.append(row2)
-    keyboard.append([InlineKeyboardButton("✏️ Custom Quantity", callback_data="qty_custom")])
+    keyboard.append([InlineKeyboardButton("✏️ Custom Quantity", callback_data=f"qty_custom_{product_key}")])
     keyboard.append([InlineKeyboardButton("◀️ Back", callback_data="back_to_start")])
 
     display_price = get_unit_price(product_key, 1)
@@ -2072,11 +2072,15 @@ async def buy_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 async def custom_qty_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query       = update.callback_query
     await query.answer()
-    product_key = context.user_data.get("selected_product")
+    # Parse product_key from callback_data: "qty_custom_{product_key}"
+    raw = query.data  # e.g. "qty_custom_coupon_100"
+    product_key = raw[len("qty_custom_"):] if raw.startswith("qty_custom_") else context.user_data.get("selected_product")
     product     = PRODUCTS.get(product_key) if product_key else None
     if not product:
         await query.edit_message_text("❌ Session expired. Please use /start.", parse_mode=ParseMode.MARKDOWN)
         return
+    # Keep user_data in sync for text input handler
+    context.user_data["selected_product"] = product_key
 
     stock = get_stock(product_key)
     min_qty = get_min_qty(product_key)
@@ -2411,20 +2415,25 @@ async def _confirm_quantity(
                 )
 
 async def select_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle quantity button 1–10. callback_data is qty_<number>."""
+    """Handle quantity button. callback_data is qty_<product_key>_<number>."""
     query = update.callback_query
     await query.answer()
 
-    product_key = context.user_data.get("selected_product")
-    if not product_key:
-        await query.edit_message_text("❌ Session expired. Please use /start.", parse_mode=ParseMode.MARKDOWN)
-        return
-
+    # Parse product_key and quantity from callback_data (e.g. "qty_coupon_100_3")
     try:
-        quantity = int(query.data.split("_")[1])   # "qty_3" → 3
+        parts = query.data.split("_")  # ["qty", ..product_key parts.., "number"]
+        quantity = int(parts[-1])
+        product_key = "_".join(parts[1:-1])  # everything between "qty_" and "_number"
     except (IndexError, ValueError):
         await query.edit_message_text("❌ Invalid selection. Please use /start.", parse_mode=ParseMode.MARKDOWN)
         return
+
+    if not product_key or product_key not in PRODUCTS:
+        await query.edit_message_text("❌ Session expired. Please use /start.", parse_mode=ParseMode.MARKDOWN)
+        return
+
+    # Keep user_data in sync for custom_qty text handler
+    context.user_data["selected_product"] = product_key
 
     logger.info(f"Quantity selected: {quantity} for {product_key} by user {update.effective_user.id}")
     print(f"Quantity selected: {quantity} for {product_key}")
@@ -5645,8 +5654,8 @@ def main() -> None:
     app.add_handler(CallbackQueryHandler(do_redeem,            pattern="^do_redeem_"))
     app.add_handler(CallbackQueryHandler(join_waitlist,       pattern="^waitlist_"))
     app.add_handler(CallbackQueryHandler(buy_product,         pattern="^buy_"))
-    app.add_handler(CallbackQueryHandler(custom_qty_prompt, pattern="^qty_custom$"))
-    app.add_handler(CallbackQueryHandler(select_quantity,   pattern=r"^qty_\d+$"))
+    app.add_handler(CallbackQueryHandler(custom_qty_prompt, pattern="^qty_custom_"))
+    app.add_handler(CallbackQueryHandler(select_quantity,   pattern=r"^qty_(?!custom_).+_\d+$"))
     app.add_handler(CallbackQueryHandler(cancel_order,      pattern="^cancel_order$"))
     app.add_handler(CallbackQueryHandler(i_paid_handler,       pattern="^i_paid(_[0-9.]+)?$"))
     app.add_handler(CallbackQueryHandler(i_paid_retry_handler, pattern="^i_paid_retry$"))
