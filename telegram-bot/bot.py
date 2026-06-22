@@ -1,6 +1,7 @@
 import os
 import json
 import sqlite3
+from pymongo import MongoClient
 import logging
 import threading
 import html
@@ -112,268 +113,127 @@ REFERRAL_DB = os.path.join(
 )
 
 def init_referral_db():
-    con = sqlite3.connect(REFERRAL_DB)
-    con.execute("""
-        CREATE TABLE IF NOT EXISTS referrals (
-            user_id          TEXT PRIMARY KEY,
-            referred_by      TEXT NOT NULL,
-            reward_given     INTEGER NOT NULL DEFAULT 0,
-            joined_at        TEXT,
-            referral_status  TEXT NOT NULL DEFAULT 'active'
-        )
-    """)
-    # Safe migrations for existing DBs (ignore errors = column already exists)
-    for migration in [
-        "ALTER TABLE referrals ADD COLUMN referral_status TEXT NOT NULL DEFAULT 'active'",
-        "ALTER TABLE referrals ADD COLUMN ip_token TEXT",
-    ]:
-        try:
-            con.execute(migration)
-            con.commit()
-        except Exception:
-            pass
-    # Rewards catalogue (admin-managed)
-    con.execute("""
-        CREATE TABLE IF NOT EXISTS rewards (
-            reward_name     TEXT PRIMARY KEY,
-            points_required INTEGER NOT NULL DEFAULT 5,
-            created_at      TEXT
-        )
-    """)
-    # Coupon codes for each reward
-    con.execute("""
-        CREATE TABLE IF NOT EXISTS reward_coupons (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            reward_name TEXT NOT NULL,
-            code        TEXT NOT NULL,
-            used        INTEGER NOT NULL DEFAULT 0,
-            used_by     TEXT,
-            used_at     TEXT,
-            UNIQUE(reward_name, code)
-        )
-    """)
-    # Migration: if old table has global UNIQUE on code, recreate it
+    """Initialize MongoDB collections (no-op — collections created on demand)."""
     try:
-        cols = [r[1] for r in con.execute("PRAGMA table_info(reward_coupons)").fetchall()]
-        if cols:
-            # Check if UNIQUE(reward_name, code) index exists
-            indexes = con.execute("PRAGMA index_list(reward_coupons)").fetchall()
-            has_composite = any(
-                "reward_name" in str(con.execute(f"PRAGMA index_info('{idx[1]}')").fetchall())
-                for idx in indexes
-            )
-            if not has_composite:
-                # Old schema — migrate to new
-                con.execute("ALTER TABLE reward_coupons RENAME TO reward_coupons_old")
-                con.execute("""
-                    CREATE TABLE reward_coupons (
-                        id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                        reward_name TEXT NOT NULL,
-                        code        TEXT NOT NULL,
-                        used        INTEGER NOT NULL DEFAULT 0,
-                        used_by     TEXT,
-                        used_at     TEXT,
-                        UNIQUE(reward_name, code)
-                    )
-                """)
-                con.execute("""
-                    INSERT OR IGNORE INTO reward_coupons (id, reward_name, code, used, used_by, used_at)
-                    SELECT id, reward_name, code, used, used_by, used_at FROM reward_coupons_old
-                """)
-                con.execute("DROP TABLE reward_coupons_old")
-    except Exception as _me:
-        logger.warning(f"reward_coupons migration skipped: {_me}")
-    # Waitlist table
-    con.execute("""
-        CREATE TABLE IF NOT EXISTS waitlist (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id     TEXT NOT NULL,
-            product_key TEXT NOT NULL,
-            added_at    TEXT,
-            UNIQUE(user_id, product_key)
-        )
-    """)
-    # Banned users table
-    con.execute("""
-        CREATE TABLE IF NOT EXISTS banned_users (
-            user_id   TEXT PRIMARY KEY,
-            reason    TEXT,
-            banned_at TEXT
-        )
-    """)
-    con.commit()
-    con.close()
+        db = _get_db()
+        # Create indexes for performance
+        db["referrals"].create_index("referred_by")
+        db["waitlist"].create_index([("user_id", 1), ("product_key", 1)], unique=True)
+        db["reward_coupons"].create_index([("reward_name", 1), ("code", 1)], unique=True)
+        db["reward_coupons"].create_index([("reward_name", 1), ("used", 1)])
+        logger.info("✅ MongoDB collections initialized!")
+    except Exception as e:
+        logger.error(f"MongoDB init error: {e}")
+
 
 def db_is_banned(user_id: str) -> bool:
-    con = sqlite3.connect(REFERRAL_DB)
-    row = con.execute("SELECT 1 FROM banned_users WHERE user_id = ?", (str(user_id),)).fetchone()
-    con.close()
-    return row is not None
+    return bool(_get_db()["banned_users"].find_one({"_id": str(user_id)}))
 
 def db_ban_user(user_id: str, reason: str = "") -> None:
-    con = sqlite3.connect(REFERRAL_DB)
-    con.execute(
-        "INSERT OR REPLACE INTO banned_users (user_id, reason, banned_at) VALUES (?, ?, ?)",
-        (str(user_id), reason, datetime.now(timezone.utc).isoformat())
+    _get_db()["banned_users"].replace_one(
+        {"_id": str(user_id)},
+        {"_id": str(user_id), "reason": reason, "banned_at": datetime.now(timezone.utc).isoformat()},
+        upsert=True
     )
-    con.commit()
-    con.close()
 
 def db_unban_user(user_id: str) -> bool:
-    con = sqlite3.connect(REFERRAL_DB)
-    cur = con.execute("DELETE FROM banned_users WHERE user_id = ?", (str(user_id),))
-    con.commit()
-    con.close()
-    return cur.rowcount > 0
+    result = _get_db()["banned_users"].delete_one({"_id": str(user_id)})
+    return result.deleted_count > 0
 
 def db_add_to_waitlist(user_id: str, product_key: str) -> bool:
     """Returns True if newly added, False if already on waitlist."""
-    con = sqlite3.connect(REFERRAL_DB)
     try:
-        con.execute(
-            "INSERT INTO waitlist (user_id, product_key, added_at) VALUES (?, ?, ?)",
-            (str(user_id), product_key, datetime.now(timezone.utc).isoformat())
-        )
-        con.commit()
+        _get_db()["waitlist"].insert_one({
+            "user_id": str(user_id), "product_key": product_key,
+            "added_at": datetime.now(timezone.utc).isoformat()
+        })
         return True
-    except sqlite3.IntegrityError:
+    except Exception:
         return False
-    finally:
-        con.close()
 
 def db_get_waitlist(product_key: str) -> list:
-    con = sqlite3.connect(REFERRAL_DB)
-    rows = con.execute("SELECT user_id FROM waitlist WHERE product_key = ?", (product_key,)).fetchall()
-    con.close()
-    return [r[0] for r in rows]
+    return [doc["user_id"] for doc in _get_db()["waitlist"].find({"product_key": product_key})]
 
 def db_clear_waitlist(product_key: str) -> int:
-    con = sqlite3.connect(REFERRAL_DB)
-    cur = con.execute("DELETE FROM waitlist WHERE product_key = ?", (product_key,))
-    con.commit()
-    con.close()
-    return cur.rowcount
+    result = _get_db()["waitlist"].delete_many({"product_key": product_key})
+    return result.deleted_count
 
 def db_get_referral(user_id: str):
     """Returns (user_id, referred_by, reward_given) or None."""
-    con = sqlite3.connect(REFERRAL_DB)
-    row = con.execute(
-        "SELECT user_id, referred_by, reward_given FROM referrals WHERE user_id = ?",
-        (user_id,)
-    ).fetchone()
-    con.close()
-    return row
+    doc = _get_db()["referrals"].find_one({"_id": str(user_id)})
+    if doc:
+        return (doc["_id"], doc.get("referred_by"), doc.get("reward_given", 0))
+    return None
 
 def db_insert_referral(user_id: str, referred_by: str, token: str = None) -> bool:
-    """Insert referral. Returns True if new row inserted."""
+    """Insert referral. Returns True if new doc inserted."""
     try:
-        con = sqlite3.connect(REFERRAL_DB)
-        con.execute(
-            "INSERT INTO referrals (user_id, referred_by, reward_given, joined_at, ip_token) VALUES (?,?,0,?,?)",
-            (user_id, referred_by, datetime.now().isoformat(), token)
-        )
-        con.commit()
-        con.close()
+        _get_db()["referrals"].insert_one({
+            "_id": str(user_id), "referred_by": str(referred_by),
+            "reward_given": 0, "joined_at": datetime.now().isoformat(),
+            "referral_status": "active", "ip_token": token
+        })
         return True
-    except sqlite3.IntegrityError:
+    except Exception:
         return False
 
 def db_get_referral_token(user_id: str) -> str | None:
-    """Get the IP token stored for this referred user (may be None if old link used)."""
-    con = sqlite3.connect(REFERRAL_DB)
-    row = con.execute("SELECT ip_token FROM referrals WHERE user_id = ?", (user_id,)).fetchone()
-    con.close()
-    return row[0] if row else None
+    doc = _get_db()["referrals"].find_one({"_id": str(user_id)}, {"ip_token": 1})
+    return doc.get("ip_token") if doc else None
 
 def db_mark_reward_given(user_id: str):
-    con = sqlite3.connect(REFERRAL_DB)
-    con.execute("UPDATE referrals SET reward_given = 1 WHERE user_id = ?", (user_id,))
-    con.commit()
-    con.close()
+    _get_db()["referrals"].update_one({"_id": str(user_id)}, {"$set": {"reward_given": 1}})
 
 def db_successful_referral_count(referrer_id: str) -> int:
     """Count of ACTIVE verified referrals (reward_given=1, status=active) — this is the points value."""
-    con = sqlite3.connect(REFERRAL_DB)
-    count = con.execute(
-        "SELECT COUNT(*) FROM referrals WHERE referred_by = ? AND reward_given = 1 AND referral_status = 'active'",
-        (referrer_id,)
-    ).fetchone()[0]
-    con.close()
-    return count
+    return _get_db()["referrals"].count_documents({
+        "referred_by": str(referrer_id), "reward_given": 1, "referral_status": "active"
+    })
 
 def db_set_referral_status(user_id: str, status: str):
     """Set referral_status = 'active' or 'removed' for the referred user."""
-    con = sqlite3.connect(REFERRAL_DB)
-    con.execute(
-        "UPDATE referrals SET referral_status = ? WHERE user_id = ?",
-        (status, user_id)
-    )
-    con.commit()
-    con.close()
+    _get_db()["referrals"].update_one({"_id": str(user_id)}, {"$set": {"referral_status": status}})
 
 def db_get_all_verified_referrals() -> list:
     """Return all verified referrals: [(user_id, referred_by, referral_status), ...]"""
-    con = sqlite3.connect(REFERRAL_DB)
-    rows = con.execute(
-        "SELECT user_id, referred_by, referral_status FROM referrals WHERE reward_given = 1"
-    ).fetchall()
-    con.close()
-    return rows
+    docs = _get_db()["referrals"].find({"reward_given": 1}, {"_id": 1, "referred_by": 1, "referral_status": 1})
+    return [(d["_id"], d.get("referred_by"), d.get("referral_status", "active")) for d in docs]
 
 def db_total_referral_count(referrer_id: str) -> int:
     """Count of all referrals (pending + verified) for this referrer."""
-    con = sqlite3.connect(REFERRAL_DB)
-    count = con.execute(
-        "SELECT COUNT(*) FROM referrals WHERE referred_by = ?",
-        (referrer_id,)
-    ).fetchone()[0]
-    con.close()
-    return count
+    return _get_db()["referrals"].count_documents({"referred_by": str(referrer_id)})
 
 def db_get_referral_leaderboard() -> list:
     """Return list of (referrer_id, active_count, total_count) sorted by active_count desc."""
-    con = sqlite3.connect(REFERRAL_DB)
-    rows = con.execute("""
-        SELECT
-            referred_by,
-            SUM(CASE WHEN reward_given=1 AND referral_status='active' THEN 1 ELSE 0 END) AS active,
-            COUNT(*) AS total
-        FROM referrals
-        GROUP BY referred_by
-        ORDER BY active DESC, total DESC
-    """).fetchall()
-    con.close()
-    return rows  # list of (referrer_id, active, total)
+    pipeline = [
+        {"$group": {
+            "_id": "$referred_by",
+            "active": {"$sum": {"$cond": [{"$and": [{"$eq": ["$reward_given", 1]}, {"$eq": ["$referral_status", "active"]}]}, 1, 0]}},
+            "total": {"$sum": 1}
+        }},
+        {"$sort": {"active": -1, "total": -1}}
+    ]
+    docs = _get_db()["referrals"].aggregate(pipeline)
+    return [(d["_id"], d["active"], d["total"]) for d in docs]
 
 def db_get_referred_users_detail(referrer_id: str) -> list:
     """Return rows of (user_id, reward_given, referral_status, joined_at) for a referrer."""
-    con = sqlite3.connect(REFERRAL_DB)
-    rows = con.execute("""
-        SELECT user_id, reward_given, referral_status, joined_at
-        FROM referrals
-        WHERE referred_by = ?
-        ORDER BY joined_at DESC
-    """, (referrer_id,)).fetchall()
-    con.close()
-    return rows
+    docs = _get_db()["referrals"].find(
+        {"referred_by": str(referrer_id)},
+        {"_id": 1, "reward_given": 1, "referral_status": 1, "joined_at": 1}
+    ).sort("joined_at", -1)
+    return [(d["_id"], d.get("reward_given", 0), d.get("referral_status", "active"), d.get("joined_at")) for d in docs]
 
 # ── IP tracking helpers (shared file with api-server) ──
 _IP_FILE = os.path.join(os.environ.get("BOT_DATA_DIR", _DEFAULT_DATA_DIR), "referral_ips.json")
 
 def _load_ip_data() -> dict:
-    try:
-        if os.path.exists(_IP_FILE):
-            with open(_IP_FILE) as f:
-                return json.load(f)
-    except Exception:
-        pass
-    return {"tokens": {}, "used_ips": []}
+    doc = _get_db()["kv_store"].find_one({"_id": "ip_data"})
+    return doc["data"] if doc else {"tokens": {}, "used_ips": []}
 
 def _save_ip_data(data: dict) -> None:
     try:
-        os.makedirs(os.path.dirname(_IP_FILE), exist_ok=True)
-        with open(_IP_FILE, "w") as f:
-            json.dump(data, f, indent=2)
+        _get_db()["kv_store"].replace_one({"_id": "ip_data"}, {"_id": "ip_data", "data": data}, upsert=True)
     except Exception as e:
         logger.error(f"_save_ip_data error: {e}")
 
@@ -400,14 +260,12 @@ def claim_referral_ip(token: str, ip: str) -> None:
 def db_get_points(user_id: str) -> int:
     earned = db_successful_referral_count(user_id)
     try:
-        con = sqlite3.connect(REFERRAL_DB)
-        con.execute("""CREATE TABLE IF NOT EXISTS points_spent (
-            user_id TEXT, points INTEGER, reward_name TEXT, spent_at TEXT
-        )""")
-        spent = con.execute(
-            "SELECT COALESCE(SUM(points),0) FROM points_spent WHERE user_id=?", (user_id,)
-        ).fetchone()[0] or 0
-        con.close()
+        pipeline = [
+            {"$match": {"user_id": str(user_id)}},
+            {"$group": {"_id": None, "total": {"$sum": "$points"}}}
+        ]
+        result = list(_get_db()["points_spent"].aggregate(pipeline))
+        spent = result[0]["total"] if result else 0
     except Exception:
         spent = 0
     return max(0, earned - spent)
@@ -415,118 +273,81 @@ def db_get_points(user_id: str) -> int:
 
 def db_deduct_points(user_id: str, points: int, reason: str = "admin_deduction") -> None:
     """Admin: manually deduct points from a user."""
-    con = sqlite3.connect(REFERRAL_DB)
-    con.execute("""CREATE TABLE IF NOT EXISTS points_spent (
-        user_id TEXT, points INTEGER, reward_name TEXT, spent_at TEXT
-    )""")
-    con.execute(
-        "INSERT INTO points_spent (user_id, points, reward_name, spent_at) VALUES (?,?,?,?)",
-        (user_id, points, reason, datetime.now().isoformat())
-    )
-    con.commit()
-    con.close()
+    _get_db()["points_spent"].insert_one({
+        "user_id": str(user_id), "points": points,
+        "reward_name": reason, "spent_at": datetime.now().isoformat()
+    })
 
 
 def db_delete_reward(reward_name: str) -> bool:
     """Admin: delete a reward and all its unclaimed coupons."""
-    con = sqlite3.connect(REFERRAL_DB)
-    con.execute("DELETE FROM rewards WHERE reward_name=?", (reward_name,))
-    con.execute("DELETE FROM reward_coupons WHERE reward_name=? AND used=0", (reward_name,))
-    con.commit()
-    deleted = con.total_changes > 0
-    con.close()
-    return deleted
+    db = _get_db()
+    r1 = db["rewards"].delete_one({"_id": reward_name})
+    r2 = db["reward_coupons"].delete_many({"reward_name": reward_name, "used": 0})
+    return (r1.deleted_count + r2.deleted_count) > 0
 
 # ── Rewards CRUD ──
 def db_add_reward(reward_name: str, points_required: int) -> bool:
     try:
-        con = sqlite3.connect(REFERRAL_DB)
-        con.execute(
-            "INSERT OR REPLACE INTO rewards (reward_name, points_required, created_at) VALUES (?,?,?)",
-            (reward_name, points_required, datetime.now().isoformat())
+        _get_db()["rewards"].replace_one(
+            {"_id": reward_name},
+            {"_id": reward_name, "points_required": points_required, "created_at": datetime.now().isoformat()},
+            upsert=True
         )
-        con.commit()
-        con.close()
         return True
     except Exception:
         return False
 
 def db_list_rewards() -> list:
     """Returns list of (reward_name, points_required, stock) sorted by points_required."""
-    con = sqlite3.connect(REFERRAL_DB)
-    rows = con.execute("SELECT reward_name, points_required FROM rewards ORDER BY points_required").fetchall()
+    db = _get_db()
+    docs = db["rewards"].find({}, {"_id": 1, "points_required": 1}).sort("points_required", 1)
     result = []
-    for name, pts in rows:
-        stock = con.execute(
-            "SELECT COUNT(*) FROM reward_coupons WHERE reward_name=? AND used=0", (name,)
-        ).fetchone()[0]
-        result.append({"name": name, "points": pts, "stock": stock})
-    con.close()
+    for doc in docs:
+        stock = db["reward_coupons"].count_documents({"reward_name": doc["_id"], "used": 0})
+        result.append({"name": doc["_id"], "points": doc.get("points_required", 0), "stock": stock})
     return result
 
 def db_add_reward_coupon(reward_name: str, code: str) -> bool:
     try:
-        con = sqlite3.connect(REFERRAL_DB)
-        con.execute(
-            "INSERT INTO reward_coupons (reward_name, code) VALUES (?,?)",
-            (reward_name, code)
-        )
-        con.commit()
-        con.close()
+        _get_db()["reward_coupons"].insert_one({"reward_name": reward_name, "code": code, "used": 0})
         return True
-    except sqlite3.IntegrityError:
+    except Exception:
         return False
 
 def db_delete_reward_coupon(reward_name: str, code: str) -> bool:
     """Admin: delete a specific coupon code from a reward pool."""
-    con = sqlite3.connect(REFERRAL_DB)
-    cur = con.execute(
-        "DELETE FROM reward_coupons WHERE reward_name=? AND code=? AND used=0",
-        (reward_name, code)
-    )
-    con.commit()
-    deleted = cur.rowcount > 0
-    con.close()
-    return deleted
+    result = _get_db()["reward_coupons"].delete_one({"reward_name": reward_name, "code": code, "used": 0})
+    return result.deleted_count > 0
 
 def db_list_reward_coupons(reward_name: str) -> list:
     """Admin: list all unused coupon codes for a reward."""
-    con = sqlite3.connect(REFERRAL_DB)
-    rows = con.execute(
-        "SELECT code FROM reward_coupons WHERE reward_name=? AND used=0 ORDER BY id",
-        (reward_name,)
-    ).fetchall()
-    con.close()
-    return [r[0] for r in rows]
+    docs = _get_db()["reward_coupons"].find({"reward_name": reward_name, "used": 0})
+    return [d["code"] for d in docs]
 
 def db_redeem_reward(user_id: str, reward_name: str) -> tuple | None:
     """Reserve 1 coupon for the user. Returns (code_id, code) or None if no stock."""
-    con = sqlite3.connect(REFERRAL_DB)
-    row = con.execute(
-        "SELECT id, code FROM reward_coupons WHERE reward_name=? AND used=0 ORDER BY id LIMIT 1",
-        (reward_name,)
-    ).fetchone()
-    if not row:
-        con.close()
-        return None
-    con.execute(
-        "UPDATE reward_coupons SET used=1, used_by=?, used_at=? WHERE id=?",
-        (user_id, datetime.now().isoformat(), row[0])
+    from bson import ObjectId
+    doc = _get_db()["reward_coupons"].find_one_and_update(
+        {"reward_name": reward_name, "used": 0},
+        {"$set": {"used": 1, "used_by": str(user_id), "used_at": datetime.now().isoformat()}},
+        return_document=True
     )
-    con.commit()
-    con.close()
-    return (row[0], row[1])   # (id, code)
+    if doc:
+        return (str(doc["_id"]), doc["code"])
+    return None
 
 
-def db_rollback_redeem(code_id: int) -> None:
+def db_rollback_redeem(code_id) -> None:
     """Rollback a reserved coupon — mark it unused again."""
-    con = sqlite3.connect(REFERRAL_DB)
-    con.execute(
-        "UPDATE reward_coupons SET used=0, used_by=NULL, used_at=NULL WHERE id=?",
-        (code_id,)
-    )
-    con.commit()
-    con.close()
+    try:
+        from bson import ObjectId
+        _get_db()["reward_coupons"].update_one(
+            {"_id": ObjectId(str(code_id))},
+            {"$set": {"used": 0, "used_by": None, "used_at": None}}
+        )
+    except Exception as e:
+        logger.warning(f"db_rollback_redeem: {e}")
 
 # Data files stored inside workspace/telegram-bot/data/ — persists across restarts
 _DATA_DIR = os.environ.get("BOT_DATA_DIR", _DEFAULT_DATA_DIR)
@@ -572,36 +393,23 @@ COMBO_PARTS: dict = {}
 
 
 def _load_products_from_file() -> dict:
-    """Load products config from file only (no hardcoded defaults)."""
-    try:
-        data = json.load(open(PRODUCTS_FILE, encoding="utf-8"))
-        if data:
-            return {k: v for k, v in data.items() if k not in ("__order__", "__combos__")}
-    except Exception:
-        pass
+    """Load products config from MongoDB."""
+    data = load_json(PRODUCTS_FILE, {})
+    if data:
+        return {k: v for k, v in data.items() if k not in ("__order__", "__combos__")}
     return {}
 
 
 def _load_product_order_from_file() -> list:
-    """Load STORE_PRODUCT_ORDER from file, fallback to empty list."""
-    try:
-        data = json.load(open(PRODUCTS_FILE, encoding="utf-8"))
-        if "__order__" in data:
-            return data["__order__"]
-    except Exception:
-        pass
-    return []
+    """Load STORE_PRODUCT_ORDER from MongoDB."""
+    data = load_json(PRODUCTS_FILE, {})
+    return data.get("__order__", []) if data else []
 
 
 def _load_combo_parts_from_file() -> dict:
-    """Load COMBO_PARTS from file, fallback to empty dict."""
-    try:
-        data = json.load(open(PRODUCTS_FILE, encoding="utf-8"))
-        if "__combos__" in data:
-            return data["__combos__"]
-    except Exception:
-        pass
-    return {}
+    """Load COMBO_PARTS from MongoDB."""
+    data = load_json(PRODUCTS_FILE, {})
+    return data.get("__combos__", {}) if data else {}
 
 
 PRODUCTS: dict = _load_products_from_file()
@@ -770,23 +578,40 @@ def keep_alive():
 
 # ─────────────── Replit DB (persistent KV — survives deployments) ───────────────
 
-_REPLIT_DB_URL = os.environ.get("REPLIT_DB_URL", "")
+# ─────────────── MongoDB Storage Layer ───────────────
+_MONGO_URI = os.environ.get("MONGODB_URI", "")
+_mongo_db  = None
 
-# Map file path → Replit DB key
-_DB_KEYS = {
-    "users":   "bot_users_json",
-    "coupons": "bot_coupons_json",
-    "orders":  "bot_orders_json",
-    "pending": "bot_pending_json",
-}
+def _get_db():
+    global _mongo_db
+    if _mongo_db is None:
+        if not _MONGO_URI:
+            logger.error("MONGODB_URI not set! Data will not persist across restarts.")
+            raise RuntimeError("MONGODB_URI is required")
+        client = MongoClient(_MONGO_URI, serverSelectionTimeoutMS=5000)
+        _mongo_db = client["hypes_zone_bot"]
+        logger.info("✅ MongoDB connected!")
+    return _mongo_db
+
+def _fp_to_key(fp: str) -> str:
+    """Convert file path to a short MongoDB doc key."""
+    base = os.path.basename(fp)
+    name = base.replace(".json", "").replace("_orders", "_orders").replace("pending_orders", "pending")
+    return name
 
 def _file_to_db_key(fp: str) -> str:
-    for name, key in _DB_KEYS.items():
+    return _fp_to_key(fp)
+
+def _file_to_db_key_OLD(fp: str) -> str:
+    for name, key in {}.items():
         if name in fp:
             return key
     return None
 
 def _repldb_set(key: str, value: str) -> None:
+    pass  # replaced by MongoDB
+
+def _repldb_set_OLD(key: str, value: str) -> None:
     """Store a value in Replit DB."""
     if not _REPLIT_DB_URL:
         return
@@ -798,6 +623,9 @@ def _repldb_set(key: str, value: str) -> None:
         logger.error(f"Replit DB set error [{key}]: {e}")
 
 def _repldb_get(key: str) -> str:
+    return None  # replaced by MongoDB
+
+def _repldb_get_OLD(key: str) -> str:
     """Retrieve a value from Replit DB. Returns '' if missing."""
     if not _REPLIT_DB_URL:
         return ""
@@ -908,24 +736,22 @@ def backup_data_to_repldb() -> None:
 
 def load_json(fp: str, default):
     try:
-        with open(fp, "r") as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return default
+        key = _fp_to_key(fp)
+        doc = _get_db()["kv_store"].find_one({"_id": key})
+        if doc:
+            return doc["data"]
+    except Exception as e:
+        logger.warning(f"[MongoDB] load_json failed for {fp}: {e}")
+    return default
 
 
 def _save(fp: str, data) -> None:
-    """Atomic write + Replit DB backup so data survives deployments."""
-    # 1. Write locally (atomic)
-    tmp = fp + ".tmp"
-    with open(tmp, "w") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-    os.replace(tmp, fp)
-    # 2. Backup to Replit DB in background thread (non-blocking)
-    db_key = _file_to_db_key(fp)
-    if db_key:
-        raw = json.dumps(data, ensure_ascii=False)
-        threading.Thread(target=_repldb_set, args=(db_key, raw), daemon=True).start()
+    """Save data to MongoDB (persistent across restarts)."""
+    try:
+        key = _fp_to_key(fp)
+        _get_db()["kv_store"].replace_one({"_id": key}, {"_id": key, "data": data}, upsert=True)
+    except Exception as e:
+        logger.error(f"[MongoDB] _save failed for {fp}: {e}")
 
 
 def get_coupons()  -> dict:
@@ -1700,12 +1526,8 @@ async def realtime_referral_check(bot, user_id: str) -> None:
     if not reward_given:
         return  # Not yet verified — skip
     # Get current status
-    con = sqlite3.connect(REFERRAL_DB)
-    status_row = con.execute(
-        "SELECT referral_status FROM referrals WHERE user_id = ?", (user_id,)
-    ).fetchone()
-    con.close()
-    current_status = status_row[0] if status_row else "active"
+    doc = _get_db()["referrals"].find_one({"_id": str(user_id)}, {"referral_status": 1})
+    current_status = doc.get("referral_status", "active") if doc else "active"
     await _update_referral_validity(bot, user_id, referred_by, current_status)
 
 
@@ -4635,16 +4457,10 @@ async def give_points_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
     before = db_get_points(uid)
     # Points add = negative deduction (reverse)
-    con = sqlite3.connect(REFERRAL_DB)
-    con.execute("""CREATE TABLE IF NOT EXISTS points_spent (
-        user_id TEXT, points INTEGER, reward_name TEXT, spent_at TEXT
-    )""")
-    con.execute(
-        "INSERT INTO points_spent (user_id, points, reward_name, spent_at) VALUES (?,?,?,?)",
-        (uid, -pts, "admin_bonus", datetime.now().isoformat())
-    )
-    con.commit()
-    con.close()
+    _get_db()["points_spent"].insert_one({
+        "user_id": str(uid), "points": -pts,
+        "reward_name": "admin_bonus", "spent_at": datetime.now().isoformat()
+    })
     after = db_get_points(uid)
     await update.message.reply_text(
         f"✅ *Points add ho gaye!*\n\n"
@@ -5591,10 +5407,10 @@ def main() -> None:
         raise ValueError("TELEGRAM_ADMIN_ID environment variable not set!")
 
     # Restore JSON data from Replit DB if local files are missing (fresh deployment)
-    restore_data_from_repldb()
+    # MongoDB-backed storage — no restore needed
 
     # Backup current local data to Replit DB (so next deploy can restore it)
-    backup_data_to_repldb()
+    # MongoDB-backed storage — no backup needed
 
     # Initialise SQLite referral database
     init_referral_db()
