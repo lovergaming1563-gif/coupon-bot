@@ -58,6 +58,7 @@ pip install -q -r /home/runner/workspace/telegram-bot/requirements.txt 2>/dev/nu
 echo "[2/3] Starting Telegram bot..."
 cd /home/runner/workspace/telegram-bot
 export BOT_DATA_DIR="$DATA_DIR"
+python diag.py || true
 python bot.py &
 BOT_PID=$!
 echo "      Bot started (PID $BOT_PID)"
