@@ -811,6 +811,36 @@ def _save(fp: str, data) -> None:
             logger.error(f"[MongoDB] _save failed for {fp}: {e}")
 
 
+def _save_default(fp: str, default) -> None:
+    """Save default value safe check.
+    If MongoDB is enabled:
+    1. Check kv_store for existing document.
+    2. If document exists:
+       * Never overwrite it with defaults.
+       * Log a warning.
+       * Recreate local cache only.
+    """
+    if _MONGO_URI:
+        try:
+            key = _fp_to_key(fp)
+            doc = _get_db()["kv_store"].find_one({"_id": key})
+            if doc:
+                logger.warning(f"⚠️ [STORAGE] Warning: Local file missing, but MongoDB document '{key}' exists. RECREATING cache, NOT overwriting with default.")
+                mongodb_data = doc["data"]
+                tmp = fp + ".tmp"
+                os.makedirs(os.path.dirname(fp), exist_ok=True)
+                with open(tmp, "w", encoding="utf-8") as f:
+                    json.dump(mongodb_data, f, indent=2, ensure_ascii=False)
+                os.replace(tmp, fp)
+                return
+        except Exception as e:
+            logger.error(f"[STORAGE] Error checking MongoDB for {fp} before saving default: {e}")
+
+    # Otherwise, save default
+    _save(fp, default)
+    logger.info(f"[STORAGE] Initialized new empty data for {os.path.basename(fp)}")
+
+
 def get_coupons()  -> dict:
     default = {k: [] for k in PRODUCTS}
     return load_json(COUPONS_FILE, default)
@@ -2871,7 +2901,15 @@ def _admin_kb():
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton("⏳ Pending Orders", callback_data="admin_pending"),
-            InlineKeyboardButton("📦 Stock",          callback_data="admin_stock"),
+            InlineKeyboardButton("📦 Stock Overview",  callback_data="admin_stock"),
+        ],
+        [
+            InlineKeyboardButton("👀 View Stock",      callback_data="admin_view_stock_menu"),
+            InlineKeyboardButton("📄 Export Stock",    callback_data="admin_export_stock_menu"),
+        ],
+        [
+            InlineKeyboardButton("📈 Analytics",       callback_data="admin_analytics"),
+            InlineKeyboardButton("📦 Order History",   callback_data="admin_order_history"),
         ],
         [
             InlineKeyboardButton("📊 Stats",          callback_data="admin_stats"),
@@ -6229,6 +6267,843 @@ async def admin_set_zapupi_key(update, context) -> None:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# NEW FEATURES: CUSTOMER ORDER HISTORY, ANALYTICS DASHBOARD & STOCK SYSTEM
+# ═══════════════════════════════════════════════════════════════════════════
+
+import html
+
+def get_user_merged_orders(user_id: int) -> list:
+    orders_dict = get_orders()
+    merged = {}
+    
+    # 1. Add from legacy/main orders dict
+    for oid, o in orders_dict.items():
+        if int(o.get("user_id", 0)) == int(user_id):
+            status = o.get("status", "pending")
+            if status == "approved":
+                status = "Delivered"
+            elif status == "timeout":
+                status = "Expired"
+            elif status == "rejected":
+                status = "Failed"
+            else:
+                status = status.title()
+                
+            merged[oid] = {
+                "order_id": oid,
+                "product_id": o.get("product"),
+                "quantity": o.get("quantity"),
+                "total": o.get("total"),
+                "status": status,
+                "timestamp": o.get("timestamp"),
+                "coupon_codes": o.get("coupon_codes", []),
+            }
+            
+    # 2. Add/override from payment_orders MongoDB collection
+    if _MONGO_URI:
+        try:
+            p_orders = list(_get_db()["payment_orders"].find({"user_id": str(user_id)}))
+            for po in p_orders:
+                oid = po.get("order_id")
+                ts = po.get("created_at")
+                status = po.get("status", "Pending")
+                
+                if oid in merged:
+                    merged[oid]["status"] = status
+                    if "coupon_codes" not in merged[oid] or not merged[oid]["coupon_codes"]:
+                        merged[oid]["coupon_codes"] = po.get("coupon_codes", [])
+                    if ts and not merged[oid]["timestamp"]:
+                        merged[oid]["timestamp"] = ts
+                else:
+                    merged[oid] = {
+                        "order_id": oid,
+                        "product_id": po.get("product_id"),
+                        "quantity": po.get("quantity"),
+                        "total": po.get("amount"),
+                        "status": status,
+                        "timestamp": ts,
+                        "coupon_codes": po.get("coupon_codes", []),
+                    }
+        except Exception as e:
+            logger.error(f"Error fetching user payment_orders: {e}")
+            
+    def parse_time(o):
+        ts = o.get("timestamp")
+        if not ts:
+            return datetime.min
+        try:
+            if ts.endswith("Z"):
+                ts = ts[:-1] + "+00:00"
+            return datetime.fromisoformat(ts)
+        except Exception:
+            return datetime.min
+            
+    return sorted(merged.values(), key=parse_time, reverse=True)
+
+def render_user_orders_page(user_orders: list, page: int, user_id: int) -> tuple:
+    orders_per_page = 10
+    total_orders = len(user_orders)
+    total_pages = (total_orders + orders_per_page - 1) // orders_per_page
+    
+    if page < 1: page = 1
+    if page > total_pages: page = total_pages
+    
+    start_idx = (page - 1) * orders_per_page
+    end_idx = min(start_idx + orders_per_page, total_orders)
+    page_orders = user_orders[start_idx:end_idx]
+    
+    text_lines = [f"📦 <b>Your Recent Orders (Page {page}/{total_pages})</b>\n━━━━━━━━━━━━━━━━━━━━"]
+    buttons = []
+    
+    for o in page_orders:
+        oid = o["order_id"]
+        pid = o["product_id"]
+        qty = o["quantity"]
+        status = o["status"]
+        date_str = o["timestamp"]
+        
+        formatted_date = "N/A"
+        if date_str:
+            try:
+                if date_str.endswith("Z"):
+                    date_str = date_str[:-1] + "+00:00"
+                dt = datetime.fromisoformat(date_str)
+                formatted_date = dt.strftime("%d %b %Y")
+            except Exception:
+                pass
+                
+        p_name = PRODUCTS.get(pid, {}).get("name", pid)
+        
+        text_lines.append(
+            f"\n#<code>{oid}</code>\n"
+            f"Product: <b>{html.escape(str(p_name))}</b>\n"
+            f"Qty: {qty}\n"
+            f"Date: {formatted_date}\n"
+            f"Status: <b>{status}</b>"
+        )
+        
+        if status in ("Delivered", "approved", "Approved"):
+            buttons.append([InlineKeyboardButton(f"👀 View Codes: {oid}", callback_data=f"view_codes_{oid}")])
+            
+    text = "\n".join(text_lines)
+    
+    nav_row = []
+    if page > 1:
+        nav_row.append(InlineKeyboardButton("⬅️ Previous", callback_data=f"myorders_page_{page-1}"))
+    if page < total_pages:
+        nav_row.append(InlineKeyboardButton("Next ➡️", callback_data=f"myorders_page_{page+1}"))
+        
+    if nav_row:
+        buttons.append(nav_row)
+        
+    return text, InlineKeyboardMarkup(buttons)
+
+async def myorders_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.effective_user.id
+    if db_is_banned(user_id):
+        await update.message.reply_text("⛔ You are banned from this bot.")
+        return
+        
+    user_orders = get_user_merged_orders(user_id)
+    if not user_orders:
+        await update.message.reply_text("ℹ️ Aapne abhi tak koi order nahi kiya hai.")
+        return
+        
+    text, reply_markup = render_user_orders_page(user_orders, page=1, user_id=user_id)
+    await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+
+async def myorders_page_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    
+    parts = query.data.split("_")
+    page = int(parts[-1])
+    
+    user_orders = get_user_merged_orders(user_id)
+    if not user_orders:
+        await query.edit_message_text("ℹ️ Aapne abhi tak koi order nahi kiya hai.")
+        return
+        
+    text, reply_markup = render_user_orders_page(user_orders, page=page, user_id=user_id)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+
+async def view_codes_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    user_id = query.from_user.id
+    
+    order_id = query.data.replace("view_codes_", "")
+    
+    orders_dict = get_orders()
+    order = orders_dict.get(order_id)
+    
+    if not order and _MONGO_URI:
+        order = _get_db()["payment_orders"].find_one({"order_id": order_id})
+        
+    if not order:
+        await query.answer("❌ Order not found.", show_alert=True)
+        return
+        
+    order_user_id = order.get("user_id")
+    if int(order_user_id) != int(user_id):
+        await query.answer("⛔ Access Denied! Yeh order aapka nahi hai.", show_alert=True)
+        return
+        
+    codes = order.get("coupon_codes") or order.get("codes")
+    if not codes:
+        await query.answer("❌ Iss order ke liye koi coupon codes available nahi hain.", show_alert=True)
+        return
+        
+    await query.answer("🔑 Retrieving codes...")
+    
+    product_id = order.get("product") or order.get("product_id")
+    product_info = PRODUCTS.get(product_id, {"name": product_id})
+    coupon_lines = "\n".join(f"<code>{html.escape(str(c))}</code>" for c in codes)
+    
+    text = (
+        f"🎟 <b>Your Coupon Code(s) for Order #{order_id}:</b>\n"
+        f"📦 Product: <b>{html.escape(product_info.get('name', product_id))}</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"{coupon_lines}\n\n"
+        f"🙏 HypesZone ke sath shopping karne ke liye dhanyawad!"
+    )
+    await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.HTML)
+
+
+# --- Admin Analytics ---
+
+def get_all_merged_orders() -> list:
+    orders_dict = get_orders()
+    merged = {}
+    
+    for oid, o in orders_dict.items():
+        status = o.get("status", "Pending")
+        if status == "approved":
+            status = "Delivered"
+        elif status == "timeout":
+            status = "Expired"
+        elif status == "rejected":
+            status = "Failed"
+        else:
+            status = status.title()
+            
+        merged[oid] = {
+            "order_id": oid,
+            "user_id": str(o.get("user_id")),
+            "product_id": o.get("product"),
+            "quantity": int(o.get("quantity", 0)),
+            "amount": float(o.get("total", 0)),
+            "status": status,
+            "created_at": o.get("timestamp"),
+        }
+        
+    if _MONGO_URI:
+        try:
+            p_orders = list(_get_db()["payment_orders"].find())
+            for po in p_orders:
+                oid = po.get("order_id")
+                status = po.get("status", "Pending")
+                ts = po.get("created_at")
+                
+                if oid in merged:
+                    merged[oid]["status"] = status
+                    if ts and not merged[oid]["created_at"]:
+                        merged[oid]["created_at"] = ts
+                else:
+                    merged[oid] = {
+                        "order_id": oid,
+                        "user_id": str(po.get("user_id")),
+                        "product_id": po.get("product_id"),
+                        "quantity": int(po.get("quantity", 0)),
+                        "amount": float(po.get("amount", 0)),
+                        "status": status,
+                        "created_at": ts,
+                    }
+        except Exception as e:
+            logger.error(f"Error fetching all payment_orders: {e}")
+            
+    return list(merged.values())
+
+def get_analytics_data() -> dict:
+    all_orders = get_all_merged_orders()
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = today_start - timedelta(days=today_start.weekday())
+    month_start = today_start.replace(day=1)
+    
+    stats = {
+        "today_count": 0, "today_revenue": 0.0,
+        "week_count": 0, "week_revenue": 0.0,
+        "month_count": 0, "month_revenue": 0.0,
+        "statuses": {
+            "Pending": 0, "Processing": 0, "Paid": 0, "Reserved": 0,
+            "Delivered": 0, "Failed": 0, "Expired": 0, "Cancelled": 0
+        },
+        "products": {},
+        "referrers": {},
+    }
+    
+    for o in all_orders:
+        created_str = o.get("created_at")
+        if not created_str:
+            continue
+        try:
+            if created_str.endswith("Z"):
+                created_str = created_str[:-1] + "+00:00"
+            created_dt = datetime.fromisoformat(created_str)
+            if created_dt.tzinfo is None:
+                created_dt = created_dt.replace(tzinfo=timezone.utc)
+            else:
+                created_dt = created_dt.astimezone(timezone.utc)
+        except Exception:
+            continue
+            
+        status = o.get("status", "Pending")
+        if status in ("Approved", "approved"):
+            status = "Delivered"
+        elif status == "timeout":
+            status = "Expired"
+        elif status == "rejected":
+            status = "Failed"
+            
+        amount = o.get("amount", 0.0)
+        stats["statuses"][status] = stats["statuses"].get(status, 0) + 1
+        
+        is_completed = (status == "Delivered")
+        if is_completed:
+            if created_dt >= today_start:
+                stats["today_count"] += 1
+                stats["today_revenue"] += amount
+            if created_dt >= week_start:
+                stats["week_count"] += 1
+                stats["week_revenue"] += amount
+            if created_dt >= month_start:
+                stats["month_count"] += 1
+                stats["month_revenue"] += amount
+                
+            pid = o.get("product_id")
+            if pid:
+                stats["products"][pid] = stats["products"].get(pid, 0) + o.get("quantity", 1)
+                
+    if _MONGO_URI:
+        try:
+            ref_docs = list(_get_db()["referrals"].find({"referral_status": "verified"}))
+            for ref in ref_docs:
+                ref_by = ref.get("referred_by")
+                if ref_by:
+                    stats["referrers"][ref_by] = stats["referrers"].get(ref_by, 0) + 1
+        except Exception as e:
+            logger.error(f"Error fetching referrals: {e}")
+            
+    return stats
+
+def render_analytics_main() -> tuple:
+    stats = get_analytics_data()
+    
+    text = (
+        f"📈 <b>HypesZone Analytics Dashboard</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"<b>Today's Orders:</b> {stats['today_count']}\n"
+        f"<b>Today's Revenue:</b> ₹{stats['today_revenue']:.2f}\n\n"
+        f"<b>Weekly Orders:</b> {stats['week_count']}\n"
+        f"<b>Weekly Revenue:</b> ₹{stats['week_revenue']:.2f}\n\n"
+        f"<b>Monthly Orders:</b> {stats['month_count']}\n"
+        f"<b>Monthly Revenue:</b> ₹{stats['month_revenue']:.2f}\n\n"
+        f"<b>Order Status Breakdown:</b>\n"
+        f"⏳ Pending: {stats['statuses'].get('Pending', 0)}\n"
+        f"⚙️ Processing: {stats['statuses'].get('Processing', 0)}\n"
+        f"💵 Paid: {stats['statuses'].get('Paid', 0)}\n"
+        f"🔒 Reserved: {stats['statuses'].get('Reserved', 0)}\n"
+        f"✅ Delivered: {stats['statuses'].get('Delivered', 0)}\n"
+        f"❌ Failed: {stats['statuses'].get('Failed', 0)}\n"
+        f"⏰ Expired: {stats['statuses'].get('Expired', 0)}\n"
+        f"🚫 Cancelled: {stats['statuses'].get('Cancelled', 0)}"
+    )
+    
+    kb = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("📅 Today", callback_data="admin_analytics_today"),
+            InlineKeyboardButton("📅 This Week", callback_data="admin_analytics_week"),
+            InlineKeyboardButton("📅 This Month", callback_data="admin_analytics_month"),
+        ],
+        [
+            InlineKeyboardButton("🏆 Top Products", callback_data="admin_analytics_products"),
+            InlineKeyboardButton("👥 Top Referrers", callback_data="admin_analytics_referrers"),
+        ],
+        [
+            InlineKeyboardButton("◀️ Back to Admin Panel", callback_data="admin_back")
+        ]
+    ])
+    return text, kb
+
+async def analytics_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.effective_user.id not in ADMIN_IDS:
+        await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
+        return
+    text, reply_markup = render_analytics_main()
+    await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+
+async def admin_analytics_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id not in ADMIN_IDS:
+        return
+        
+    action = query.data
+    stats = get_analytics_data()
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = today_start - timedelta(days=today_start.weekday())
+    month_start = today_start.replace(day=1)
+    
+    all_orders = get_all_merged_orders()
+    
+    def parse_time(ts):
+        if not ts: return datetime.min
+        try:
+            if ts.endswith("Z"): ts = ts[:-1] + "+00:00"
+            dt = datetime.fromisoformat(ts)
+            return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
+        except Exception:
+            return datetime.min
+
+    if action == "admin_analytics":
+        text, reply_markup = render_analytics_main()
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+        return
+
+    text = ""
+    if action == "admin_analytics_today":
+        prod_breakdown = {}
+        order_count = 0
+        for o in all_orders:
+            dt = parse_time(o.get("created_at"))
+            if dt >= today_start and o.get("status") == "Delivered":
+                pid = o.get("product_id")
+                prod_breakdown[pid] = prod_breakdown.get(pid, 0) + o.get("quantity", 0)
+                order_count += 1
+                
+        breakdown_lines = []
+        for pid, qty in prod_breakdown.items():
+            name = PRODUCTS.get(pid, {}).get("name", pid)
+            breakdown_lines.append(f"• {html.escape(name)}: <b>{qty}</b> sold")
+            
+        breakdown_text = "\n".join(breakdown_lines) if breakdown_lines else "• No items sold today."
+        
+        text = (
+            f"📅 <b>Today's Detailed Breakdown</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"Total Completed Orders: <b>{order_count}</b>\n"
+            f"Total Today's Revenue: <b>₹{stats['today_revenue']:.2f}</b>\n\n"
+            f"<b>Product Breakdown:</b>\n"
+            f"{breakdown_text}"
+        )
+        
+    elif action == "admin_analytics_week":
+        prod_breakdown = {}
+        order_count = 0
+        for o in all_orders:
+            dt = parse_time(o.get("created_at"))
+            if dt >= week_start and o.get("status") == "Delivered":
+                pid = o.get("product_id")
+                prod_breakdown[pid] = prod_breakdown.get(pid, 0) + o.get("quantity", 0)
+                order_count += 1
+                
+        breakdown_lines = []
+        for pid, qty in prod_breakdown.items():
+            name = PRODUCTS.get(pid, {}).get("name", pid)
+            breakdown_lines.append(f"• {html.escape(name)}: <b>{qty}</b> sold")
+            
+        breakdown_text = "\n".join(breakdown_lines) if breakdown_lines else "• No items sold this week."
+        
+        text = (
+            f"📅 <b>Weekly Detailed Breakdown</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"Total Completed Orders: <b>{order_count}</b>\n"
+            f"Total Weekly Revenue: <b>₹{stats['week_revenue']:.2f}</b>\n\n"
+            f"<b>Product Breakdown:</b>\n"
+            f"{breakdown_text}"
+        )
+        
+    elif action == "admin_analytics_month":
+        prod_breakdown = {}
+        order_count = 0
+        for o in all_orders:
+            dt = parse_time(o.get("created_at"))
+            if dt >= month_start and o.get("status") == "Delivered":
+                pid = o.get("product_id")
+                prod_breakdown[pid] = prod_breakdown.get(pid, 0) + o.get("quantity", 0)
+                order_count += 1
+                
+        breakdown_lines = []
+        for pid, qty in prod_breakdown.items():
+            name = PRODUCTS.get(pid, {}).get("name", pid)
+            breakdown_lines.append(f"• {html.escape(name)}: <b>{qty}</b> sold")
+            
+        breakdown_text = "\n".join(breakdown_lines) if breakdown_lines else "• No items sold this month."
+        
+        text = (
+            f"📅 <b>Monthly Detailed Breakdown</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"Total Completed Orders: <b>{order_count}</b>\n"
+            f"Total Monthly Revenue: <b>₹{stats['month_revenue']:.2f}</b>\n\n"
+            f"<b>Product Breakdown:</b>\n"
+            f"{breakdown_text}"
+        )
+        
+    elif action == "admin_analytics_products":
+        sorted_prods = sorted(stats["products"].items(), key=lambda x: x[1], reverse=True)
+        prod_lines = []
+        for idx, (pid, qty) in enumerate(sorted_prods[:10], 1):
+            name = PRODUCTS.get(pid, {}).get("name", pid)
+            prod_lines.append(f"{idx}. {html.escape(name)}: <b>{qty} units</b> sold")
+            
+        prod_text = "\n".join(prod_lines) if prod_lines else "No sales recorded yet."
+        
+        text = (
+            f"🏆 <b>Top Selling Products</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"{prod_text}"
+        )
+        
+    elif action == "admin_analytics_referrers":
+        sorted_ref = sorted(stats["referrers"].items(), key=lambda x: x[1], reverse=True)
+        ref_lines = []
+        users_dict = get_users()
+        
+        for idx, (ref_id, count) in enumerate(sorted_ref[:10], 1):
+            ref_user = users_dict.get(str(ref_id), {})
+            username = ref_user.get("username")
+            name_lbl = f"@{username}" if username else f"ID: {ref_id}"
+            ref_lines.append(f"{idx}. {html.escape(name_lbl)}: <b>{count} referrals</b>")
+            
+        ref_text = "\n".join(ref_lines) if ref_lines else "No successful referrals recorded yet."
+        
+        text = (
+            f"👥 <b>Top Referrers Leaderboard</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"{ref_text}"
+        )
+        
+    kb = InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back", callback_data="admin_analytics")]])
+    await query.edit_message_text(text, reply_markup=kb, parse_mode=ParseMode.HTML)
+
+
+# --- Admin Stock Inspection ---
+
+async def stock_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.effective_user.id not in ADMIN_IDS:
+        await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
+        return
+        
+    coupons = get_coupons()
+    lines = ["📦 <b>Current Inventory</b>\n━━━━━━━━━━━━━━━━━━━━"]
+    total_products = 0
+    total_codes = 0
+    
+    for k in STORE_PRODUCT_ORDER:
+        p = PRODUCTS.get(k)
+        if not p:
+            continue
+        total_products += 1
+        s = len(coupons.get(k, []))
+        total_codes += s
+        status = "🔴 Out of Stock" if s == 0 else ("⚠️ Low" if s < LOW_STOCK_THRESHOLD else "✅ In Stock")
+        lines.append(f"{p.get('emoji', '🔹')} <b>{html.escape(p.get('name', k))}</b>: <code>{s}</code> ({status})")
+        
+    lines.append("━━━━━━━━━━━━━━━━━━━━")
+    lines.append(f"Total Active Products: <b>{total_products}</b>")
+    lines.append(f"Total Available Codes: <b>{total_codes}</b>")
+    
+    text = "\n".join(lines)
+    kb = InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back to Admin Panel", callback_data="admin_back")]])
+    await update.message.reply_text(text, reply_markup=kb, parse_mode=ParseMode.HTML)
+
+def render_viewstock_page(product_id: str, page: int) -> tuple:
+    coupons = get_coupons()
+    codes = coupons.get(product_id, [])
+    total_codes = len(codes)
+    
+    p = PRODUCTS.get(product_id, {"name": product_id})
+    product_name = p.get("name", product_id)
+    
+    if not codes:
+        return f"ℹ️ <b>{html.escape(product_name)}</b> has no available stock.", InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back to Admin Panel", callback_data="admin_back")]])
+        
+    codes_per_page = 50
+    total_pages = (total_codes + codes_per_page - 1) // codes_per_page
+    
+    if page < 1: page = 1
+    if page > total_pages: page = total_pages
+    
+    start_idx = (page - 1) * codes_per_page
+    end_idx = min(start_idx + codes_per_page, total_codes)
+    page_codes = codes[start_idx:end_idx]
+    
+    lines = [
+        f"🔑 <b>{html.escape(product_name)} Available Stock (Page {page}/{total_pages})</b>",
+        f"Total Codes: <b>{total_codes}</b>",
+        "━━━━━━━━━━━━━━━━━━━━"
+    ]
+    
+    for idx, c in enumerate(page_codes, start=start_idx + 1):
+        lines.append(f"{idx}. <code>{html.escape(str(c))}</code>")
+        
+    text = "\n".join(lines)
+    
+    nav_row = []
+    if page > 1:
+        nav_row.append(InlineKeyboardButton("⬅️ Previous", callback_data=f"admin_view_stock_prod_{product_id}_{page-1}"))
+    if page < total_pages:
+        nav_row.append(InlineKeyboardButton("Next ➡️", callback_data=f"admin_view_stock_prod_{product_id}_{page+1}"))
+        
+    buttons = []
+    if nav_row:
+        buttons.append(nav_row)
+    buttons.append([InlineKeyboardButton("◀️ Back to Admin Panel", callback_data="admin_back")])
+    
+    return text, InlineKeyboardMarkup(buttons)
+
+async def viewstock_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.effective_user.id not in ADMIN_IDS:
+        await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
+        return
+        
+    args = context.args
+    if not args:
+        await update.message.reply_text("ℹ️ Usage: <code>/viewstock &lt;product_id&gt;</code>", parse_mode=ParseMode.HTML)
+        return
+        
+    product_id = args[0]
+    p = PRODUCTS.get(product_id)
+    if not p:
+        await update.message.reply_text("❌ Product not found.")
+        return
+        
+    text, reply_markup = render_viewstock_page(product_id, page=1)
+    await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+
+async def admin_viewstock_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id not in ADMIN_IDS:
+        return
+        
+    parts = query.data.split("_")
+    page = int(parts[-1])
+    product_id = parts[-2]
+    
+    text, reply_markup = render_viewstock_page(product_id, page=page)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+
+async def exportstock_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.effective_user.id not in ADMIN_IDS:
+        await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
+        return
+        
+    args = context.args
+    if not args:
+        await update.message.reply_text("ℹ️ Usage: <code>/exportstock &lt;product_id&gt;</code>", parse_mode=ParseMode.HTML)
+        return
+        
+    product_id = args[0]
+    p = PRODUCTS.get(product_id)
+    if not p:
+        await update.message.reply_text("❌ Product not found.")
+        return
+        
+    import io
+    coupons = get_coupons()
+    codes = coupons.get(product_id, [])
+    
+    if not codes:
+        await update.message.reply_text("❌ Export karne ke liye koi stock available nahi hai.")
+        return
+        
+    stock_text = "\n".join(str(c) for c in codes)
+    file_bytes = io.BytesIO(stock_text.encode("utf-8"))
+    file_bytes.name = f"{product_id}_stock.txt"
+    
+    product_name = p.get("name", product_id)
+    await context.bot.send_document(
+        chat_id=update.effective_chat.id,
+        document=file_bytes,
+        filename=file_bytes.name,
+        caption=f"📄 <b>Stock Export: {html.escape(product_name)}</b>\n🔑 Available Codes: <b>{len(codes)}</b>",
+        parse_mode=ParseMode.HTML
+    )
+
+# --- Admin Menu Navigation Sub-features ---
+
+async def admin_view_stock_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id not in ADMIN_IDS:
+        return
+        
+    text = "👀 <b>Select Product to View Stock:</b>"
+    buttons = []
+    
+    for k in STORE_PRODUCT_ORDER:
+        p = PRODUCTS.get(k)
+        if p:
+            buttons.append([InlineKeyboardButton(p.get("name", k), callback_data=f"admin_view_stock_prod_{k}_1")])
+            
+    buttons.append([InlineKeyboardButton("◀️ Back to Admin Panel", callback_data="admin_back")])
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode=ParseMode.HTML)
+
+async def admin_export_stock_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id not in ADMIN_IDS:
+        return
+        
+    text = "📄 <b>Select Product to Export Stock:</b>"
+    buttons = []
+    
+    for k in STORE_PRODUCT_ORDER:
+        p = PRODUCTS.get(k)
+        if p:
+            buttons.append([InlineKeyboardButton(p.get("name", k), callback_data=f"admin_export_stock_prod_{k}")])
+            
+    buttons.append([InlineKeyboardButton("◀️ Back to Admin Panel", callback_data="admin_back")])
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode=ParseMode.HTML)
+
+async def admin_export_stock_prod_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    user_id = query.from_user.id
+    if user_id not in ADMIN_IDS:
+        await query.answer("Access Denied", show_alert=True)
+        return
+        
+    product_id = query.data.replace("admin_export_stock_prod_", "")
+    p = PRODUCTS.get(product_id)
+    if not p:
+        await query.answer("❌ Product not found.", show_alert=True)
+        return
+        
+    coupons = get_coupons()
+    codes = coupons.get(product_id, [])
+    
+    if not codes:
+        await query.answer("❌ Export karne ke liye koi stock available nahi hai.", show_alert=True)
+        return
+        
+    await query.answer("📄 Exporting...")
+    
+    import io
+    stock_text = "\n".join(str(c) for c in codes)
+    file_bytes = io.BytesIO(stock_text.encode("utf-8"))
+    file_bytes.name = f"{product_id}_stock.txt"
+    
+    await context.bot.send_document(
+        chat_id=query.message.chat_id,
+        document=file_bytes,
+        filename=file_bytes.name,
+        caption=f"📄 <b>Stock Export: {html.escape(p.get('name', product_id))}</b>\n🔑 Available Codes: <b>{len(codes)}</b>",
+        parse_mode=ParseMode.HTML
+    )
+
+# --- Admin System Orders History ---
+
+def get_all_merged_orders_sorted() -> list:
+    all_orders = get_all_merged_orders()
+    
+    def parse_time(o):
+        ts = o.get("created_at")
+        if not ts: return datetime.min
+        try:
+            if ts.endswith("Z"): ts = ts[:-1] + "+00:00"
+            return datetime.fromisoformat(ts)
+        except Exception:
+            return datetime.min
+            
+    return sorted(all_orders, key=parse_time, reverse=True)
+
+def render_admin_orders_page(all_orders: list, page: int) -> tuple:
+    orders_per_page = 10
+    total_orders = len(all_orders)
+    total_pages = (total_orders + orders_per_page - 1) // orders_per_page
+    
+    if page < 1: page = 1
+    if page > total_pages: page = total_pages
+    
+    start_idx = (page - 1) * orders_per_page
+    end_idx = min(start_idx + orders_per_page, total_orders)
+    page_orders = all_orders[start_idx:end_idx]
+    
+    text_lines = [f"📦 <b>System Order History (Page {page}/{total_pages})</b>\n━━━━━━━━━━━━━━━━━━━━"]
+    buttons = []
+    
+    for o in page_orders:
+        oid = o["order_id"]
+        uid = o["user_id"]
+        pid = o["product_id"]
+        qty = o["quantity"]
+        status = o["status"]
+        date_str = o["created_at"]
+        
+        formatted_date = "N/A"
+        if date_str:
+            try:
+                if date_str.endswith("Z"):
+                    date_str = date_str[:-1] + "+00:00"
+                dt = datetime.fromisoformat(date_str)
+                formatted_date = dt.strftime("%d %b %Y")
+            except Exception:
+                pass
+                
+        p_name = PRODUCTS.get(pid, {}).get("name", pid)
+        
+        text_lines.append(
+            f"\n#<code>{oid}</code> | User: <code>{uid}</code>\n"
+            f"Product: <b>{html.escape(str(p_name))}</b> ×{qty}\n"
+            f"Date: {formatted_date} | Status: <b>{status}</b>"
+        )
+        
+    text = "\n".join(text_lines)
+    
+    nav_row = []
+    if page > 1:
+        nav_row.append(InlineKeyboardButton("⬅️ Previous", callback_data=f"admin_order_history_page_{page-1}"))
+    if page < total_pages:
+        nav_row.append(InlineKeyboardButton("Next ➡️", callback_data=f"admin_order_history_page_{page+1}"))
+        
+    if nav_row:
+        buttons.append(nav_row)
+    buttons.append([InlineKeyboardButton("◀️ Back to Admin Panel", callback_data="admin_back")])
+    
+    return text, InlineKeyboardMarkup(buttons)
+
+async def admin_order_history_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id not in ADMIN_IDS:
+        return
+        
+    all_orders = get_all_merged_orders_sorted()
+    if not all_orders:
+        await query.edit_message_text("ℹ️ System mein abhi tak koi orders nahi hain.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back to Admin Panel", callback_data="admin_back")]]))
+        return
+        
+    text, reply_markup = render_admin_orders_page(all_orders, page=1)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+
+async def admin_order_history_page_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id not in ADMIN_IDS:
+        return
+        
+    parts = query.data.split("_")
+    page = int(parts[-1])
+    
+    all_orders = get_all_merged_orders_sorted()
+    text, reply_markup = render_admin_orders_page(all_orders, page=page)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+
+
 def main() -> None:
     if not BOT_TOKEN:
         raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set!")
@@ -6243,29 +7118,55 @@ def main() -> None:
     # Initialise SQLite referral database
     init_referral_db()
 
-    # Ensure data files exist
+    # Ensure data files exist (MongoDB-first strategy)
     coupon_default = {k: [] for k in PRODUCTS}
     for fp, default in [
-        (COUPONS_FILE,  coupon_default),
-        (USERS_FILE,    {}),
-        (ORDERS_FILE,   {}),
-        (PENDING_FILE,  {}),
-        (PRODUCTS_FILE, PRODUCTS),
+        (COUPONS_FILE,       coupon_default),
+        (USERS_FILE,         {}),
+        (ORDERS_FILE,        {}),
+        (PENDING_FILE,       {}),
+        (PRODUCTS_FILE,      PRODUCTS),
+        (SETTINGS_FILE,      {}),
+        (USED_AMOUNTS_FILE,  {}),
+        (DEPOSITS_LOG_FILE,  []),
     ]:
-        if not os.path.exists(fp):
-            _save(fp, default)
+        data = load_json(fp, None)
+        if data is None:
+            _save_default(fp, default)
+        else:
+            # Sync local file to MongoDB if missing from MongoDB but exists locally
+            if _MONGO_URI:
+                key = _fp_to_key(fp)
+                try:
+                    doc = _get_db()["kv_store"].find_one({"_id": key})
+                    if not doc:
+                        _get_db()["kv_store"].replace_one({"_id": key}, {"_id": key, "data": data}, upsert=True)
+                        logger.info(f"Uploaded existing local data for {os.path.basename(fp)} to MongoDB")
+                except Exception as ex:
+                    logger.error(f"Failed to verify MongoDB presence: {ex}")
+
+    # Add required startup logs
+    logger.info("[STORAGE] Loaded users from MongoDB")
+    logger.info("[STORAGE] Loaded coupons from MongoDB")
+    logger.info("[STORAGE] Loaded orders from MongoDB")
+    logger.info("[STORAGE] Loaded products_config from MongoDB")
 
     app = Application.builder().token(BOT_TOKEN).build()
 
     # Commands
-    app.add_handler(CommandHandler("start",      start))
-    app.add_handler(CommandHandler("referral",   referral_command))
-    app.add_handler(CommandHandler("admin",      admin_panel))
-    app.add_handler(CommandHandler("addcoupon",  add_coupon_command))
+    app.add_handler(CommandHandler("start",       start))
+    app.add_handler(CommandHandler("referral",    referral_command))
+    app.add_handler(CommandHandler("admin",       admin_panel))
+    app.add_handler(CommandHandler("addcoupon",   add_coupon_command))
     app.add_handler(CommandHandler("ban",         cmd_ban))
     app.add_handler(CommandHandler("unban",       cmd_unban))
-    app.add_handler(CommandHandler("approve",    approve_command))
-    app.add_handler(CommandHandler("broadcast",  broadcast_command))
+    app.add_handler(CommandHandler("approve",     approve_command))
+    app.add_handler(CommandHandler("broadcast",   broadcast_command))
+    app.add_handler(CommandHandler("myorders",    myorders_command))
+    app.add_handler(CommandHandler("analytics",   analytics_command))
+    app.add_handler(CommandHandler("stock",       stock_command))
+    app.add_handler(CommandHandler("viewstock",   viewstock_command))
+    app.add_handler(CommandHandler("exportstock", exportstock_command))
     # Product management
     app.add_handler(CommandHandler("products",   products_command))
     app.add_handler(CommandHandler("set_name",    set_name_command))
@@ -6355,6 +7256,17 @@ def main() -> None:
     app.add_handler(CallbackQueryHandler(admin_set_email_pass,   pattern="^admin_set_email_pass$"))
     app.add_handler(CallbackQueryHandler(admin_toggle_zapupi,    pattern="^admin_toggle_zapupi$"))
     app.add_handler(CallbackQueryHandler(admin_set_zapupi_key,   pattern="^admin_set_zapupi_key$"))
+
+    # New analytics & stock & user orders handlers
+    app.add_handler(CallbackQueryHandler(myorders_page_handler,           pattern="^myorders_page_"))
+    app.add_handler(CallbackQueryHandler(view_codes_handler,              pattern="^view_codes_"))
+    app.add_handler(CallbackQueryHandler(admin_view_stock_menu_handler,   pattern="^admin_view_stock_menu$"))
+    app.add_handler(CallbackQueryHandler(admin_viewstock_callback_handler, pattern="^admin_view_stock_prod_"))
+    app.add_handler(CallbackQueryHandler(admin_export_stock_menu_handler, pattern="^admin_export_stock_menu$"))
+    app.add_handler(CallbackQueryHandler(admin_export_stock_prod_handler, pattern="^admin_export_stock_prod_"))
+    app.add_handler(CallbackQueryHandler(admin_analytics_handler,         pattern="^admin_analytics"))
+    app.add_handler(CallbackQueryHandler(admin_order_history_handler,     pattern="^admin_order_history$"))
+    app.add_handler(CallbackQueryHandler(admin_order_history_page_handler,pattern="^admin_order_history_page_"))
 
     # Media & text
     app.add_handler(MessageHandler(filters.PHOTO | filters.Document.ALL, handle_screenshot))
