@@ -412,9 +412,25 @@ def _load_combo_parts_from_file() -> dict:
     return data.get("__combos__", {}) if data else {}
 
 
-PRODUCTS: dict = _load_products_from_file()
-STORE_PRODUCT_ORDER = _load_product_order_from_file()
-COMBO_PARTS = _load_combo_parts_from_file()
+PRODUCTS: dict = {}
+STORE_PRODUCT_ORDER: list = []
+COMBO_PARTS: dict = {}
+
+def load_startup_data():
+    global PRODUCTS, STORE_PRODUCT_ORDER, COMBO_PARTS
+    # Load from MongoDB / fallback to local file cache
+    loaded_products = _load_products_from_file()
+    PRODUCTS.clear()
+    PRODUCTS.update(loaded_products)
+
+    loaded_order = _load_product_order_from_file()
+    STORE_PRODUCT_ORDER.clear()
+    STORE_PRODUCT_ORDER.extend(loaded_order)
+
+    loaded_combos = _load_combo_parts_from_file()
+    COMBO_PARTS.clear()
+    COMBO_PARTS.update(loaded_combos)
+    logger.info(f"✅ Loaded {len(PRODUCTS)} products from storage.")
 
 
 def save_products_config() -> None:
@@ -588,7 +604,7 @@ def _get_db():
         if not _MONGO_URI:
             logger.error("MONGODB_URI not set! Data will not persist across restarts.")
             raise RuntimeError("MONGODB_URI is required")
-        client = MongoClient(_MONGO_URI, serverSelectionTimeoutMS=5000)
+        client = MongoClient(_MONGO_URI, serverSelectionTimeoutMS=3000)
         _mongo_db = client["hypes_zone_bot"]
         logger.info("✅ MongoDB connected!")
     return _mongo_db
@@ -735,23 +751,56 @@ def backup_data_to_repldb() -> None:
 # ─────────────── JSON helpers ───────────────
 
 def load_json(fp: str, default):
+    # Try MongoDB first if URI is configured
+    if _MONGO_URI:
+        try:
+            key = _fp_to_key(fp)
+            doc = _get_db()["kv_store"].find_one({"_id": key})
+            if doc:
+                mongodb_data = doc["data"]
+                # Sync cache to local JSON file
+                try:
+                    tmp = fp + ".tmp"
+                    os.makedirs(os.path.dirname(fp), exist_ok=True)
+                    with open(tmp, "w", encoding="utf-8") as f:
+                        json.dump(mongodb_data, f, indent=2, ensure_ascii=False)
+                    os.replace(tmp, fp)
+                except Exception as le:
+                    logger.warning(f"Failed to sync MongoDB data to local cache {fp}: {le}")
+                return mongodb_data
+        except Exception as e:
+            logger.warning(f"[MongoDB] load_json failed for {fp}: {e}. Falling back to local file.")
+
+    # Fallback to local file if MongoDB fails or is not configured
     try:
-        key = _fp_to_key(fp)
-        doc = _get_db()["kv_store"].find_one({"_id": key})
-        if doc:
-            return doc["data"]
+        if os.path.exists(fp):
+            with open(fp, "r", encoding="utf-8") as f:
+                return json.load(f)
     except Exception as e:
-        logger.warning(f"[MongoDB] load_json failed for {fp}: {e}")
+        logger.warning(f"Failed to load local JSON file {fp}: {e}")
+
     return default
 
 
 def _save(fp: str, data) -> None:
-    """Save data to MongoDB (persistent across restarts)."""
+    """Save data to both local JSON (for cache/fallback) and MongoDB."""
+    # 1. Save locally (always)
     try:
-        key = _fp_to_key(fp)
-        _get_db()["kv_store"].replace_one({"_id": key}, {"_id": key, "data": data}, upsert=True)
+        tmp = fp + ".tmp"
+        os.makedirs(os.path.dirname(fp), exist_ok=True)
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        os.replace(tmp, fp)
     except Exception as e:
-        logger.error(f"[MongoDB] _save failed for {fp}: {e}")
+        logger.error(f"Failed to save local file {fp}: {e}")
+
+    # 2. Save to MongoDB if URI is configured
+    if _MONGO_URI:
+        try:
+            key = _fp_to_key(fp)
+            _get_db()["kv_store"].replace_one({"_id": key}, {"_id": key, "data": data}, upsert=True)
+        except Exception as e:
+            logger.error(f"[MongoDB] _save failed for {fp}: {e}")
 
 
 def get_coupons()  -> dict:
@@ -3440,7 +3489,7 @@ async def cmd_ban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     args = context.args
     if not args:
         await update.message.reply_text(
-            "❌ *Usage:* `/ban USER\_ID reason`\n\nExample: `/ban 123456789 fake payment`",
+            "❌ *Usage:* `/ban USER\\_ID reason`\n\nExample: `/ban 123456789 fake payment`",
             parse_mode=ParseMode.MARKDOWN,
         )
         return
@@ -3467,7 +3516,7 @@ async def cmd_unban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
     args = context.args
     if not args:
-        await update.message.reply_text("❌ *Usage:* `/unban USER\_ID`", parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text("❌ *Usage:* `/unban USER\\_ID`", parse_mode=ParseMode.MARKDOWN)
         return
     target_id = args[0]
     success   = db_unban_user(target_id)
@@ -5405,12 +5454,11 @@ def main() -> None:
         raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set!")
     if not ADMIN_ID:
         raise ValueError("TELEGRAM_ADMIN_ID environment variable not set!")
+    if not _MONGO_URI:
+        raise ValueError("MONGODB_URI environment variable not set! It is required for database persistence on Render.")
 
-    # Restore JSON data from Replit DB if local files are missing (fresh deployment)
-    # MongoDB-backed storage — no restore needed
-
-    # Backup current local data to Replit DB (so next deploy can restore it)
-    # MongoDB-backed storage — no backup needed
+    # Load products configuration on startup (lazy connection/loading inside main, after Flask thread is spun up)
+    load_startup_data()
 
     # Initialise SQLite referral database
     init_referral_db()
