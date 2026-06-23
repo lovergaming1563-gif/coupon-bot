@@ -1,7 +1,7 @@
 import os
 import json
 import sqlite3
-from pymongo import MongoClient
+from pymongo import MongoClient, ReturnDocument
 import logging
 import threading
 import html
@@ -121,7 +121,15 @@ def init_referral_db():
         db["waitlist"].create_index([("user_id", 1), ("product_key", 1)], unique=True)
         db["reward_coupons"].create_index([("reward_name", 1), ("code", 1)], unique=True)
         db["reward_coupons"].create_index([("reward_name", 1), ("used", 1)])
-        logger.info("✅ MongoDB collections initialized!")
+        
+        # FamPay payment and order collection indexes
+        db["payment_transactions"].create_index("transaction_id", unique=True, sparse=True)
+        db["payment_transactions"].create_index("utr", unique=True, sparse=True)
+        db["payment_transactions"].create_index("order_id", unique=True, sparse=True)
+        
+        db["payment_orders"].create_index("order_id", unique=True)
+        db["payment_orders"].create_index("user_id")
+        logger.info("✅ MongoDB collections and payment indexes initialized!")
     except Exception as e:
         logger.error(f"MongoDB init error: {e}")
 
@@ -2166,123 +2174,152 @@ async def _confirm_quantity(
             )
 
     else:
-        # ── ALOO Auto-Payment: generate unique amount, create order, start polling ──
-        _settings   = get_settings()
-        _timeout_m  = int(_settings.get("timeout_minutes", 5))
-        _active_upi = get_active_upi()
-        _active_qr  = get_active_qr_path()
+        # ── FamPay Auto-Payment Flow ──
+        # Check if user already has a pending/processing order to prevent unlimited orders
+        db = _get_db()
+        pending_order = db["payment_orders"].find_one({
+            "user_id": str(uid),
+            "status": {"$in": ["Pending", "Processing"]}
+        })
+        
+        if pending_order:
+            # Check if it has expired
+            expires_at_dt = datetime.fromisoformat(pending_order["expires_at"]).replace(tzinfo=timezone.utc)
+            now_dt = datetime.now(timezone.utc)
+            if now_dt > expires_at_dt:
+                db["payment_orders"].update_one({"order_id": pending_order["order_id"]}, {"$set": {"status": "Expired"}})
+                # Clear and proceed to create new order
+            else:
+                # Show existing order
+                order_id = pending_order["order_id"]
+                total = pending_order["amount"]
+                time_left_sec = (expires_at_dt - now_dt).total_seconds()
+                minutes = int(time_left_sec // 60)
+                seconds = int(time_left_sec % 60)
+                time_left_str = f"{minutes:02d}:{seconds:02d}"
+                
+                summary_text = (
+                    f"⚠️ *Aapka ek payment order already pending hai!*\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"🆔 Order ID: `{order_id}`\n"
+                    f"💵 Amount: *₹{total:.2f}*\n"
+                    f"⏳ Time Remaining: *{time_left_str}*\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n\n"
+                    f"⚠️ Scan the QR Code using any UPI App and pay exactly *₹{total:.2f}*.\n\n"
+                    f"👇 Payment karne ke baad *'✅ Maine Pay Kar Diya'* button dabao."
+                )
+                
+                cancel_btn = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("✅ Maine Pay Kar Diya", callback_data=f"fampay_verify_{order_id}")],
+                    [InlineKeyboardButton("❌ Cancel Order",        callback_data=f"fampay_cancel_{order_id}")],
+                ])
+                
+                qr_bytes = _generate_fampay_qr(total, order_id)
+                if qr_bytes:
+                    qr_bio = io.BytesIO(qr_bytes)
+                    qr_bio.name = "payment_qr.png"
+                    if update.callback_query:
+                        try:
+                            await update.callback_query.delete_message()
+                        except Exception:
+                            pass
+                        await context.bot.send_photo(
+                            chat_id=uid, photo=qr_bio,
+                            caption=summary_text, reply_markup=cancel_btn,
+                            parse_mode=ParseMode.MARKDOWN,
+                        )
+                    else:
+                        await update.message.reply_photo(
+                            photo=qr_bio, caption=summary_text,
+                            reply_markup=cancel_btn, parse_mode=ParseMode.MARKDOWN,
+                        )
+                else:
+                    if update.callback_query:
+                        await update.callback_query.edit_message_text(
+                            summary_text, reply_markup=cancel_btn, parse_mode=ParseMode.MARKDOWN
+                        )
+                    else:
+                        await update.message.reply_text(
+                            summary_text, reply_markup=cancel_btn, parse_mode=ParseMode.MARKDOWN
+                        )
+                return
 
-        # Generate unique amount (base + paise suffix) for this user
-        unique_amount = _generate_unique_amount(total)
-        context.user_data["pending_amount"]   = unique_amount
-        context.user_data["pending_product"]  = product_key
-        context.user_data["pending_quantity"] = quantity
+        # No pending order - generate new one
+        # Generate globally unique order ID (collision-checked)
+        import random
+        import string
+        order_id = None
+        while True:
+            rand_id = "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
+            candidate_id = f"HZ-{rand_id}"
+            if not db["payment_orders"].find_one({"order_id": candidate_id}):
+                order_id = candidate_id
+                break
 
-        # Create order record immediately
-        order_id = f"{uid}_{int(now_ts())}"
-        order_rec = {
-            "order_id":   order_id,
-            "user_id":    uid,
-            "username":   update.effective_user.username or "",
-            "first_name": update.effective_user.first_name,
-            "product":    product_key,
-            "quantity":   quantity,
-            "total":      unique_amount,
-            "status":     "pending",
-            "priority":   "auto",
-            "timestamp":  datetime.now().isoformat(),
-            "via":        "email",
+        # Save order document
+        now_utc = datetime.now(timezone.utc)
+        expires_at = now_utc + timedelta(minutes=15)
+        
+        # We also collect username and first_name for User Mapping fallback checks
+        order_doc = {
+            "order_id": order_id,
+            "user_id": str(uid),
+            "username": update.effective_user.username or "",
+            "first_name": update.effective_user.first_name or "",
+            "product_id": product_key,
+            "quantity": quantity,
+            "amount": float(total),
+            "status": "Pending",
+            "created_at": now_utc.isoformat(),
+            "expires_at": expires_at.isoformat()
         }
-        orders = get_orders()
-        orders[order_id] = order_rec
-        save_orders(orders)
-        pending_orders = get_pending()
-        pending_orders[str(uid)] = order_id
-        save_pending(pending_orders)
-
-        payment_instructions = (
-            f"⚠️ *Exactly ₹{unique_amount:.2f} hi bhejo* — ye unique amount sirf aapke liye hai.\n\n"
-            f"👇 Payment karne ke baad neeche *'✅ Maine Pay Kar Diya'* button dabao."
-        )
+        db["payment_orders"].insert_one(order_doc)
+        logger.info(f"[FamPay] Created order {order_id} for user {uid} for {product_key} quantity {quantity}")
 
         summary_text = (
-            f"🧾 *Order Summary*\n"
+            f"🧾 *Payment Order Created*\n"
             f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"🎟 Product:    *{product['name']}*\n"
-            f"{combo_note}"
-            f"📦 Quantity:   *{qty_disp} × {quantity}*\n"
-            f"💰 Unit Price: ₹{unit_price}\n"
-            f"💵 *Total:     ₹{unique_amount:.2f}*\n"
+            f"🆔 Order ID: `{order_id}`\n"
+            f"💵 Amount: *₹{total:.2f}*\n"
+            f"⏳ Expiry: *15 Minutes*\n"
             f"━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"📲 *Payment Details*\n"
-            f"🏦 UPI ID: `{_active_upi}`\n"
-            f"💵 Pay exactly: *₹{unique_amount:.2f}*\n\n"
-            f"{payment_instructions}"
-            f"{extra_tnc}"
+            f"⚠️ Scan the QR Code using any UPI App and pay exactly *₹{total:.2f}*.\n\n"
+            f"👇 Payment karne ke baad *'✅ Maine Pay Kar Diya'* button dabao."
         )
+        
         cancel_btn = InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ Maine Pay Kar Diya", callback_data=f"i_paid_{unique_amount:.2f}")],
-            [InlineKeyboardButton("❌ Cancel Order",        callback_data="cancel_order")],
+            [InlineKeyboardButton("✅ Maine Pay Kar Diya", callback_data=f"fampay_verify_{order_id}")],
+            [InlineKeyboardButton("❌ Cancel Order",        callback_data=f"fampay_cancel_{order_id}")],
         ])
 
-        # ── Generate dynamic UPI QR with exact unique amount ──
-        qr_sent = False
-        qr_bytes = _generate_upi_qr(_active_upi, unique_amount, "")
+        # Generate QR
+        qr_bytes = _generate_fampay_qr(total, order_id)
         if qr_bytes:
-            try:
-                qr_bio = io.BytesIO(qr_bytes)
-                qr_bio.name = "payment_qr.png"
-                if update.callback_query:
-                    await context.bot.send_photo(
-                        chat_id=uid, photo=qr_bio,
-                        caption=summary_text, reply_markup=cancel_btn,
-                        parse_mode=ParseMode.MARKDOWN,
-                    )
-                    await update.callback_query.edit_message_text(
-                        "👆 *See the message above for your order details.*",
-                        parse_mode=ParseMode.MARKDOWN,
-                    )
-                else:
-                    await update.message.reply_photo(
-                        photo=qr_bio, caption=summary_text,
-                        reply_markup=cancel_btn, parse_mode=ParseMode.MARKDOWN,
-                    )
-                qr_sent = True
-            except Exception as e:
-                logger.warning(f"Dynamic QR send failed: {e}")
-
-        # Fallback: static admin QR or text-only
-        if not qr_sent:
-            if os.path.exists(_active_qr):
+            qr_bio = io.BytesIO(qr_bytes)
+            qr_bio.name = "payment_qr.png"
+            if update.callback_query:
                 try:
-                    with open(_active_qr, "rb") as qr_file:
-                        if update.callback_query:
-                            await context.bot.send_photo(
-                                chat_id=uid, photo=qr_file,
-                                caption=summary_text, reply_markup=cancel_btn,
-                                parse_mode=ParseMode.MARKDOWN,
-                            )
-                            await update.callback_query.edit_message_text(
-                                "👆 *See the message above for your order details.*",
-                                parse_mode=ParseMode.MARKDOWN,
-                            )
-                        else:
-                            await update.message.reply_photo(
-                                photo=qr_file, caption=summary_text,
-                                reply_markup=cancel_btn, parse_mode=ParseMode.MARKDOWN,
-                            )
-                    qr_sent = True
-                except Exception as e:
-                    logger.warning(f"Static QR send failed: {e}")
-
-        if not qr_sent:
+                    await update.callback_query.delete_message()
+                except Exception:
+                    pass
+                await context.bot.send_photo(
+                    chat_id=uid, photo=qr_bio,
+                    caption=summary_text, reply_markup=cancel_btn,
+                    parse_mode=ParseMode.MARKDOWN,
+                )
+            else:
+                await update.message.reply_photo(
+                    photo=qr_bio, caption=summary_text,
+                    reply_markup=cancel_btn, parse_mode=ParseMode.MARKDOWN,
+                )
+        else:
             if update.callback_query:
                 await update.callback_query.edit_message_text(
-                    summary_text, reply_markup=cancel_btn, parse_mode=ParseMode.MARKDOWN,
+                    summary_text, reply_markup=cancel_btn, parse_mode=ParseMode.MARKDOWN
                 )
             else:
                 await update.message.reply_text(
-                    summary_text, reply_markup=cancel_btn, parse_mode=ParseMode.MARKDOWN,
+                    summary_text, reply_markup=cancel_btn, parse_mode=ParseMode.MARKDOWN
                 )
 
 async def select_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -5387,6 +5424,527 @@ async def admin_min_qty_edit(update, context) -> None:
 # ═══════════════════════════════════════════════════════════════════════════
 
 # ═══════════════════════════════════════════════════════════════════════════
+# FAMPAY PAYMENT SYSTEM
+# ═══════════════════════════════════════════════════════════════════════════
+import io
+from datetime import timedelta
+
+def check_and_expire_orders():
+    db = _get_db()
+    now_str = datetime.now(timezone.utc).isoformat()
+    res = db["payment_orders"].update_many(
+        {"status": "Pending", "expires_at": {"$lt": now_str}},
+        {"$set": {"status": "Expired", "expired_at": now_str}}
+    )
+    if res.modified_count > 0:
+        logger.info(f"Expired {res.modified_count} pending payment orders.")
+
+def _generate_fampay_qr(amount: float, order_id: str) -> bytes:
+    try:
+        import qrcode
+        upi_link = (
+            f"upi://pay?pa=hypesmohan@fam"
+            f"&pn=HypesZone"
+            f"&am={amount:.2f}"
+            f"&tn={order_id}"
+            f"&cu=INR"
+        )
+        logger.info(f"[QR] Generating FamPay QR for amount={amount:.2f} order_id={order_id}")
+        qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=10, border=4)
+        qr.add_data(upi_link)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white")
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        buf.seek(0)
+        return buf.read()
+    except Exception as e:
+        logger.error(f"[QR] FamPay QR generation failed: {e}")
+        return None
+
+async def fampay_verify_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer("🔍 Payment check ho raha hai...")
+    user_id = query.from_user.id
+    
+    cb_data = query.data  # "fampay_verify_HZ-XXXXXX"
+    order_id = cb_data.replace("fampay_verify_", "")
+    
+    check_and_expire_orders()
+    db = _get_db()
+    
+    existing_order = db["payment_orders"].find_one({"order_id": order_id})
+    if not existing_order:
+        await query.edit_message_text("❌ Order not found.")
+        return
+        
+    status = existing_order.get("status")
+    if status == "Delivered":
+        await query.edit_message_caption(
+            caption="✅ *Payment Verified!* Coupon codes already delivered.",
+            parse_mode=ParseMode.MARKDOWN
+        ) if query.message and query.message.photo else await query.edit_message_text(
+            "✅ *Payment Verified!* Coupon codes already delivered.",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return
+    elif status == "Expired":
+        await query.edit_message_caption(
+            caption="❌ *Order Expired!* Expiry time exceeded. Expired orders cannot be credited.",
+            parse_mode=ParseMode.MARKDOWN
+        ) if query.message and query.message.photo else await query.edit_message_text(
+            "❌ *Order Expired!* Expiry time exceeded. Expired orders cannot be credited.",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return
+    elif status == "Cancelled":
+        await query.edit_message_caption(
+            caption="❌ *Order Cancelled.*",
+            parse_mode=ParseMode.MARKDOWN
+        ) if query.message and query.message.photo else await query.edit_message_text(
+            "❌ *Order Cancelled.*",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return
+    elif status in ("Processing", "Paid", "Reserved"):
+        return
+
+    # processing lock: BEFORE IMAP scan
+    locked_order = db["payment_orders"].find_one_and_update(
+        {"order_id": order_id, "status": "Pending"},
+        {"$set": {"status": "Processing", "locked_at": datetime.now(timezone.utc).isoformat()}},
+        return_document=ReturnDocument.AFTER
+    )
+    
+    if not locked_order:
+        return
+
+    success = await execute_fampay_email_verification(context, locked_order)
+    
+    if success:
+        final_order = db["payment_orders"].find_one({"order_id": order_id})
+        final_status = final_order.get("status") if final_order else "Reserved"
+        
+        if final_status == "Delivered":
+            msg = f"🎉 *Payment Verified Successfully!*\n\nOrder `{order_id}` has been delivered. Please check your messages above for your coupon code(s)!"
+        else:
+            msg = (
+                f"⚠️ *Payment Verified & Stock Reserved!*\n\n"
+                f"Order ID: `{order_id}`\n"
+                f"Stock has been safely reserved, but Telegram message delivery failed.\n"
+                f"Please contact support with your Order ID to retrieve your coupons manually: {SUPPORT_HANDLE}"
+            )
+            
+        if query.message and query.message.photo:
+            await query.edit_message_caption(caption=msg, parse_mode=ParseMode.MARKDOWN)
+        else:
+            await query.edit_message_text(msg, parse_mode=ParseMode.MARKDOWN)
+    else:
+        current_order = db["payment_orders"].find_one({"order_id": order_id})
+        current_status = current_order.get("status") if current_order else "Pending"
+        
+        if current_status == "Processing":
+            db["payment_orders"].update_one({"order_id": order_id}, {"$set": {"status": "Pending"}})
+            
+            expires_at_dt = datetime.fromisoformat(locked_order["expires_at"]).replace(tzinfo=timezone.utc)
+            now_dt = datetime.now(timezone.utc)
+            time_left_sec = (expires_at_dt - now_dt).total_seconds()
+            minutes = int(time_left_sec // 60)
+            seconds = int(time_left_sec % 60)
+            time_left_str = f"{minutes:02d}:{seconds:02d}"
+            
+            fail_msg = (
+                f"⚠️ *Payment abhi detect nahi hui!*\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"🆔 Order ID: `{order_id}`\n"
+                f"💵 Amount: *₹{locked_order['amount']:.2f}*\n"
+                f"⏳ Time Remaining: *{time_left_str}*\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n\n"
+                f"Please wait 1-2 minutes after making payment and tap Verify again."
+            )
+            
+            cancel_btn = InlineKeyboardMarkup([
+                [InlineKeyboardButton("✅ Maine Pay Kar Diya", callback_data=f"fampay_verify_{order_id}")],
+                [InlineKeyboardButton("❌ Cancel Order",        callback_data=f"fampay_cancel_{order_id}")],
+            ])
+            
+            if query.message and query.message.photo:
+                await query.edit_message_caption(caption=fail_msg, reply_markup=cancel_btn, parse_mode=ParseMode.MARKDOWN)
+            else:
+                await query.edit_message_text(fail_msg, reply_markup=cancel_btn, parse_mode=ParseMode.MARKDOWN)
+        elif current_status == "Expired":
+            await query.edit_message_caption(
+                caption="❌ *Order Expired!* Expiry time exceeded.",
+                parse_mode=ParseMode.MARKDOWN
+            ) if query.message and query.message.photo else await query.edit_message_text(
+                "❌ *Order Expired!* Expiry time exceeded.",
+                parse_mode=ParseMode.MARKDOWN
+            )
+
+async def fampay_cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    
+    cb_data = query.data
+    order_id = cb_data.replace("fampay_cancel_", "")
+    
+    db = _get_db()
+    res = db["payment_orders"].update_one(
+        {"order_id": order_id, "status": "Pending"},
+        {"$set": {"status": "Cancelled", "cancelled_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    if res.modified_count > 0:
+        msg = f"❌ *Order Cancelled.*\nOrder ID: `{order_id}` cancel kar diya gaya hai."
+    else:
+        msg = "❌ Order cancel nahi kiya ja saka (already processed, expired or cancelled)."
+        
+    if query.message and query.message.photo:
+        await query.edit_message_caption(caption=msg, parse_mode=ParseMode.MARKDOWN)
+    else:
+        await query.edit_message_text(msg, parse_mode=ParseMode.MARKDOWN)
+
+async def execute_fampay_email_verification(context, order: dict) -> bool:
+    order_id = order["order_id"]
+    expected_amount = order["amount"]
+    user_id = order["user_id"]
+    product_id = order["product_id"]
+    quantity = order["quantity"]
+    
+    s = get_settings()
+    email_user = s.get("email_user", "").strip()
+    email_pass = s.get("email_pass", "").strip()
+    imap_server = s.get("email_imap_server", "imap.gmail.com").strip()
+
+    if not email_user or not email_pass:
+        log_payment_audit(order_id, user_id, expected_amount, "failed", "Gmail not configured")
+        _get_db()["payment_orders"].update_one({"order_id": order_id, "status": "Processing"}, {"$set": {"status": "Pending"}})
+        return False
+
+    import imaplib, email, re
+    from email.header import decode_header
+    from email.utils import parsedate_to_datetime
+
+    mail = None
+    try:
+        mail = imaplib.IMAP4_SSL(imap_server, timeout=15)
+        mail.login(email_user, email_pass)
+        
+        status, data = mail.select("INBOX", readonly=True)
+        if status != "OK" or not data[0]:
+            log_payment_audit(order_id, user_id, expected_amount, "failed", "IMAP selection failed")
+            _get_db()["payment_orders"].update_one({"order_id": order_id, "status": "Processing"}, {"$set": {"status": "Pending"}})
+            return False
+
+        # IMAP Performance Fix (sequence indices fetch)
+        total_msgs = int(data[0])
+        start = max(1, total_msgs - 29)
+        message_ids = [str(i) for i in range(start, total_msgs + 1)]
+        
+        db = _get_db()
+        order_dt = datetime.fromisoformat(order["created_at"]).replace(tzinfo=timezone.utc)
+        
+        for msg_id in reversed(message_ids):
+            status, data = mail.fetch(msg_id, "(RFC822)")
+            if status != "OK" or not data: continue
+
+            raw_email = data[0][1]
+            if not raw_email: continue
+            
+            msg = email.message_from_bytes(raw_email)
+            subject = ""
+            subject_header = msg["Subject"]
+            if subject_header:
+                decoded = decode_header(subject_header)[0]
+                subject_val = decoded[0]
+                subject = subject_val.decode(decoded[1] or "utf-8", errors="ignore") if isinstance(subject_val, bytes) else str(subject_val)
+
+            email_dt = None
+            date_header = msg["Date"]
+            if date_header:
+                try:
+                    email_dt = parsedate_to_datetime(date_header)
+                    email_dt = email_dt.replace(tzinfo=timezone.utc) if email_dt.tzinfo is None else email_dt.astimezone(timezone.utc)
+                except Exception:
+                    pass
+
+            from_header = msg["From"] or ""
+            from_str = from_header.lower()
+            is_fampay_sender = any(x in from_str for x in ["no-reply@famapp.in", "famapp", "famx"])
+            
+            sub_lower = subject.lower()
+            is_fampay_subject = any(x in sub_lower for x in ["received", "payment received", "money received", "account"])
+            
+            if not (is_fampay_sender or is_fampay_subject):
+                continue
+
+            body = ""
+            if msg.is_multipart():
+                for part in msg.walk():
+                    content_type = part.get_content_type()
+                    content_disposition = str(part.get_content_disposition())
+                    if content_type in ("text/plain", "text/html") and "attachment" not in content_disposition:
+                        payload = part.get_payload(decode=True)
+                        if payload: body += payload.decode("utf-8", errors="ignore")
+            else:
+                payload = msg.get_payload(decode=True)
+                if payload: body = payload.decode("utf-8", errors="ignore")
+
+            full_text = (subject + "\n" + body)
+            parsed = parse_fampay_email(full_text)
+            if not parsed: continue
+
+            email_amount = parsed.get("amount")
+            email_sender = parsed.get("sender_name") or ""
+            email_utr = parsed.get("utr") or ""
+            email_tx_id = parsed.get("transaction_id") or ""
+            email_purpose = parsed.get("purpose") or ""
+
+            is_match = False
+            match_type = ""
+
+            if email_purpose and email_purpose.strip().upper() == order_id:
+                is_match = True
+                match_type = "Order ID Match"
+            
+            if not is_match:
+                order_id_match = re.search(r'HZ-[A-Z0-9]{6}', full_text, re.IGNORECASE)
+                extracted_order_id = order_id_match.group(0).upper() if order_id_match else None
+                if extracted_order_id and extracted_order_id == order_id:
+                    is_match = True
+                    match_type = "Order ID Match (parsed)"
+
+            if not is_match:
+                amount_matches = abs(email_amount - expected_amount) < 0.01 if email_amount is not None else False
+                time_matches = abs((email_dt - order_dt).total_seconds()) <= 15 * 60 if email_dt else False
+                
+                user_matches = False
+                email_sender_clean = email_sender.lower().strip()
+                tg_first_name = str(order.get("first_name", "")).lower().strip()
+                tg_username = str(order.get("username", "")).lower().strip()
+
+                if email_sender_clean:
+                    if tg_first_name and (tg_first_name in email_sender_clean or email_sender_clean in tg_first_name):
+                        user_matches = True
+                    elif tg_username and (tg_username in email_sender_clean or email_sender_clean in tg_username):
+                        user_matches = True
+
+                if amount_matches and time_matches and user_matches:
+                    is_match = True
+                    match_type = f"Fallback Match ({email_sender})"
+
+            if is_match:
+                tx_exists = False
+                if email_tx_id: tx_exists = bool(db["payment_transactions"].find_one({"transaction_id": email_tx_id}))
+                if not tx_exists and email_utr: tx_exists = bool(db["payment_transactions"].find_one({"utr": email_utr}))
+                    
+                if tx_exists:
+                    log_payment_audit(order_id, user_id, expected_amount, "failed", f"Duplicate Tx/UTR (Tx: {email_tx_id}, UTR: {email_utr})", email_tx_id, email_utr)
+                    continue
+
+                # ── Paid ──
+                db["payment_orders"].update_one(
+                    {"order_id": order_id},
+                    {"$set": {"status": "Paid", "paid_at": datetime.now(timezone.utc).isoformat()}}
+                )
+                
+                tx_record = {
+                    "transaction_id": email_tx_id or f"TX_{order_id}",
+                    "utr": email_utr or f"UTR_{order_id}",
+                    "order_id": order_id,
+                    "amount": expected_amount,
+                    "sender_name": email_sender,
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                }
+                try:
+                    db["payment_transactions"].insert_one(tx_record)
+                except Exception:
+                    log_payment_audit(order_id, user_id, expected_amount, "failed", "Payment insert constraint violation", email_tx_id, email_utr)
+                    continue
+                
+                log_payment_audit(order_id, user_id, expected_amount, "success", f"Payment Success ({match_type})", email_tx_id, email_utr)
+                
+                # ── Stock Reservation ──
+                coupons = get_coupons()
+                pool = coupons.get(product_id, [])
+                is_combo = product_id in COMBO_PARTS
+                
+                has_stock = True
+                if is_combo:
+                    parts = COMBO_PARTS[product_id]
+                    for part in parts:
+                        if len(coupons.get(part, [])) < quantity:
+                            has_stock = False
+                            break
+                else:
+                    has_stock = len(pool) >= quantity
+
+                if not has_stock:
+                    log_payment_audit(order_id, user_id, expected_amount, "failed", "Stock allocation failed (out of stock)", email_tx_id, email_utr)
+                    db["payment_orders"].update_one({"order_id": order_id}, {"$set": {"status": "Failed", "fail_reason": "Out of stock"}})
+                    return True
+
+                assigned = []
+                if is_combo:
+                    for part in parts:
+                        part_pool = coupons.get(part, [])
+                        assigned.extend(part_pool[:quantity])
+                        coupons[part] = part_pool[quantity:]
+                else:
+                    assigned = pool[:quantity]
+                    coupons[product_id] = pool[quantity:]
+                
+                # ── Reserved ──
+                db["payment_orders"].update_one(
+                    {"order_id": order_id},
+                    {"$set": {"status": "Reserved", "coupon_codes": assigned, "reserved_at": datetime.now(timezone.utc).isoformat()}}
+                )
+                save_coupons(coupons)
+                log_payment_audit(order_id, user_id, expected_amount, "success", "Coupon stock reserved", email_tx_id, email_utr)
+
+                # Attempt Telegram Delivery
+                product_info = PRODUCTS.get(product_id, {"name": product_id})
+                coupon_lines = "\n".join(f"<code>{html.escape(str(c))}</code>" for c in assigned)
+                delivery_success = False
+                try:
+                    await context.bot.send_message(
+                        chat_id=int(user_id),
+                        text=(
+                            f"✅ <b>Payment Confirmed!</b>\n"
+                            f"━━━━━━━━━━━━━━━━━━━━\n"
+                            f"🆔 Order ID: <code>{order_id}</code>\n"
+                            f"📦 <b>{html.escape(product_info.get('name', product_id))}</b>  ×{quantity}\n\n"
+                            f"🎟 <b>Your Coupon Code(s):</b>\n\n"
+                            f"{coupon_lines}\n\n"
+                            f"🙏 Thank you! Come back for more deals.\n"
+                            f"💬 Help: {html.escape(SUPPORT_HANDLE)}"
+                        ),
+                        parse_mode=ParseMode.HTML
+                    )
+                    delivery_success = True
+                except Exception as ue:
+                    logger.error(f"[FamPayVerify] Coupon delivery failed for user {user_id}: {ue}")
+                    log_payment_audit(order_id, user_id, expected_amount, "failed", f"Telegram send failed (Status: Reserved)", email_tx_id, email_utr)
+
+                # ── Delivered ──
+                if delivery_success:
+                    main_orders = get_orders()
+                    legacy_order = {
+                        "order_id": order_id, "user_id": int(user_id), "username": order.get("username") or "",
+                        "first_name": order.get("first_name") or "", "product": product_id, "quantity": quantity,
+                        "total": expected_amount, "status": "approved", "coupon_codes": assigned,
+                        "approved_at": datetime.now().isoformat(), "via": "fampay"
+                    }
+                    main_orders[order_id] = legacy_order
+                    save_orders(main_orders)
+
+                    db["payment_orders"].update_one(
+                        {"order_id": order_id},
+                        {"$set": {"status": "Delivered", "delivered_at": datetime.now(timezone.utc).isoformat()}}
+                    )
+                    log_payment_audit(order_id, user_id, expected_amount, "success", "Coupon Delivered", email_tx_id, email_utr)
+
+                # Notify Admin
+                try:
+                    status_lbl = "Delivered" if delivery_success else "Reserved (Manual Recovery Needed)"
+                    await context.bot.send_message(
+                        chat_id=ADMIN_ID,
+                        text=(
+                            f"✅ <b>Auto Payment Approved (FamPay QR)</b>\n"
+                            f"━━━━━━━━━━━━━━━━━━━━\n"
+                            f"👤 User: <code>{user_id}</code>\n"
+                            f"📦 Product: {html.escape(product_info.get('name', product_id))} x {quantity}\n"
+                            f"💰 Amount: ₹{expected_amount:.2f}\n"
+                            f"🔑 UTR: <code>{email_utr or 'N/A'}</code>\n"
+                            f"⚡ Status: <code>{status_lbl}</code>"
+                        ),
+                        parse_mode=ParseMode.HTML
+                    )
+                except Exception:
+                    pass
+                return True
+
+        log_payment_audit(order_id, user_id, expected_amount, "failed", "No matching email found", None, None)
+        db["payment_orders"].update_one({"order_id": order_id, "status": "Processing"}, {"$set": {"status": "Pending"}})
+        return False
+    except Exception as e:
+        logger.error(f"Email check crashed: {e}")
+        db["payment_orders"].update_one({"order_id": order_id, "status": "Processing"}, {"$set": {"status": "Pending"}})
+        return False
+    finally:
+        if mail:
+            try: mail.logout()
+            except Exception: pass
+
+def log_payment_audit(order_id, user_id, amount, status, reason, transaction_id=None, utr=None):
+    try:
+        _get_db()["payment_audit_logs"].insert_one({
+            "order_id": order_id, "user_id": str(user_id), "amount": amount, "status": status,
+            "reason": reason, "transaction_id": transaction_id, "utr": utr,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Audit write failed: {e}")
+
+def strip_html_tags(text: str) -> str:
+    import re
+    clean = re.compile('<.*?>')
+    text = re.sub(clean, ' ', text)
+    text = text.replace('&nbsp;', ' ').replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>')
+    return re.sub(r'\s+', ' ', text).strip()
+
+def parse_fampay_email(body_text: str) -> dict:
+    import re
+    text = strip_html_tags(body_text)
+    
+    receiver_name = None
+    amount = None
+    sender_name = None
+    transaction_id = None
+    date_text = None
+    updated_balance = None
+    utr = None
+    purpose = None
+
+    m = re.search(r'Hey\s+([^,]+),', text, re.IGNORECASE)
+    if m: receiver_name = m.group(1).strip()
+
+    m = re.search(r'successfully\s+received\s+[₹Rs\.]*\s*([\d\.]+)', text, re.IGNORECASE)
+    if m: 
+        amount = float(m.group(1).strip())
+    else:
+        m2 = re.search(r'received\s+[₹Rs\.]*\s*([\d\.]+)', text, re.IGNORECASE)
+        if m2: amount = float(m2.group(1).strip())
+
+    m = re.search(r'from\s+([A-Za-z0-9\s]+?)(?=\s+(Transaction ID|Date|Updated Balance|UTR|Purpose|Hey)|$)', text, re.IGNORECASE)
+    if m: sender_name = m.group(1).strip()
+
+    m = re.search(r'Transaction\s+ID\s*:\s*([A-Za-z0-9]+)', text, re.IGNORECASE)
+    if m: transaction_id = m.group(1).strip()
+
+    m = re.search(r'Date\s*:\s*([^Updated|Purpose|UTR|Hey]+)', text, re.IGNORECASE)
+    if m: date_text = m.group(1).strip()
+
+    m = re.search(r'Updated\s+Balance\s*:\s*[₹Rs\.]*\s*([\d\.]+)', text, re.IGNORECASE)
+    if m: updated_balance = float(m.group(1).strip())
+
+    m = re.search(r'UTR\s*:\s*(\d+)', text, re.IGNORECASE)
+    if m: utr = m.group(1).strip()
+
+    m = re.search(r'Purpose\s*:\s*([^Hey|Transaction|Date|Updated|UTR]+)', text, re.IGNORECASE)
+    if m: purpose = m.group(1).strip()
+
+    return {
+        "receiver_name": receiver_name, "amount": amount, "sender_name": sender_name,
+        "transaction_id": transaction_id, "date_text": date_text, "updated_balance": updated_balance,
+        "utr": utr, "purpose": purpose
+    }
+
+# ═══════════════════════════════════════════════════════════════════════════
+# END FAMPAY PAYMENT SYSTEM
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ═══════════════════════════════════════════════════════════════════════════
 # ZAPUPI PAYMENT SYSTEM
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -5747,6 +6305,8 @@ def main() -> None:
     app.add_handler(CallbackQueryHandler(i_paid_retry_handler, pattern="^i_paid_retry$"))
 
     # Approve / reject buttons
+    app.add_handler(CallbackQueryHandler(fampay_verify_handler, pattern="^fampay_verify_"))
+    app.add_handler(CallbackQueryHandler(fampay_cancel_handler, pattern="^fampay_cancel_"))
     app.add_handler(CallbackQueryHandler(approve_order_btn,  pattern="^approve_"))
     app.add_handler(CallbackQueryHandler(reject_order_btn,   pattern="^reject_(?!text_)"))
     app.add_handler(CallbackQueryHandler(reject_text_order,  pattern="^reject_text_"))
