@@ -2191,7 +2191,7 @@ async def _confirm_quantity(
             "status":     "pending",
             "priority":   "auto",
             "timestamp":  datetime.now().isoformat(),
-            "via":        "aloo",
+            "via":        "email",
         }
         orders = get_orders()
         orders[order_id] = order_rec
@@ -3628,6 +3628,27 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
             )
             return
 
+        if context.user_data.pop("awaiting_email_user", False):
+            s = get_settings()
+            s["email_user"] = text.strip()
+            save_settings(s)
+            await update.message.reply_text(
+                f"✅ *Gmail Address updated:* `{text.strip()}`",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            return
+
+        if context.user_data.pop("awaiting_email_pass", False):
+            s = get_settings()
+            s["email_pass"] = text.strip()
+            save_settings(s)
+            masked = (text.strip()[:2] + "*" * 12 + text.strip()[-2:]) if len(text.strip()) > 4 else "****"
+            await update.message.reply_text(
+                f"✅ *Gmail App Password updated:* `{masked}`",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            return
+
         # ── Edit service field ──
         edit_field = context.user_data.pop("awaiting_edit_svc_field", None)
         if edit_field:
@@ -4606,6 +4627,164 @@ async def flash_sale_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
         return
 
+# ─────────────── Gmail IMAP: verify payment ───────────────
+
+def _email_verify(amount: float) -> dict:
+    """
+    Search Gmail inbox via IMAP for a credit notification of `amount`.
+    Returns a dict {"success": True, "utr": "..."} or {"success": False}.
+    """
+    s = get_settings()
+    email_user = s.get("email_user", "").strip()
+    email_pass = s.get("email_pass", "").strip()
+    imap_server = s.get("email_imap_server", "imap.gmail.com").strip()
+
+    if not email_user or not email_pass:
+        logger.warning("[EmailVerify] Gmail address or App Password not configured!")
+        return {"success": False, "error": "not_configured"}
+
+    import imaplib
+    import email
+    from email.header import decode_header
+    import re
+
+    try:
+        logger.info(f"[EmailVerify] Checking IMAP for amount ₹{amount:.2f}")
+        mail = imaplib.IMAP4_SSL(imap_server, timeout=10)
+        mail.login(email_user, email_pass)
+        
+        status, _ = mail.select("INBOX", readonly=True)
+        if status != "OK":
+            logger.error("[EmailVerify] Failed to select INBOX")
+            return {"success": False}
+
+        status, messages = mail.search(None, "ALL")
+        if status != "OK":
+            return {"success": False}
+
+        message_ids = messages[0].split()
+        if not message_ids:
+            return {"success": False}
+
+        check_limit = min(len(message_ids), 20)
+        target_amount_str = f"{amount:.2f}"
+        logger.info(f"[EmailVerify] Scanning last {check_limit} emails for amount '{target_amount_str}'...")
+
+        for msg_id in reversed(message_ids[-check_limit:]):
+            try:
+                status, data = mail.fetch(msg_id, "(RFC822)")
+                if status != "OK" or not data:
+                    continue
+
+                raw_email = data[0][1]
+                if not raw_email:
+                    continue
+                
+                msg = email.message_from_bytes(raw_email)
+                
+                subject = ""
+                subject_header = msg["Subject"]
+                if subject_header:
+                    decoded = decode_header(subject_header)[0]
+                    subject_val = decoded[0]
+                    if isinstance(subject_val, bytes):
+                        subject = subject_val.decode(decoded[1] or "utf-8", errors="ignore")
+                    else:
+                        subject = str(subject_val)
+
+                body = ""
+                if msg.is_multipart():
+                    for part in msg.walk():
+                        content_type = part.get_content_type()
+                        content_disposition = str(part.get_content_disposition())
+                        if content_type in ("text/plain", "text/html") and "attachment" not in content_disposition:
+                            payload = part.get_payload(decode=True)
+                            if payload:
+                                body += payload.decode("utf-8", errors="ignore")
+                else:
+                    payload = msg.get_payload(decode=True)
+                    if payload:
+                        body = payload.decode("utf-8", errors="ignore")
+
+                full_text = (subject + "\n" + body).lower()
+
+                if target_amount_str in full_text:
+                    credit_keywords = [
+                        "credited", "received", "credit", "deposit", "added", 
+                        "success", "payment", "received payment", "rs", "inr", 
+                        "transferred", "accept", "accepted"
+                    ]
+                    if any(kw in full_text for kw in credit_keywords):
+                        utr_match = re.search(r'\b\d{12}\b', full_text)
+                        utr = utr_match.group(0) if utr_match else ""
+                        logger.info(f"[EmailVerify] MATCH FOUND! Amount: {target_amount_str}, UTR: {utr}")
+                        
+                        try:
+                            mail.logout()
+                        except Exception:
+                            pass
+                        return {"success": True, "utr": utr}
+            except Exception as inner_e:
+                logger.error(f"[EmailVerify] Error parsing message {msg_id}: {inner_e}")
+                continue
+
+        try:
+            mail.logout()
+        except Exception:
+            pass
+
+    except Exception as e:
+        logger.error(f"[EmailVerify] IMAP verification failed: {e}")
+
+    return {"success": False}
+
+# ─────────────── Core: approve order & deliver coupon ───────────────
+
+async def _execute_email_approve(context, order_id: str, amount: float, utr: str = "") -> bool:
+    """Mark payment verified -> deliver coupon -> notify admin."""
+    order, status = await _execute_approve(context, order_id)
+    if not isinstance(status, list):
+        logger.error(f"[Email] _execute_approve failed: {status}")
+        return False
+
+    user_id = (order or {}).get("user_id", 0)
+
+    # Mark amount as used (anti-fraud)
+    _mark_amount_used(amount, user_id, order_id)
+
+    # Log deposit
+    log_deposit({
+        "ts":       now_ts(),
+        "user_id":  user_id,
+        "username": (order or {}).get("username", ""),
+        "product":  (order or {}).get("product", ""),
+        "expected": amount,
+        "paid":     amount,
+        "utr":      utr,
+        "status":   "approved",
+        "auto":     True,
+        "via":      "email",
+    })
+
+    # Notify admin
+    try:
+        await context.bot.send_message(
+            chat_id=ADMIN_ID,
+            text=(
+                f"✅ <b>Auto Payment Approved (Email Verify)</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"👤 User: <code>{user_id}</code>\n"
+                f"📦 Product: {html.escape(str((order or {}).get('product', '')))}\n"
+                f"💰 Amount: ₹{amount:.2f}\n"
+                f"🔑 UTR: <code>{utr or 'N/A'}</code>\n"
+                f"🎟 Coupon delivered."
+            ),
+            parse_mode=ParseMode.HTML,
+        )
+    except Exception as e:
+        logger.error(f"[Email] Admin notification failed: {e}")
+    return True
+
     expires_at = _time_mod.time() + secs
     FLASH_SALES[pk] = {
         "sale_price":     sale_price,
@@ -4722,9 +4901,12 @@ import re as _re
 _DEFAULT_SETTINGS = {
     "custom_upi_id":   None,   # If None, fallback to UPI_ID constant
     "timeout_minutes": 5,      # Polling window (1-60 min)
-    "aloo_enabled":    True,   # Toggle ALOO/BharatPe payment on/off
+    "email_enabled":   True,   # Toggle Gmail payment verification ON/OFF
     "zapupi_enabled":  False,  # Toggle ZapUPI payment on/off
     "zapupi_key":      "",     # ZapUPI merchant API key (admin sets via panel)
+    "email_user":      "",     # Gmail address for IMAP verification
+    "email_pass":      "",     # 16-character App Password for Gmail
+    "email_imap_server": "imap.gmail.com",
 }
 
 def get_settings() -> dict:
@@ -4747,13 +4929,13 @@ def get_active_qr_path() -> str:
     return CUSTOM_QR_PATH if os.path.exists(CUSTOM_QR_PATH) else QR_IMAGE_PATH
 
 def get_active_payment_method() -> str:
-    """Returns 'zapupi', 'aloo', or 'none' based on admin toggles.
+    """Returns 'zapupi', 'email', or 'none' based on admin toggles.
     ZapUPI takes priority if both are enabled."""
     s = get_settings()
     if s.get("zapupi_enabled"):
         return "zapupi"
-    if s.get("aloo_enabled", True):
-        return "aloo"
+    if s.get("email_enabled", True):
+        return "email"
     return "none"
 
 def get_zapupi_key() -> str:
@@ -4792,7 +4974,7 @@ def _generate_unique_amount(base_amount: int) -> float:
     Tries up to 100 values. Returns base_amount.00 if all taken (very unlikely)."""
     import random
     used = get_used_amounts()
-    candidates = list(range(100))
+    candidates = list(range(1, 100))
     random.shuffle(candidates)
     for paise in candidates:
         candidate = round(base_amount + paise / 100, 2)
@@ -5047,22 +5229,29 @@ async def i_paid_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             )
             await _edit_msg(msg, retry_kb)
     else:
-        # ── ALOO check ──
+        # ── Email check ──
         await _edit_msg(f"🔍 *Payment verify ho rahi hai...* (Attempt {retries+1}/{_MAX_PAY_RETRIES})\n\nEk second ruko...")
-        result = _aloo_verify(amount)
+        result = _email_verify(amount)
         if result and result.get("success"):
             utr = result.get("utr", "")
             context.user_data.pop("paid_check_count", None)
             await _edit_msg("✅ *Payment verify ho gaya!* Coupon deliver ho raha hai...")
-            await _execute_aloo_approve(context, order_id, amount, utr)
+            await _execute_email_approve(context, order_id, amount, utr)
         else:
-            baki = _MAX_PAY_RETRIES - retries - 1
-            msg = (
-                f"⚠️ *Payment abhi detect nahi hui.*\n\n"
-                f"Agar aapne payment kar di hai toh thodi der baad dobara check karo.\n"
-                f"_(Attempts remaining: {baki})_"
-            )
-            await _edit_msg(msg, retry_kb)
+            if result and result.get("error") == "not_configured":
+                msg = (
+                    "⚠️ *Email Verification config in-complete.*\n\n"
+                    "Admin ne Gmail credentials setup nahi kiye hain. Support se contact karein."
+                )
+                await _edit_msg(msg, retry_kb)
+            else:
+                baki = _MAX_PAY_RETRIES - retries - 1
+                msg = (
+                    f"⚠️ *Payment abhi detect nahi hui.*\n\n"
+                    f"Agar aapne payment kar di hai toh thodi der baad dobara check karo.\n"
+                    f"_(Attempts remaining: {baki})_"
+                )
+                await _edit_msg(msg, retry_kb)
 
 
 async def i_paid_retry_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -5379,44 +5568,77 @@ async def admin_payment_methods(update, context) -> None:
     if query.from_user.id not in ADMIN_IDS:
         return
     s = get_settings()
-    aloo_on   = s.get("aloo_enabled", True)
+    email_on  = s.get("email_enabled", True)
     zap_on    = s.get("zapupi_enabled", False)
     zap_key   = get_zapupi_key()
+    email_u   = s.get("email_user", "")
+    email_p   = s.get("email_pass", "")
     active    = get_active_payment_method()
 
-    aloo_icon = "🟢" if aloo_on else "🔴"
+    email_icon = "🟢" if email_on else "🔴"
     zap_icon  = "🟢" if zap_on  else "🔴"
-    active_lbl = {"aloo": "ALOO/BharatPe", "zapupi": "ZapUPI", "none": "⚠️ Koi nahi"}.get(active, active)
+    active_lbl = {"email": "Gmail Verify", "zapupi": "ZapUPI", "none": "⚠️ Koi nahi"}.get(active, active)
 
     text = (
         f"💳 *Payment Methods*\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"Active Method: *{active_lbl}*\n\n"
-        f"{aloo_icon} *ALOO/BharatPe* — {'ON' if aloo_on else 'OFF'}\n"
+        f"{email_icon} *Gmail Verification* — {'ON' if email_on else 'OFF'}\n"
         f"{zap_icon} *ZapUPI* — {'ON' if zap_on else 'OFF'}\n\n"
+        f"Gmail Config: `{'Set ✅' if email_u and email_p else 'Not set ❌'}`\n"
+        f"Gmail Address: `{email_u if email_u else 'Not set'}`\n"
         f"ZapUPI Key: `{'Set ✅' if zap_key else 'Not set ❌'}`\n\n"
         f"ℹ️ _Agar dono ON hain toh ZapUPI priority lega._"
     )
     kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton(f"{aloo_icon} ALOO Toggle ({'ON→OFF' if aloo_on else 'OFF→ON'})",
-                              callback_data="admin_toggle_aloo")],
-        [InlineKeyboardButton(f"{zap_icon} ZapUPI Toggle ({'ON→OFF' if zap_on else 'OFF→ON'})",
-                              callback_data="admin_toggle_zapupi")],
+        [InlineKeyboardButton(f"{email_icon} Gmail Verify Toggle", callback_data="admin_toggle_email")],
+        [InlineKeyboardButton("📧 Set Gmail Address", callback_data="admin_set_email_user")],
+        [InlineKeyboardButton("🔐 Set Gmail App Password", callback_data="admin_set_email_pass")],
+        [InlineKeyboardButton(f"{zap_icon} ZapUPI Toggle", callback_data="admin_toggle_zapupi")],
         [InlineKeyboardButton("🔑 Set ZapUPI Key", callback_data="admin_set_zapupi_key")],
         [InlineKeyboardButton("◀️ Back to Admin",  callback_data="admin_back")],
     ])
     await query.edit_message_text(text, reply_markup=kb, parse_mode=ParseMode.MARKDOWN)
 
 
-async def admin_toggle_aloo(update, context) -> None:
+async def admin_toggle_email(update, context) -> None:
     query = update.callback_query
     await query.answer()
     if query.from_user.id not in ADMIN_IDS:
         return
     s = get_settings()
-    s["aloo_enabled"] = not s.get("aloo_enabled", True)
+    s["email_enabled"] = not s.get("email_enabled", True)
     save_settings(s)
     await admin_payment_methods(update, context)
+
+
+async def admin_set_email_user(update, context) -> None:
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id not in ADMIN_IDS:
+        return
+    context.user_data["awaiting_email_user"] = True
+    cur = get_settings().get("email_user", "")
+    await query.edit_message_text(
+        f"📧 *Set Gmail Address*\n\nCurrent: `{cur if cur else 'None'}`\n\nApna Gmail email address bhejo (jaise: merchant@gmail.com) (cancel ke liye /admin):",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back", callback_data="admin_payment_methods")]]),
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+async def admin_set_email_pass(update, context) -> None:
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id not in ADMIN_IDS:
+        return
+    context.user_data["awaiting_email_pass"] = True
+    cur = get_settings().get("email_pass", "")
+    masked = (cur[:2] + "*" * 12 + cur[-2:]) if len(cur) > 4 else "Not set ❌"
+    await query.edit_message_text(
+        f"🔐 *Set Gmail App Password*\n\nCurrent: `{masked}`\n\nApna Gmail **App Password** (16-character code) bhejo. \n\n*Important:* Gmail settings -> Security -> 2-Step Verification -> App Passwords se generate karein (normal login password kaam nahi karega) (cancel ke liye /admin):",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back", callback_data="admin_payment_methods")]]),
+        parse_mode=ParseMode.MARKDOWN,
+    )
 
 
 async def admin_toggle_zapupi(update, context) -> None:
@@ -5566,9 +5788,11 @@ def main() -> None:
     app.add_handler(CallbackQueryHandler(admin_min_qty_panel,    pattern="^admin_min_qty$"))
     app.add_handler(CallbackQueryHandler(admin_min_qty_edit,     pattern="^admin_min_qty_edit_"))
 
-    # Payment Methods panel handlers (ALOO toggle + ZapUPI)
+    # Payment Methods panel handlers (Gmail Verify toggle + ZapUPI)
     app.add_handler(CallbackQueryHandler(admin_payment_methods,  pattern="^admin_payment_methods$"))
-    app.add_handler(CallbackQueryHandler(admin_toggle_aloo,      pattern="^admin_toggle_aloo$"))
+    app.add_handler(CallbackQueryHandler(admin_toggle_email,     pattern="^admin_toggle_email$"))
+    app.add_handler(CallbackQueryHandler(admin_set_email_user,   pattern="^admin_set_email_user$"))
+    app.add_handler(CallbackQueryHandler(admin_set_email_pass,   pattern="^admin_set_email_pass$"))
     app.add_handler(CallbackQueryHandler(admin_toggle_zapupi,    pattern="^admin_toggle_zapupi$"))
     app.add_handler(CallbackQueryHandler(admin_set_zapupi_key,   pattern="^admin_set_zapupi_key$"))
 
@@ -5599,11 +5823,12 @@ def main() -> None:
     else:
         logger.warning("⚠️ JobQueue not available — periodic referral check disabled")
 
-    # ALOO API is used for payment verification (no userbot needed)
-    if not ALOO_API_KEY or not ALOO_MERCHANT_ID:
-        logger.warning("⚠️ ALOO_API_KEY or ALOO_MERCHANT_ID not set! Payments will NOT verify automatically.")
+    # Gmail Verify settings check
+    _settings = get_settings()
+    if not _settings.get("email_user") or not _settings.get("email_pass"):
+        logger.warning("⚠️ Gmail verification email_user or email_pass not set! Auto-payments will fail.")
     else:
-        logger.info(f"✅ ALOO API configured (merchant: {ALOO_MERCHANT_ID})")
+        logger.info("✅ Gmail verification credentials configured.")
 
     # ZapUPI startup check
     _zap_key = get_zapupi_key()
