@@ -4762,164 +4762,6 @@ async def flash_sale_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
         return
 
-# ─────────────── Gmail IMAP: verify payment ───────────────
-
-def _email_verify(amount: float) -> dict:
-    """
-    Search Gmail inbox via IMAP for a credit notification of `amount`.
-    Returns a dict {"success": True, "utr": "..."} or {"success": False}.
-    """
-    s = get_settings()
-    email_user = s.get("email_user", "").strip().replace("\xa0", "").replace(" ", "")
-    email_pass = s.get("email_pass", "").strip().replace("\xa0", "").replace(" ", "")
-    imap_server = s.get("email_imap_server", "imap.gmail.com").strip()
-
-    if not email_user or not email_pass:
-        logger.warning("[EmailVerify] Gmail address or App Password not configured!")
-        return {"success": False, "error": "not_configured"}
-
-    import imaplib
-    import email
-    from email.header import decode_header
-    import re
-
-    try:
-        logger.info(f"[EmailVerify] Checking IMAP for amount ₹{amount:.2f}")
-        mail = imaplib.IMAP4_SSL(imap_server, timeout=10)
-        mail.login(email_user, email_pass)
-        
-        status, _ = mail.select("INBOX", readonly=True)
-        if status != "OK":
-            logger.error("[EmailVerify] Failed to select INBOX")
-            return {"success": False}
-
-        status, messages = mail.search(None, "ALL")
-        if status != "OK":
-            return {"success": False}
-
-        message_ids = messages[0].split()
-        if not message_ids:
-            return {"success": False}
-
-        check_limit = min(len(message_ids), 20)
-        target_amount_str = f"{amount:.2f}"
-        logger.info(f"[EmailVerify] Scanning last {check_limit} emails for amount '{target_amount_str}'...")
-
-        for msg_id in reversed(message_ids[-check_limit:]):
-            try:
-                status, data = mail.fetch(msg_id, "(RFC822)")
-                if status != "OK" or not data:
-                    continue
-
-                raw_email = data[0][1]
-                if not raw_email:
-                    continue
-                
-                msg = email.message_from_bytes(raw_email)
-                
-                subject = ""
-                subject_header = msg["Subject"]
-                if subject_header:
-                    decoded = decode_header(subject_header)[0]
-                    subject_val = decoded[0]
-                    if isinstance(subject_val, bytes):
-                        subject = subject_val.decode(decoded[1] or "utf-8", errors="ignore")
-                    else:
-                        subject = str(subject_val)
-
-                body = ""
-                if msg.is_multipart():
-                    for part in msg.walk():
-                        content_type = part.get_content_type()
-                        content_disposition = str(part.get_content_disposition())
-                        if content_type in ("text/plain", "text/html") and "attachment" not in content_disposition:
-                            payload = part.get_payload(decode=True)
-                            if payload:
-                                body += payload.decode("utf-8", errors="ignore")
-                else:
-                    payload = msg.get_payload(decode=True)
-                    if payload:
-                        body = payload.decode("utf-8", errors="ignore")
-
-                full_text = (subject + "\n" + body).lower()
-
-                if target_amount_str in full_text:
-                    credit_keywords = [
-                        "credited", "received", "credit", "deposit", "added", 
-                        "success", "payment", "received payment", "rs", "inr", 
-                        "transferred", "accept", "accepted"
-                    ]
-                    if any(kw in full_text for kw in credit_keywords):
-                        utr_match = re.search(r'\b\d{12}\b', full_text)
-                        utr = utr_match.group(0) if utr_match else ""
-                        logger.info(f"[EmailVerify] MATCH FOUND! Amount: {target_amount_str}, UTR: {utr}")
-                        
-                        try:
-                            mail.logout()
-                        except Exception:
-                            pass
-                        return {"success": True, "utr": utr}
-            except Exception as inner_e:
-                logger.error(f"[EmailVerify] Error parsing message {msg_id}: {inner_e}")
-                continue
-
-        try:
-            mail.logout()
-        except Exception:
-            pass
-
-    except Exception as e:
-        logger.error(f"[EmailVerify] IMAP verification failed: {e}")
-
-    return {"success": False}
-
-# ─────────────── Core: approve order & deliver coupon ───────────────
-
-async def _execute_email_approve(context, order_id: str, amount: float, utr: str = "") -> bool:
-    """Mark payment verified -> deliver coupon -> notify admin."""
-    order, status = await _execute_approve(context, order_id)
-    if not isinstance(status, list):
-        logger.error(f"[Email] _execute_approve failed: {status}")
-        return False
-
-    user_id = (order or {}).get("user_id", 0)
-
-    # Mark amount as used (anti-fraud)
-    _mark_amount_used(amount, user_id, order_id)
-
-    # Log deposit
-    log_deposit({
-        "ts":       now_ts(),
-        "user_id":  user_id,
-        "username": (order or {}).get("username", ""),
-        "product":  (order or {}).get("product", ""),
-        "expected": amount,
-        "paid":     amount,
-        "utr":      utr,
-        "status":   "approved",
-        "auto":     True,
-        "via":      "email",
-    })
-
-    # Notify admin
-    try:
-        await context.bot.send_message(
-            chat_id=ADMIN_ID,
-            text=(
-                f"✅ <b>Auto Payment Approved (Email Verify)</b>\n"
-                f"━━━━━━━━━━━━━━━━━━━━\n"
-                f"👤 User: <code>{user_id}</code>\n"
-                f"📦 Product: {html.escape(str((order or {}).get('product', '')))}\n"
-                f"💰 Amount: ₹{amount:.2f}\n"
-                f"🔑 UTR: <code>{utr or 'N/A'}</code>\n"
-                f"🎟 Coupon delivered."
-            ),
-            parse_mode=ParseMode.HTML,
-        )
-    except Exception as e:
-        logger.error(f"[Email] Admin notification failed: {e}")
-    return True
-
     expires_at = _time_mod.time() + secs
     FLASH_SALES[pk] = {
         "sale_price":     sale_price,
@@ -4966,6 +4808,221 @@ async def _execute_email_approve(context, order_id: str, amount: float, utr: str
         f"📢 {sent} users ko notification bheja gaya!",
         parse_mode=ParseMode.MARKDOWN,
     )
+
+# ─────────────── Gmail IMAP: verify payment ───────────────
+
+def _email_verify(amount: float, order_id: str = None) -> dict:
+    """
+    Search Gmail inbox via IMAP for a credit notification of `amount`.
+    Enforces timestamp window checks and database duplicate protections.
+    """
+    s = get_settings()
+    email_user = s.get("email_user", "").strip().replace("\xa0", "").replace(" ", "")
+    email_pass = s.get("email_pass", "").strip().replace("\xa0", "").replace(" ", "")
+    imap_server = s.get("email_imap_server", "imap.gmail.com").strip()
+
+    if not email_user or not email_pass:
+        logger.warning("[EmailVerify] Gmail address or App Password not configured!")
+        return {"success": False, "error": "not_configured"}
+
+    import imaplib
+    import email
+    from email.header import decode_header
+    from email.utils import parsedate_to_datetime
+    from datetime import datetime, timezone
+    import re
+
+    order_dt = None
+    if order_id:
+        try:
+            order = get_orders().get(order_id)
+            if order and order.get("created_at"):
+                order_dt = datetime.fromisoformat(order["created_at"]).replace(tzinfo=timezone.utc)
+        except Exception as o_err:
+            logger.error(f"[EmailVerify] Error loading order creation time: {o_err}")
+
+    try:
+        logger.info(f"[EmailVerify] Checking IMAP for amount ₹{amount:.2f} (Order: {order_id})")
+        mail = imaplib.IMAP4_SSL(imap_server, timeout=10)
+        mail.login(email_user, email_pass)
+        
+        status, _ = mail.select("INBOX", readonly=True)
+        if status != "OK":
+            logger.error("[EmailVerify] Failed to select INBOX")
+            return {"success": False}
+
+        status, messages = mail.search(None, "ALL")
+        if status != "OK":
+            return {"success": False}
+
+        message_ids = messages[0].split()
+        if not message_ids:
+            return {"success": False}
+
+        check_limit = min(len(message_ids), 30)
+        target_amount_str = f"{amount:.2f}"
+        logger.info(f"[EmailVerify] Scanning last {check_limit} emails for amount '{target_amount_str}'...")
+
+        for msg_id in reversed(message_ids[-check_limit:]):
+            try:
+                status, data = mail.fetch(msg_id, "(RFC822)")
+                if status != "OK" or not data:
+                    continue
+
+                raw_email = data[0][1]
+                if not raw_email:
+                    continue
+                
+                msg = email.message_from_bytes(raw_email)
+                
+                subject = ""
+                subject_header = msg["Subject"]
+                if subject_header:
+                    decoded = decode_header(subject_header)[0]
+                    subject_val = decoded[0]
+                    if isinstance(subject_val, bytes):
+                        subject = subject_val.decode(decoded[1] or "utf-8", errors="ignore")
+                    else:
+                        subject = str(subject_val)
+
+                email_dt = None
+                date_header = msg["Date"]
+                if date_header:
+                    try:
+                        email_dt = parsedate_to_datetime(date_header)
+                        email_dt = email_dt.replace(tzinfo=timezone.utc) if email_dt.tzinfo is None else email_dt.astimezone(timezone.utc)
+                    except Exception:
+                        pass
+
+                body = ""
+                if msg.is_multipart():
+                    for part in msg.walk():
+                        content_type = part.get_content_type()
+                        content_disposition = str(part.get_content_disposition())
+                        if content_type in ("text/plain", "text/html") and "attachment" not in content_disposition:
+                            payload = part.get_payload(decode=True)
+                            if payload:
+                                body += payload.decode("utf-8", errors="ignore")
+                else:
+                    payload = msg.get_payload(decode=True)
+                    if payload:
+                        body = payload.decode("utf-8", errors="ignore")
+
+                full_text = (subject + "\n" + body).lower()
+
+                if target_amount_str in full_text:
+                    credit_keywords = [
+                        "credited", "received", "credit", "deposit", "added", 
+                        "success", "payment", "received payment", "rs", "inr", 
+                        "transferred", "accept", "accepted"
+                    ]
+                    if any(kw in full_text for kw in credit_keywords):
+                        if order_dt and email_dt:
+                            time_diff = abs((email_dt - order_dt).total_seconds())
+                            if time_diff > 15 * 60:
+                                logger.info(f"[EmailVerify] Email skipped. Time difference too large: {time_diff/60:.1f} mins (Order: {order_dt}, Email: {email_dt})")
+                                continue
+                        
+                        utr_match = re.search(r'\b\d{12}\b', full_text)
+                        utr = utr_match.group(0) if utr_match else ""
+                        
+                        if not utr:
+                            logger.info(f"[EmailVerify] Email skipped. Missing 12-digit UTR.")
+                            continue
+
+                        # Check duplicate in payment_transactions collection
+                        db = _get_db()
+                        tx_exists = bool(db["payment_transactions"].find_one({"utr": utr}))
+                        if tx_exists:
+                            logger.info(f"[EmailVerify] Email skipped. Duplicate UTR detected in payment_transactions: {utr}")
+                            continue
+                        
+                        # Check duplicate in deposits log
+                        log = get_deposits_log()
+                        log_exists = any(d.get("utr") == utr for d in log if d.get("utr"))
+                        if log_exists:
+                            logger.info(f"[EmailVerify] Email skipped. Duplicate UTR detected in deposits log: {utr}")
+                            continue
+
+                        logger.info(f"[EmailVerify] MATCH FOUND! Amount: {target_amount_str}, UTR: {utr}, Date: {email_dt}")
+                        
+                        try:
+                            mail.logout()
+                        except Exception:
+                            pass
+                        return {"success": True, "utr": utr}
+            except Exception as inner_e:
+                logger.error(f"[EmailVerify] Error parsing message {msg_id}: {inner_e}")
+                continue
+
+        try:
+            mail.logout()
+        except Exception:
+            pass
+
+    except Exception as e:
+        logger.error(f"[EmailVerify] IMAP verification failed: {e}")
+
+    return {"success": False}
+
+async def _execute_email_approve(context, order_id: str, amount: float, utr: str = "") -> bool:
+    """Mark payment verified -> deliver coupon -> notify admin."""
+    order, status = await _execute_approve(context, order_id)
+    if not isinstance(status, list):
+        logger.error(f"[Email] _execute_approve failed: {status}")
+        return False
+
+    user_id = (order or {}).get("user_id", 0)
+
+    # Mark amount as used (anti-fraud)
+    _mark_amount_used(amount, user_id, order_id)
+
+    # Log deposit
+    log_deposit({
+        "ts":       now_ts(),
+        "user_id":  user_id,
+        "username": (order or {}).get("username", ""),
+        "product":  (order or {}).get("product", ""),
+        "expected": amount,
+        "paid":     amount,
+        "utr":      utr,
+        "status":   "approved",
+        "auto":     True,
+        "via":      "email",
+    })
+
+    # Record in payment_transactions to prevent double-spending
+    try:
+        db = _get_db()
+        db["payment_transactions"].insert_one({
+            "transaction_id": f"TX_EMAIL_{order_id}",
+            "utr": utr or f"UTR_EMAIL_{order_id}",
+            "order_id": order_id,
+            "amount": amount,
+            "sender_name": "EmailVerify User",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+    except Exception as db_err:
+        logger.error(f"[Email] Failed to record transaction in DB: {db_err}")
+
+    # Notify admin
+    try:
+        await context.bot.send_message(
+            chat_id=ADMIN_ID,
+            text=(
+                f"✅ <b>Auto Payment Approved (Email Verify)</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"👤 User: <code>{user_id}</code>\n"
+                f"📦 Product: {html.escape(str((order or {}).get('product', '')))}\n"
+                f"💰 Amount: ₹{amount:.2f}\n"
+                f"🔑 UTR: <code>{utr or 'N/A'}</code>\n"
+                f"🎟 Coupon delivered."
+            ),
+            parse_mode=ParseMode.HTML,
+        )
+    except Exception as e:
+        logger.error(f"[Email] Admin notification failed: {e}")
+    return True
 
 
 async def _flash_sale_expire_job(context) -> None:
@@ -5366,7 +5423,7 @@ async def i_paid_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     else:
         # ── Email check ──
         await _edit_msg(f"🔍 *Payment verify ho rahi hai...* (Attempt {retries+1}/{_MAX_PAY_RETRIES})\n\nEk second ruko...")
-        result = _email_verify(amount)
+        result = _email_verify(amount, order_id=order_id)
         if result and result.get("success"):
             utr = result.get("utr", "")
             context.user_data.pop("paid_check_count", None)
@@ -5579,36 +5636,61 @@ async def fampay_verify_handler(update: Update, context: ContextTypes.DEFAULT_TY
         return
         
     status = existing_order.get("status")
-    if status == "Delivered":
-        await query.edit_message_caption(
-            caption="✅ *Payment Verified!* Coupon codes already delivered.",
-            parse_mode=ParseMode.MARKDOWN
-        ) if query.message and query.message.photo else await query.edit_message_text(
-            "✅ *Payment Verified!* Coupon codes already delivered.",
-            parse_mode=ParseMode.MARKDOWN
+    
+    if status in ("Delivered", "Reserved", "Paid"):
+        logger.info(
+            f"[FamPayVerify] Skipping verification. Already completed.\n"
+            f"ORDER_STATUS={status}\n"
+            f"BUTTON_CLICKED={query.data}\n"
+            f"VERIFICATION_SKIPPED=True"
         )
+        msg = "✅ *This order has already been completed.*"
+        if query.message and query.message.photo:
+            await query.edit_message_caption(caption=msg, reply_markup=None, parse_mode=ParseMode.MARKDOWN)
+        else:
+            await query.edit_message_text(msg, reply_markup=None, parse_mode=ParseMode.MARKDOWN)
         return
     elif status == "Expired":
-        await query.edit_message_caption(
-            caption="❌ *Order Expired!* Expiry time exceeded. Expired orders cannot be credited.",
-            parse_mode=ParseMode.MARKDOWN
-        ) if query.message and query.message.photo else await query.edit_message_text(
-            "❌ *Order Expired!* Expiry time exceeded. Expired orders cannot be credited.",
-            parse_mode=ParseMode.MARKDOWN
+        logger.info(
+            f"[FamPayVerify] Skipping verification. Expired.\n"
+            f"ORDER_STATUS={status}\n"
+            f"BUTTON_CLICKED={query.data}\n"
+            f"VERIFICATION_SKIPPED=True"
         )
+        msg = "❌ *Order Expired!* Expiry time exceeded."
+        if query.message and query.message.photo:
+            await query.edit_message_caption(caption=msg, reply_markup=None, parse_mode=ParseMode.MARKDOWN)
+        else:
+            await query.edit_message_text(msg, reply_markup=None, parse_mode=ParseMode.MARKDOWN)
         return
     elif status == "Cancelled":
-        await query.edit_message_caption(
-            caption="❌ *Order Cancelled.*",
-            parse_mode=ParseMode.MARKDOWN
-        ) if query.message and query.message.photo else await query.edit_message_text(
-            "❌ *Order Cancelled.*",
-            parse_mode=ParseMode.MARKDOWN
+        logger.info(
+            f"[FamPayVerify] Skipping verification. Cancelled.\n"
+            f"ORDER_STATUS={status}\n"
+            f"BUTTON_CLICKED={query.data}\n"
+            f"VERIFICATION_SKIPPED=True"
+        )
+        msg = "❌ *Order Cancelled.*"
+        if query.message and query.message.photo:
+            await query.edit_message_caption(caption=msg, reply_markup=None, parse_mode=ParseMode.MARKDOWN)
+        else:
+            await query.edit_message_text(msg, reply_markup=None, parse_mode=ParseMode.MARKDOWN)
+        return
+    elif status == "Processing":
+        logger.info(
+            f"[FamPayVerify] Skipping verification. Processing lock is active.\n"
+            f"ORDER_STATUS={status}\n"
+            f"BUTTON_CLICKED={query.data}\n"
+            f"VERIFICATION_SKIPPED=True"
         )
         return
-    elif status in ("Processing", "Paid", "Reserved"):
-        logger.info(f"[FamPayVerify] Skipping verification. SKIPPED_REASON=ProcessingLockFailed (Current status: {status})")
-        return
+    else:
+        logger.info(
+            f"[FamPayVerify] Proceeding with verification.\n"
+            f"ORDER_STATUS={status}\n"
+            f"BUTTON_CLICKED={query.data}\n"
+            f"VERIFICATION_SKIPPED=False"
+        )
 
     # processing lock: BEFORE IMAP scan
     locked_order = db["payment_orders"].find_one_and_update(
@@ -5638,9 +5720,9 @@ async def fampay_verify_handler(update: Update, context: ContextTypes.DEFAULT_TY
             )
             
         if query.message and query.message.photo:
-            await query.edit_message_caption(caption=msg, parse_mode=ParseMode.MARKDOWN)
+            await query.edit_message_caption(caption=msg, reply_markup=None, parse_mode=ParseMode.MARKDOWN)
         else:
-            await query.edit_message_text(msg, parse_mode=ParseMode.MARKDOWN)
+            await query.edit_message_text(msg, reply_markup=None, parse_mode=ParseMode.MARKDOWN)
     else:
         current_order = db["payment_orders"].find_one({"order_id": order_id})
         current_status = current_order.get("status") if current_order else "Pending"
@@ -6138,7 +6220,7 @@ async def execute_fampay_email_verification(context, order: dict) -> bool:
                         "order_id": order_id, "user_id": int(user_id), "username": order.get("username") or "",
                         "first_name": order.get("first_name") or "", "product": product_id, "quantity": quantity,
                         "total": expected_amount, "status": "approved", "coupon_codes": assigned,
-                        "approved_at": datetime.now.isoformat(), "via": "fampay"
+                        "approved_at": datetime.now().isoformat(), "via": "fampay"
                     }
                     main_orders[order_id] = legacy_order
                     save_orders(main_orders)
