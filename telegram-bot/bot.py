@@ -4770,8 +4770,8 @@ def _email_verify(amount: float) -> dict:
     Returns a dict {"success": True, "utr": "..."} or {"success": False}.
     """
     s = get_settings()
-    email_user = s.get("email_user", "").strip()
-    email_pass = s.get("email_pass", "").strip()
+    email_user = s.get("email_user", "").strip().replace("\xa0", "").replace(" ", "")
+    email_pass = s.get("email_pass", "").strip().replace("\xa0", "").replace(" ", "")
     imap_server = s.get("email_imap_server", "imap.gmail.com").strip()
 
     if not email_user or not email_pass:
@@ -5743,8 +5743,8 @@ async def execute_fampay_email_verification(context, order: dict) -> bool:
 
     try:
         s = get_settings()
-        email_user = s.get("email_user", "").strip()
-        email_pass = s.get("email_pass", "").strip()
+        email_user = s.get("email_user", "").strip().replace("\xa0", "").replace(" ", "")
+        email_pass = s.get("email_pass", "").strip().replace("\xa0", "").replace(" ", "")
         imap_server = s.get("email_imap_server", "imap.gmail.com").strip()
 
         if not email_user or not email_pass:
