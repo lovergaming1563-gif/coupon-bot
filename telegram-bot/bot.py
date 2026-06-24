@@ -5642,6 +5642,9 @@ async def fampay_cancel_handler(update: Update, context: ContextTypes.DEFAULT_TY
     else:
         await query.edit_message_text(msg, parse_mode=ParseMode.MARKDOWN)
 
+def normalize_order_id(value):
+    return ''.join(ch for ch in value.upper() if ch.isalnum())
+
 async def execute_fampay_email_verification(context, order: dict) -> bool:
     order_id = order["order_id"]
     expected_amount = order["amount"]
@@ -5738,10 +5741,13 @@ async def execute_fampay_email_verification(context, order: dict) -> bool:
             email_tx_id = parsed.get("transaction_id") or ""
             email_purpose = parsed.get("purpose") or ""
 
+            order_id_normalized = normalize_order_id(order_id)
+            purpose_normalized = normalize_order_id(email_purpose)
+
             is_match = False
             match_type = ""
 
-            if email_purpose and email_purpose.strip().upper() == order_id:
+            if email_purpose and purpose_normalized == order_id_normalized:
                 is_match = True
                 match_type = "Order ID Match"
             
@@ -5770,6 +5776,53 @@ async def execute_fampay_email_verification(context, order: dict) -> bool:
                 if amount_matches and time_matches and user_matches:
                     is_match = True
                     match_type = f"Fallback Match ({email_sender})"
+
+            # Debug logs showing required format
+            logger.info(
+                f"[FamPayVerify] Match debug logs:\n"
+                f"ORDER_ID_RAW: {order_id}\n"
+                f"PURPOSE_RAW: {email_purpose}\n"
+                f"ORDER_ID_NORMALIZED: {order_id_normalized}\n"
+                f"PURPOSE_NORMALIZED: {purpose_normalized}\n"
+                f"MATCH_RESULT: {is_match}"
+            )
+
+            if not is_match:
+                reasons = []
+                reasons.append(f"Order ID mismatch (Purpose normalized: '{purpose_normalized}' vs Order normalized: '{order_id_normalized}')")
+                
+                order_id_match = re.search(r'HZ-[A-Z0-9]{6}', full_text, re.IGNORECASE)
+                extracted_order_id = order_id_match.group(0).upper() if order_id_match else None
+                if not extracted_order_id:
+                    reasons.append("Regex Order ID pattern 'HZ-[A-Z0-9]{6}' not found in email text")
+                elif extracted_order_id != order_id:
+                    reasons.append(f"Regex extracted Order ID '{extracted_order_id}' does not match expected '{order_id}'")
+                
+                amount_matches = abs(email_amount - expected_amount) < 0.01 if email_amount is not None else False
+                time_matches = abs((email_dt - order_dt).total_seconds()) <= 15 * 60 if email_dt else False
+                user_matches = False
+                email_sender_clean = email_sender.lower().strip()
+                tg_first_name = str(order.get("first_name", "")).lower().strip()
+                tg_username = str(order.get("username", "")).lower().strip()
+                if email_sender_clean:
+                    if tg_first_name and (tg_first_name in email_sender_clean or email_sender_clean in tg_first_name):
+                        user_matches = True
+                    elif tg_username and (tg_username in email_sender_clean or email_sender_clean in tg_username):
+                        user_matches = True
+
+                fallback_reasons = []
+                if not amount_matches:
+                    fallback_reasons.append(f"Amount mismatch (Expected: {expected_amount}, Email: {email_amount})")
+                if not time_matches:
+                    fallback_reasons.append(f"Time mismatch (Order Time: {order_dt}, Email Time: {email_dt})")
+                if not user_matches:
+                    fallback_reasons.append(f"User mismatch (Telegram Name: '{tg_first_name}', Username: '{tg_username}' vs Email Sender: '{email_sender}')")
+                
+                if fallback_reasons:
+                    reasons.append(f"Fallback verification failed: {', '.join(fallback_reasons)}")
+                
+                reason_str = "; ".join(reasons)
+                logger.info(f"[FamPayVerify] Verification failed. Exact reason: {reason_str}")
 
             if is_match:
                 tx_exists = False
