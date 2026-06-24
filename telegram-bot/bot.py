@@ -2668,6 +2668,66 @@ async def _execute_approve(context, order_id: str) -> tuple:
     return order, assigned
 
 
+# ─────────────── /debugorder <order_id> command ───────────
+
+async def debugorder_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.effective_user.id not in ADMIN_IDS:
+        await update.message.reply_text("⛔ *Access Denied.*", parse_mode=ParseMode.MARKDOWN)
+        return
+
+    if not context.args:
+        await update.message.reply_text(
+            "❌ *Usage:* `/debugorder <order_id>`", parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+
+    order_id = context.args[0].strip()
+    db = _get_db()
+    
+    order = db["payment_orders"].find_one({"order_id": order_id})
+    if not order:
+        await update.message.reply_text(f"❌ Order `{order_id}` not found in Database.", parse_mode=ParseMode.MARKDOWN)
+        return
+
+    # Gather required details
+    status = order.get("status", "N/A")
+    amount = order.get("amount", 0.0)
+    created_time = order.get("created_at", "N/A")
+    expiry_time = order.get("expires_at", "N/A")
+    user_id = order.get("user_id", "N/A")
+    stored_purpose = order.get("verified_purpose", "N/A")
+
+    # Matched transaction and UTR
+    tx_doc = db["payment_transactions"].find_one({"order_id": order_id})
+    matched_tx = tx_doc.get("transaction_id", "N/A") if tx_doc else "N/A"
+    matched_utr = tx_doc.get("utr", "N/A") if tx_doc else "N/A"
+
+    # Verification attempts and last failure reason
+    attempts_count = db["payment_audit_logs"].count_documents({"order_id": order_id})
+    last_failure_reason = order.get("last_failure_reason")
+    if not last_failure_reason:
+        last_fail = db["payment_audit_logs"].find_one({"order_id": order_id, "status": "failed"}, sort=[("timestamp", -1)])
+        last_failure_reason = last_fail.get("reason", "None") if last_fail else "None"
+
+    debug_msg = (
+        f"🔍 <b>DEBUG ORDER DETAILS</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"<b>Order ID:</b> <code>{order_id}</code>\n"
+        f"<b>Order Status:</b> <code>{status}</code>\n"
+        f"<b>Order Amount:</b> ₹{amount:.2f}\n"
+        f"<b>Created Time:</b> <code>{created_time}</code>\n"
+        f"<b>Expiry Time:</b> <code>{expiry_time}</code>\n"
+        f"<b>Stored User ID:</b> <code>{user_id}</code>\n"
+        f"<b>Stored Purpose:</b> <code>{stored_purpose}</code>\n"
+        f"<b>Matched Transaction:</b> <code>{matched_tx}</code>\n"
+        f"<b>Matched UTR:</b> <code>{matched_utr}</code>\n"
+        f"<b>Verification Attempts:</b> <code>{attempts_count}</code>\n"
+        f"<b>Last Failure Reason:</b> <code>{last_failure_reason}</code>"
+    )
+
+    await update.message.reply_text(debug_msg, parse_mode=ParseMode.HTML)
+
+
 # ─────────────── /approve <user_id> command ───────────────
 
 async def approve_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -5508,10 +5568,12 @@ async def fampay_verify_handler(update: Update, context: ContextTypes.DEFAULT_TY
     cb_data = query.data  # "fampay_verify_HZ-XXXXXX"
     order_id = cb_data.replace("fampay_verify_", "")
     
+    logger.info(f"[FamPayVerify] Verification started for order_id: {order_id}")
     check_and_expire_orders()
     db = _get_db()
     
     existing_order = db["payment_orders"].find_one({"order_id": order_id})
+    logger.info(f"[FamPayVerify] Order fetched from MongoDB: {existing_order}")
     if not existing_order:
         await query.edit_message_text("❌ Order not found.")
         return
@@ -5545,6 +5607,7 @@ async def fampay_verify_handler(update: Update, context: ContextTypes.DEFAULT_TY
         )
         return
     elif status in ("Processing", "Paid", "Reserved"):
+        logger.info(f"[FamPayVerify] Skipping verification. SKIPPED_REASON=ProcessingLockFailed (Current status: {status})")
         return
 
     # processing lock: BEFORE IMAP scan
@@ -5555,6 +5618,7 @@ async def fampay_verify_handler(update: Update, context: ContextTypes.DEFAULT_TY
     )
     
     if not locked_order:
+        logger.info(f"[FamPayVerify] Skipping verification. SKIPPED_REASON=ProcessingLockFailed (Failed to acquire Pending -> Processing lock)")
         return
 
     success = await execute_fampay_email_verification(context, locked_order)
@@ -5646,197 +5710,259 @@ def normalize_order_id(value):
     return ''.join(ch for ch in value.upper() if ch.isalnum())
 
 async def execute_fampay_email_verification(context, order: dict) -> bool:
+    import traceback
     order_id = order["order_id"]
     expected_amount = order["amount"]
     user_id = order["user_id"]
     product_id = order["product_id"]
     quantity = order["quantity"]
     
-    s = get_settings()
-    email_user = s.get("email_user", "").strip()
-    email_pass = s.get("email_pass", "").strip()
-    imap_server = s.get("email_imap_server", "imap.gmail.com").strip()
+    logger.info(f"[FamPayVerify] Verification started for order_id: {order_id}")
+    
+    fail_details = {
+        "reason": "No matching email found",
+        "purpose": "N/A",
+        "utr": "N/A",
+        "tx_id": "N/A"
+    }
 
-    if not email_user or not email_pass:
-        log_payment_audit(order_id, user_id, expected_amount, "failed", "Gmail not configured")
-        _get_db()["payment_orders"].update_one({"order_id": order_id, "status": "Processing"}, {"$set": {"status": "Pending"}})
-        return False
+    async def send_fail_alert():
+        try:
+            admin_msg = (
+                f"❌ <b>PAYMENT VERIFY FAILED</b>\n\n"
+                f"<b>Order ID:</b> <code>{order_id}</code>\n"
+                f"<b>User ID:</b> <code>{user_id}</code>\n"
+                f"<b>Reason:</b> {html.escape(fail_details['reason'])}\n"
+                f"<b>Purpose:</b> <code>{html.escape(fail_details['purpose'])}</code>\n"
+                f"<b>UTR:</b> <code>{html.escape(fail_details['utr'])}</code>\n"
+                f"<b>Transaction ID:</b> <code>{html.escape(fail_details['tx_id'])}</code>"
+            )
+            await context.bot.send_message(chat_id=ADMIN_ID, text=admin_msg, parse_mode=ParseMode.HTML)
+        except Exception as send_err:
+            logger.error(f"[FamPayVerify] Failed to send admin alert: {send_err}")
 
-    import imaplib, email, re
-    from email.header import decode_header
-    from email.utils import parsedate_to_datetime
-
-    mail = None
     try:
-        mail = imaplib.IMAP4_SSL(imap_server, timeout=15)
-        mail.login(email_user, email_pass)
-        
-        status, data = mail.select("INBOX", readonly=True)
-        if status != "OK" or not data[0]:
-            log_payment_audit(order_id, user_id, expected_amount, "failed", "IMAP selection failed")
-            _get_db()["payment_orders"].update_one({"order_id": order_id, "status": "Processing"}, {"$set": {"status": "Pending"}})
+        s = get_settings()
+        email_user = s.get("email_user", "").strip()
+        email_pass = s.get("email_pass", "").strip()
+        imap_server = s.get("email_imap_server", "imap.gmail.com").strip()
+
+        if not email_user or not email_pass:
+            log_payment_audit(order_id, user_id, expected_amount, "failed", "Gmail not configured")
+            _get_db()["payment_orders"].update_one(
+                {"order_id": order_id, "status": "Processing"},
+                {"$set": {"status": "Pending", "last_failure_reason": "Gmail not configured"}}
+            )
+            fail_details["reason"] = "Gmail not configured"
+            await send_fail_alert()
             return False
 
-        # IMAP Performance Fix (sequence indices fetch)
-        total_msgs = int(data[0])
-        start = max(1, total_msgs - 29)
-        message_ids = [str(i) for i in range(start, total_msgs + 1)]
-        
-        db = _get_db()
-        order_dt = datetime.fromisoformat(order["created_at"]).replace(tzinfo=timezone.utc)
-        
-        for msg_id in reversed(message_ids):
-            status, data = mail.fetch(msg_id, "(RFC822)")
-            if status != "OK" or not data: continue
+        import imaplib, email, re
+        from email.header import decode_header
+        from email.utils import parsedate_to_datetime
 
-            raw_email = data[0][1]
-            if not raw_email: continue
+        mail = None
+        try:
+            logger.info(f"[FamPayVerify] Connecting to IMAP server {imap_server}...")
+            mail = imaplib.IMAP4_SSL(imap_server, timeout=15)
+            logger.info(f"[FamPayVerify] Attempting IMAP login for user {email_user}...")
+            mail.login(email_user, email_pass)
+            logger.info(f"[FamPayVerify] IMAP login success for user {email_user}")
+        except Exception as conn_err:
+            logger.error(f"[FamPayVerify] IMAP login failure: {conn_err}")
+            fail_details["reason"] = f"IMAP connection/login failed: {conn_err}"
+            log_payment_audit(order_id, user_id, expected_amount, "failed", "IMAP connection/login failed")
+            _get_db()["payment_orders"].update_one(
+                {"order_id": order_id, "status": "Processing"},
+                {"$set": {"status": "Pending", "last_failure_reason": fail_details["reason"]}}
+            )
+            await send_fail_alert()
+            return False
+
+        try:
+            status, data = mail.select("INBOX", readonly=True)
+            if status != "OK" or not data[0]:
+                logger.error(f"[FamPayVerify] Inbox select failure: status={status}")
+                fail_details["reason"] = f"IMAP inbox selection failed (status={status})"
+                log_payment_audit(order_id, user_id, expected_amount, "failed", "IMAP selection failed")
+                _get_db()["payment_orders"].update_one(
+                    {"order_id": order_id, "status": "Processing"},
+                    {"$set": {"status": "Pending", "last_failure_reason": fail_details["reason"]}}
+                )
+                await send_fail_alert()
+                return False
             
-            msg = email.message_from_bytes(raw_email)
-            subject = ""
-            subject_header = msg["Subject"]
-            if subject_header:
-                decoded = decode_header(subject_header)[0]
-                subject_val = decoded[0]
-                subject = subject_val.decode(decoded[1] or "utf-8", errors="ignore") if isinstance(subject_val, bytes) else str(subject_val)
+            logger.info(f"[FamPayVerify] Inbox select success")
 
-            email_dt = None
-            date_header = msg["Date"]
-            if date_header:
-                try:
-                    email_dt = parsedate_to_datetime(date_header)
-                    email_dt = email_dt.replace(tzinfo=timezone.utc) if email_dt.tzinfo is None else email_dt.astimezone(timezone.utc)
-                except Exception:
-                    pass
-
-            from_header = msg["From"] or ""
-            from_str = from_header.lower()
-            is_fampay_sender = any(x in from_str for x in ["no-reply@famapp.in", "famapp", "famx"])
+            # IMAP Performance Fix (sequence indices fetch)
+            total_msgs = int(data[0])
+            start = max(1, total_msgs - 29)
+            message_ids = [str(i) for i in range(start, total_msgs + 1)]
             
-            sub_lower = subject.lower()
-            is_fampay_subject = any(x in sub_lower for x in ["received", "payment received", "money received", "account"])
+            logger.info(f"[FamPayVerify] Number of emails scanned: {len(message_ids)}")
             
-            if not (is_fampay_sender or is_fampay_subject):
-                continue
-
-            body = ""
-            if msg.is_multipart():
-                for part in msg.walk():
-                    content_type = part.get_content_type()
-                    content_disposition = str(part.get_content_disposition())
-                    if content_type in ("text/plain", "text/html") and "attachment" not in content_disposition:
-                        payload = part.get_payload(decode=True)
-                        if payload: body += payload.decode("utf-8", errors="ignore")
-            else:
-                payload = msg.get_payload(decode=True)
-                if payload: body = payload.decode("utf-8", errors="ignore")
-
-            full_text = (subject + "\n" + body)
-            parsed = parse_fampay_email(full_text)
-            if not parsed: continue
-
-            email_amount = parsed.get("amount")
-            email_sender = parsed.get("sender_name") or ""
-            email_utr = parsed.get("utr") or ""
-            email_tx_id = parsed.get("transaction_id") or ""
-            email_purpose = parsed.get("purpose") or ""
-
-            order_id_normalized = normalize_order_id(order_id)
-            purpose_normalized = normalize_order_id(email_purpose)
-
-            is_match = False
-            match_type = ""
-
-            if email_purpose and purpose_normalized == order_id_normalized:
-                is_match = True
-                match_type = "Order ID Match"
+            db = _get_db()
+            order_dt = datetime.fromisoformat(order["created_at"]).replace(tzinfo=timezone.utc)
             
-            if not is_match:
+            for msg_id in reversed(message_ids):
+                status, data = mail.fetch(msg_id, "(RFC822)")
+                if status != "OK" or not data: continue
+
+                raw_email = data[0][1]
+                if not raw_email: continue
+                
+                msg = email.message_from_bytes(raw_email)
+                subject = ""
+                subject_header = msg["Subject"]
+                if subject_header:
+                    decoded = decode_header(subject_header)[0]
+                    subject_val = decoded[0]
+                    subject = subject_val.decode(decoded[1] or "utf-8", errors="ignore") if isinstance(subject_val, bytes) else str(subject_val)
+
+                email_dt = None
+                date_header = msg["Date"]
+                if date_header:
+                    try:
+                        email_dt = parsedate_to_datetime(date_header)
+                        email_dt = email_dt.replace(tzinfo=timezone.utc) if email_dt.tzinfo is None else email_dt.astimezone(timezone.utc)
+                    except Exception:
+                        pass
+
+                from_header = msg["From"] or ""
+                from_str = from_header.lower()
+                is_fampay_sender = any(x in from_str for x in ["no-reply@famapp.in", "famapp", "famx"])
+                
+                sub_lower = subject.lower()
+                is_fampay_subject = any(x in sub_lower for x in ["received", "payment received", "money received", "account"])
+                
+                if not (is_fampay_sender or is_fampay_subject):
+                    continue
+
+                body = ""
+                if msg.is_multipart():
+                    for part in msg.walk():
+                        content_type = part.get_content_type()
+                        content_disposition = str(part.get_content_disposition())
+                        if content_type in ("text/plain", "text/html") and "attachment" not in content_disposition:
+                            payload = part.get_payload(decode=True)
+                            if payload: body += payload.decode("utf-8", errors="ignore")
+                else:
+                    payload = msg.get_payload(decode=True)
+                    if payload: body = payload.decode("utf-8", errors="ignore")
+
+                full_text = (subject + "\n" + body)
+                parsed = parse_fampay_email(full_text)
+                if not parsed: continue
+
+                email_amount = parsed.get("amount")
+                email_sender = parsed.get("sender_name") or ""
+                email_utr = parsed.get("utr") or ""
+                email_tx_id = parsed.get("transaction_id") or ""
+                email_purpose = parsed.get("purpose") or ""
+
+                logger.info(
+                    f"[FamPayVerify] FamApp email found!\n"
+                    f"SUBJECT: {subject}\n"
+                    f"FROM: {from_header}\n"
+                    f"TRANSACTION_ID: {email_tx_id}\n"
+                    f"UTR: {email_utr}\n"
+                    f"AMOUNT: {email_amount}\n"
+                    f"PURPOSE: {email_purpose}"
+                )
+
+                order_id_normalized = normalize_order_id(order_id)
+                purpose_normalized = normalize_order_id(email_purpose)
+
+                order_match_result = (purpose_normalized == order_id_normalized)
+                
+                # Check parsed order ID as fallback
                 order_id_match = re.search(r'HZ-[A-Z0-9]{6}', full_text, re.IGNORECASE)
                 extracted_order_id = order_id_match.group(0).upper() if order_id_match else None
-                if extracted_order_id and extracted_order_id == order_id:
-                    is_match = True
-                    match_type = "Order ID Match (parsed)"
-
-            if not is_match:
-                amount_matches = abs(email_amount - expected_amount) < 0.01 if email_amount is not None else False
-                time_matches = abs((email_dt - order_dt).total_seconds()) <= 15 * 60 if email_dt else False
                 
-                user_matches = False
+                order_match = bool(order_match_result or (extracted_order_id and extracted_order_id == order_id))
+                amount_match = abs(email_amount - expected_amount) < 0.01 if email_amount is not None else False
+                time_match = abs((email_dt - order_dt).total_seconds()) <= 15 * 60 if email_dt else False
+                
+                user_match = False
                 email_sender_clean = email_sender.lower().strip()
                 tg_first_name = str(order.get("first_name", "")).lower().strip()
                 tg_username = str(order.get("username", "")).lower().strip()
 
                 if email_sender_clean:
                     if tg_first_name and (tg_first_name in email_sender_clean or email_sender_clean in tg_first_name):
-                        user_matches = True
+                        user_match = True
                     elif tg_username and (tg_username in email_sender_clean or email_sender_clean in tg_username):
-                        user_matches = True
+                        user_match = True
 
-                if amount_matches and time_matches and user_matches:
+                logger.info(
+                    f"[FamPayVerify] Normalization values:\n"
+                    f"ORDER_ID_RAW: {order_id}\n"
+                    f"PURPOSE_RAW: {email_purpose}\n"
+                    f"ORDER_ID_NORMALIZED: {order_id_normalized}\n"
+                    f"PURPOSE_NORMALIZED: {purpose_normalized}\n"
+                    f"MATCH_RESULT: {order_match_result}"
+                )
+
+                logger.info(
+                    f"[FamPayVerify] Final decision inputs:\n"
+                    f"ORDER_MATCH = {str(order_match).upper()}\n"
+                    f"AMOUNT_MATCH = {str(amount_match).upper()}\n"
+                    f"TIME_MATCH = {str(time_match).upper()}\n"
+                    f"USER_MATCH = {str(user_match).upper()}"
+                )
+
+                is_match = False
+                match_type = ""
+                if order_match:
+                    is_match = True
+                    match_type = "Order ID Match (parsed)" if extracted_order_id and extracted_order_id == order_id and not order_match_result else "Order ID Match"
+                elif amount_match and time_match and user_match:
                     is_match = True
                     match_type = f"Fallback Match ({email_sender})"
 
-            # Debug logs showing required format
-            logger.info(
-                f"[FamPayVerify] Match debug logs:\n"
-                f"ORDER_ID_RAW: {order_id}\n"
-                f"PURPOSE_RAW: {email_purpose}\n"
-                f"ORDER_ID_NORMALIZED: {order_id_normalized}\n"
-                f"PURPOSE_NORMALIZED: {purpose_normalized}\n"
-                f"MATCH_RESULT: {is_match}"
-            )
+                # If this email is relevant to the order (matches ID or amount/time), update fail details in case duplicate checks fail
+                if order_match or (amount_match and time_match):
+                    fail_details["purpose"] = email_purpose or "N/A"
+                    fail_details["utr"] = email_utr or "N/A"
+                    fail_details["tx_id"] = email_tx_id or "N/A"
+                    if not is_match:
+                        if not amount_match:
+                            fail_details["reason"] = "AmountMismatch"
+                            logger.info(f"[FamPayVerify] Email skipped. SKIPPED_REASON=AmountMismatch (Expected: {expected_amount}, Got: {email_amount})")
+                        elif not time_match:
+                            fail_details["reason"] = "TimeMismatch"
+                            logger.info(f"[FamPayVerify] Email skipped. SKIPPED_REASON=TimeMismatch (Order Time: {order_dt}, Email Time: {email_dt})")
+                        elif not user_match:
+                            fail_details["reason"] = "OrderMismatch"
+                            logger.info(f"[FamPayVerify] Email skipped. SKIPPED_REASON=OrderMismatch (User mismatch: Telegram name: {tg_first_name}, username: {tg_username} vs Email Sender: {email_sender})")
+                    else:
+                        fail_details["reason"] = "Verification passed but duplicate transaction check failed"
 
-            if not is_match:
-                reasons = []
-                reasons.append(f"Order ID mismatch (Purpose normalized: '{purpose_normalized}' vs Order normalized: '{order_id_normalized}')")
-                
-                order_id_match = re.search(r'HZ-[A-Z0-9]{6}', full_text, re.IGNORECASE)
-                extracted_order_id = order_id_match.group(0).upper() if order_id_match else None
-                if not extracted_order_id:
-                    reasons.append("Regex Order ID pattern 'HZ-[A-Z0-9]{6}' not found in email text")
-                elif extracted_order_id != order_id:
-                    reasons.append(f"Regex extracted Order ID '{extracted_order_id}' does not match expected '{order_id}'")
-                
-                amount_matches = abs(email_amount - expected_amount) < 0.01 if email_amount is not None else False
-                time_matches = abs((email_dt - order_dt).total_seconds()) <= 15 * 60 if email_dt else False
-                user_matches = False
-                email_sender_clean = email_sender.lower().strip()
-                tg_first_name = str(order.get("first_name", "")).lower().strip()
-                tg_username = str(order.get("username", "")).lower().strip()
-                if email_sender_clean:
-                    if tg_first_name and (tg_first_name in email_sender_clean or email_sender_clean in tg_first_name):
-                        user_matches = True
-                    elif tg_username and (tg_username in email_sender_clean or email_sender_clean in tg_username):
-                        user_matches = True
+                if not is_match:
+                    if not order_match:
+                        logger.info(f"[FamPayVerify] Email skipped. SKIPPED_REASON=OrderMismatch (No Order ID match and fallback check failed)")
+                    continue
 
-                fallback_reasons = []
-                if not amount_matches:
-                    fallback_reasons.append(f"Amount mismatch (Expected: {expected_amount}, Email: {email_amount})")
-                if not time_matches:
-                    fallback_reasons.append(f"Time mismatch (Order Time: {order_dt}, Email Time: {email_dt})")
-                if not user_matches:
-                    fallback_reasons.append(f"User mismatch (Telegram Name: '{tg_first_name}', Username: '{tg_username}' vs Email Sender: '{email_sender}')")
-                
-                if fallback_reasons:
-                    reasons.append(f"Fallback verification failed: {', '.join(fallback_reasons)}")
-                
-                reason_str = "; ".join(reasons)
-                logger.info(f"[FamPayVerify] Verification failed. Exact reason: {reason_str}")
-
-            if is_match:
-                tx_exists = False
-                if email_tx_id: tx_exists = bool(db["payment_transactions"].find_one({"transaction_id": email_tx_id}))
-                if not tx_exists and email_utr: tx_exists = bool(db["payment_transactions"].find_one({"utr": email_utr}))
+                tx_exists_id = False
+                tx_exists_utr = False
+                if email_tx_id: tx_exists_id = bool(db["payment_transactions"].find_one({"transaction_id": email_tx_id}))
+                if email_utr: tx_exists_utr = bool(db["payment_transactions"].find_one({"utr": email_utr}))
                     
-                if tx_exists:
-                    log_payment_audit(order_id, user_id, expected_amount, "failed", f"Duplicate Tx/UTR (Tx: {email_tx_id}, UTR: {email_utr})", email_tx_id, email_utr)
+                if tx_exists_id:
+                    logger.info(f"[FamPayVerify] Email skipped. SKIPPED_REASON=DuplicateTransactionID (Transaction ID {email_tx_id} already exists)")
+                    fail_details["reason"] = "DuplicateTransactionID"
+                    log_payment_audit(order_id, user_id, expected_amount, "failed", f"Duplicate Tx (Tx: {email_tx_id}, UTR: {email_utr})", email_tx_id, email_utr)
+                    continue
+                elif tx_exists_utr:
+                    logger.info(f"[FamPayVerify] Email skipped. SKIPPED_REASON=DuplicateUTR (UTR {email_utr} already exists)")
+                    fail_details["reason"] = "DuplicateUTR"
+                    log_payment_audit(order_id, user_id, expected_amount, "failed", f"Duplicate UTR (Tx: {email_tx_id}, UTR: {email_utr})", email_tx_id, email_utr)
                     continue
 
                 # ── Paid ──
                 db["payment_orders"].update_one(
                     {"order_id": order_id},
-                    {"$set": {"status": "Paid", "paid_at": datetime.now(timezone.utc).isoformat()}}
+                    {"$set": {"status": "Paid", "paid_at": datetime.now(timezone.utc).isoformat(), "verified_purpose": email_purpose}}
                 )
                 
                 tx_record = {
@@ -5851,6 +5977,7 @@ async def execute_fampay_email_verification(context, order: dict) -> bool:
                     db["payment_transactions"].insert_one(tx_record)
                 except Exception:
                     log_payment_audit(order_id, user_id, expected_amount, "failed", "Payment insert constraint violation", email_tx_id, email_utr)
+                    fail_details["reason"] = "Payment insert constraint violation"
                     continue
                 
                 log_payment_audit(order_id, user_id, expected_amount, "success", f"Payment Success ({match_type})", email_tx_id, email_utr)
@@ -5888,7 +6015,7 @@ async def execute_fampay_email_verification(context, order: dict) -> bool:
                 # ── Reserved ──
                 db["payment_orders"].update_one(
                     {"order_id": order_id},
-                    {"$set": {"status": "Reserved", "coupon_codes": assigned, "reserved_at": datetime.now(timezone.utc).isoformat()}}
+                    {"$set": {"status": "Reserved", "coupon_codes": assigned, "reserved_at": datetime.now(timezone.utc).isoformat(), "verified_purpose": email_purpose}}
                 )
                 save_coupons(coupons)
                 log_payment_audit(order_id, user_id, expected_amount, "success", "Coupon stock reserved", email_tx_id, email_utr)
@@ -5924,14 +6051,14 @@ async def execute_fampay_email_verification(context, order: dict) -> bool:
                         "order_id": order_id, "user_id": int(user_id), "username": order.get("username") or "",
                         "first_name": order.get("first_name") or "", "product": product_id, "quantity": quantity,
                         "total": expected_amount, "status": "approved", "coupon_codes": assigned,
-                        "approved_at": datetime.now().isoformat(), "via": "fampay"
+                        "approved_at": datetime.now.isoformat(), "via": "fampay"
                     }
                     main_orders[order_id] = legacy_order
                     save_orders(main_orders)
 
                     db["payment_orders"].update_one(
                         {"order_id": order_id},
-                        {"$set": {"status": "Delivered", "delivered_at": datetime.now(timezone.utc).isoformat()}}
+                        {"$set": {"status": "Delivered", "delivered_at": datetime.now(timezone.utc).isoformat(), "verified_purpose": email_purpose}}
                     )
                     log_payment_audit(order_id, user_id, expected_amount, "success", "Coupon Delivered", email_tx_id, email_utr)
 
@@ -5955,18 +6082,27 @@ async def execute_fampay_email_verification(context, order: dict) -> bool:
                     pass
                 return True
 
-        log_payment_audit(order_id, user_id, expected_amount, "failed", "No matching email found", None, None)
-        db["payment_orders"].update_one({"order_id": order_id, "status": "Processing"}, {"$set": {"status": "Pending"}})
-        return False
+            logger.info(f"[FamPayVerify] No matching email found after scanning all messages")
+            db["payment_orders"].update_one(
+                {"order_id": order_id, "status": "Processing"},
+                {"$set": {"status": "Pending", "last_failure_reason": fail_details["reason"]}}
+            )
+            await send_fail_alert()
+            return False
+        finally:
+            if mail:
+                try: mail.logout()
+                except Exception: pass
     except Exception as e:
-        logger.error(f"Email check crashed: {e}")
-        db["payment_orders"].update_one({"order_id": order_id, "status": "Processing"}, {"$set": {"status": "Pending"}})
+        tb = traceback.format_exc()
+        logger.error(f"[FamPayVerify] Exception in verification flow for order {order_id}:\n{tb}")
+        fail_details["reason"] = f"Exception: {e}"
+        _get_db()["payment_orders"].update_one(
+            {"order_id": order_id, "status": "Processing"},
+            {"$set": {"status": "Pending", "last_failure_reason": fail_details["reason"]}}
+        )
+        await send_fail_alert()
         return False
-    finally:
-        if mail:
-            try: mail.logout()
-            except Exception: pass
-
 def log_payment_audit(order_id, user_id, amount, status, reason, transaction_id=None, utr=None):
     try:
         _get_db()["payment_audit_logs"].insert_one({
